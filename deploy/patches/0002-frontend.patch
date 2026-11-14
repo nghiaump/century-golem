@@ -130,7 +130,23 @@
    }
  
    const canClaimPointCard = (card) => {
-@@ -267,43 +267,8 @@
+@@ -255,10 +255,12 @@
+           </div>
+         )}
+ 
+-        {/* Row 1 - ALL Players in one row (auto height) */}
+-        <div className="flex gap-2 sm:gap-3 justify-center items-center flex-wrap overflow-x-auto">
++        {/* Row 1 - ALL Players in one row (auto height). Side padding keeps the cards clear of the
++            floating buttons (✨ skin toggle top-left; sound + activity feed top-right, ~120px); cards
++            shrink between 11rem and 16rem so 5 players fit in one row instead of running under them. */}
++        <div className="flex gap-2 sm:gap-3 justify-center items-center flex-wrap px-12 sm:px-32">
+           {otherPlayers.map((player) => (
+-            <div key={player.id || player.name} className="w-48 sm:w-64 flex-shrink-0">
++            <div key={player.id || player.name} className="flex-1 min-w-[11rem] max-w-[16rem]">
+               {/* In waiting mode, don't highlight current player (currentPlayer is 0/null) */}
+               <PlayerCard player={player} isCurrentPlayer={!isWaiting && currentPlayer?.id === player.id} />
+             </div>
+@@ -267,43 +269,8 @@
  
          {/* Waiting Mode UI - spans rows 2-4 */}
          {isWaiting && (
@@ -176,7 +192,7 @@
            </div>
          )}
  
-@@ -476,9 +441,10 @@
+@@ -476,9 +443,10 @@
                    <div className="flex items-center gap-3">
                      {/* Avatar & Name */}
                      <div className="flex items-center gap-2">
@@ -190,7 +206,7 @@
                        <div className="text-white font-bold text-sm">{myPlayer?.name || 'You'}</div>
                      </div>
  
-@@ -533,7 +499,11 @@
+@@ -533,7 +501,11 @@
                          Your Turn
                        </div>
                      ) : (
@@ -522,7 +538,7 @@
 -                          : "border-white/30 hover:border-white/50"
 -                      }
 -                    `}
-+                    className="xp-avatar touch-target"
++                    className="xp-avatar"
 +                    aria-pressed={selectedAvatar === num.toString()}
 +                    aria-label={`Avatar ${num}`}
                    >
@@ -1116,16 +1132,22 @@
              <div 
                className={`
                  absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white shadow
-@@ -55,7 +59,8 @@
+@@ -53,10 +57,11 @@
+         </div>
+         
          {/* Name */}
-         <div className={`text-white font-bold text-sm flex-1 ${player.online === false ? 'opacity-60' : ''}`}>
-           {player.name || 'Player'}
+-        <div className={`text-white font-bold text-sm flex-1 ${player.online === false ? 'opacity-60' : ''}`}>
+-          {player.name || 'Player'}
 -          {player.online === false && (
-+          {player.isAI && <AiLevelBadge level={player.aiLevel} />}
+-            <span className="text-gray-400 text-xs ml-1">(offline)</span>
++        <div className={`text-white font-bold text-sm flex-1 min-w-0 flex items-center ${player.online === false ? 'opacity-60' : ''}`}>
++          <span className="truncate" title={player.name || 'Player'}>{player.name || 'Player'}</span>
++          {player.isAI && <AiLevelBadge level={player.aiLevel} className="flex-shrink-0" />}
 +          {!player.isAI && player.online === false && (
-             <span className="text-gray-400 text-xs ml-1">(offline)</span>
++            <span className="text-gray-400 text-xs ml-1 flex-shrink-0">(offline)</span>
            )}
          </div>
+         
 --- a/web/react-frontend/src/components/PlayersInfoBar.jsx
 +++ b/web/react-frontend/src/components/PlayersInfoBar.jsx
 @@ -1,5 +1,8 @@
@@ -1137,12 +1159,21 @@
  
  // Timer Ring around avatar
  const TimerRing = ({ duration = 60 }) => {
-@@ -47,20 +50,27 @@
+@@ -41,26 +44,34 @@
+   return (
+     <div data-players-info-bar className="w-full flex-shrink-0 py-1.5 px-2 bg-black/60">
+       <div className="flex items-center justify-center gap-2 flex-wrap">
+-        {otherPlayers.map((player) => {
++        {otherPlayers.map((player, i) => {
+           const isCurrentTurn = currentPlayer?.id === player.id
+           
            return (
              <div
-               key={player.id}
+-              key={player.id}
 -              className={`flex items-center gap-2 px-2 py-1 rounded-xl ${isCurrentTurn ? 'bg-yellow-500/20' : 'bg-white/5'}`}
-+              className={`relative flex items-center gap-2 px-2 py-1 rounded-xl ${isCurrentTurn ? 'bg-yellow-500/20' : 'bg-white/5'}`}
++              // waiting-room rows all have id 0: keying on id alone left ghost rows after the game started
++              key={player.id ? `p${player.id}` : `w${i}-${player.name}`}
++              className={`relative flex items-center gap-2 px-2 py-1 rounded-xl max-w-[13rem] ${isCurrentTurn ? 'bg-yellow-500/20' : 'bg-white/5'}`}
              >
 +              {/* AI thinking: overlaid, so the row keeps its size (no layout shift) */}
 +              {isCurrentTurn && player.isAI && gameState.aiThinking?.playerID === player.id && (
@@ -1176,9 +1207,12 @@
                    <div 
                      className={`
                        absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white shadow
-@@ -77,7 +87,8 @@
+@@ -75,9 +86,10 @@
+               <div className="flex flex-col text-[10px]">
+                 {/* Row 1: Name + Points */}
                  <div className="flex items-center gap-1">
-                   <span className={`text-white font-medium ${player.online === false ? 'opacity-60' : ''}`}>
+-                  <span className={`text-white font-medium ${player.online === false ? 'opacity-60' : ''}`}>
++                  <span className={`text-white font-medium truncate max-w-[6.5rem] ${player.online === false ? 'opacity-60' : ''}`}>
                      {player.name}
 -                    {player.online === false && <span className="text-gray-400 ml-1">(offline)</span>}
 +                    {player.isAI && <AiLevelBadge level={player.aiLevel} />}
@@ -1188,7 +1222,7 @@
                  </div>
 --- a/web/react-frontend/src/components/SinglePlayerLobby.jsx
 +++ b/web/react-frontend/src/components/SinglePlayerLobby.jsx
-@@ -1,20 +1,23 @@
+@@ -1,25 +1,24 @@
  import React, { useState } from 'react'
 -import { motion } from 'framer-motion'
  import { createLogger } from '../utils/logger'
@@ -1212,12 +1246,18 @@
  
 -  const avatars = ['1', '2', '3', '4']
 -  const difficulties = [
+-    { value: 1, label: isMobile ? '1 AI (2P)' : '1 AI Opponent (2 Players)' },
+-    { value: 2, label: isMobile ? '2 AI (3P)' : '2 AI Opponents (3 Players)' },
+-    { value: 3, label: isMobile ? '3 AI (4P)' : '3 AI Opponents (4 Players)' },
+-    { value: 4, label: isMobile ? '4 AI (5P)' : '4 AI Opponents (5 Players)' },
+-  ]
 +  const avatars = AVATAR_IDS
-+  const opponentCounts = [
-     { value: 1, label: isMobile ? '1 AI (2P)' : '1 AI Opponent (2 Players)' },
-     { value: 2, label: isMobile ? '2 AI (3P)' : '2 AI Opponents (3 Players)' },
-     { value: 3, label: isMobile ? '3 AI (4P)' : '3 AI Opponents (4 Players)' },
-@@ -29,12 +32,14 @@
++  // one compact row (the status bar shows the total number of players)
++  const opponentCounts = [1, 2, 3, 4].map((n) => ({ value: n, label: `${n} AI`, title: `${n} AI opponent${n > 1 ? 's' : ''} (${n + 1} players)` }))
+ 
+   const startGame = async () => {
+     setLoading(true)
+@@ -29,12 +28,14 @@
          headers: { 'Content-Type': 'application/json' },
          body: JSON.stringify({
            numAI,
@@ -1232,7 +1272,7 @@
          onStartGame(data.sessionID, playerName, selectedAvatar)
        } else {
          logger.error('Failed to create single-player game:', data.error)
-@@ -49,125 +54,91 @@
+@@ -49,91 +50,62 @@
    }
  
    return (
@@ -1322,9 +1362,9 @@
 -                  `}
 -                >
 +            <span className="xp-field-label">AI Opponents</span>
-+            <div className="xp-list" role="radiogroup">
++            <div className="xp-list xp-list--row" role="radiogroup" aria-label="Number of AI opponents">
 +              {opponentCounts.map((diff) => (
-+                <label key={diff.value} className="xp-list-item" data-selected={numAI === diff.value}>
++                <label key={diff.value} className="xp-list-item" data-selected={numAI === diff.value} title={diff.title}>
                    <input
                      type="radio"
                      name="numAI"
@@ -1360,13 +1400,7 @@
                  </label>
                ))}
              </div>
-+            {difficulty === 'veryhard' && (
-+              <p className="xp-note mt-2">
-+                All AIs play as one team against you and may sacrifice their own score to stop you. The highest
-+                score still wins. With a single AI, Very Hard simply searches deeper.
-+              </p>
-+            )}
-           </div>
+@@ -141,33 +113,22 @@
  
            {/* Avatar Selection */}
            <div>
@@ -1392,7 +1426,7 @@
 -                      : 'ring-2 ring-white/30'
 -                    }
 -                  `}
-+                  className="xp-avatar touch-target"
++                  className="xp-avatar"
 +                  aria-pressed={selectedAvatar === avatar}
 +                  aria-label={`Avatar ${avatar}`}
                  >
@@ -1408,7 +1442,7 @@
                      }}
                    />
                  </button>
-@@ -175,38 +146,22 @@
+@@ -175,38 +136,22 @@
              </div>
            </div>
  
@@ -1462,9 +1496,33 @@
      </div>
    )
  }
+--- a/web/react-frontend/src/components/SoundToggleButton.jsx
++++ b/web/react-frontend/src/components/SoundToggleButton.jsx
+@@ -1,9 +1,11 @@
+ import React from 'react';
+ import useGameStore from '../store/gameStore';
+ import soundManager from '../utils/sounds';
++import useOrientation from '../hooks/useOrientation';
+ 
+ export default function SoundToggleButton() {
+   const { soundsMuted, toggleSoundsMuted } = useGameStore();
++  const { isMobile } = useOrientation();
+ 
+   const handleToggle = () => {
+     const newMutedState = toggleSoundsMuted();
+@@ -13,7 +15,8 @@
+   return (
+     <button
+       onClick={handleToggle}
+-      className="fixed top-4 right-20 z-50 p-2 bg-gray-800/80 hover:bg-gray-700/90 text-white rounded-lg shadow-lg transition-all duration-200 backdrop-blur-sm border border-gray-600/50"
++      // phone: stacked under the activity-feed button in the right gutter, clear of the players bar
++      className={`fixed ${isMobile ? 'top-14 right-2' : 'top-4 right-20'} z-50 p-2 bg-gray-800/80 hover:bg-gray-700/90 text-white rounded-lg shadow-lg transition-all duration-200 backdrop-blur-sm border border-gray-600/50`}
+       title={soundsMuted ? 'Unmute sounds' : 'Mute sounds'}
+       aria-label={soundsMuted ? 'Unmute sounds' : 'Mute sounds'}
+     >
 --- a/web/react-frontend/src/components/__tests__/SinglePlayerLobby.test.jsx
 +++ b/web/react-frontend/src/components/__tests__/SinglePlayerLobby.test.jsx
-@@ -0,0 +1,41 @@
+@@ -0,0 +1,40 @@
 +import React from 'react'
 +import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
 +import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest'
@@ -1499,11 +1557,10 @@
 +    expect(body.numAI).toBe(1)
 +  })
 +
-+  test('discloses the coalition for Very Hard', () => {
++  test('Very Hard shows no extra note about how the AIs play', () => {
 +    render(<SinglePlayerLobby onStartGame={() => {}} onBack={() => {}} />)
-+    expect(screen.queryByText(/play as one team against you/i)).toBeNull()
 +    fireEvent.click(screen.getByDisplayValue('veryhard'))
-+    expect(screen.getByText(/All AIs play as one team against you/i)).toBeTruthy()
++    expect(screen.queryByText(/one team/i)).toBeNull()
 +  })
 +})
 --- a/web/react-frontend/src/components/Toast.jsx
@@ -2011,7 +2068,7 @@
          if (get().onChatMessage) {
 --- a/web/react-frontend/src/theme-xp.css
 +++ b/web/react-frontend/src/theme-xp.css
-@@ -0,0 +1,349 @@
+@@ -0,0 +1,356 @@
 +/*
 + * Windows XP × brutalism theme for the pre-game screens: mode menu, lobbies, connecting dialog, waiting room.
 + * XP: Luna blue title bars, beige window face, Tahoma, green "go" buttons, marquee progress bar.
@@ -2274,29 +2331,36 @@
 +.xp-list-item:hover { background: var(--xp-hover); }
 +.xp-list-item[data-selected="true"] { background: var(--xp-select); color: #fff; }
 +.xp-list-item input[type="radio"] { width: 16px; height: 16px; accent-color: #2f8a2f; }
++/* Compact one-row variant (e.g. number of AI opponents) — keeps the lobby within one screen */
++.xp-list--row { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); }
++.xp-list--row .xp-list-item { justify-content: center; gap: 6px; padding: 7px 6px; border-bottom: none; border-right: 1px dotted #9a9a90; white-space: nowrap; }
++.xp-list--row .xp-list-item:last-child { border-right: none; }
 +
 +/* Avatar picker */
 +.xp-avatar-grid {
 +  display: grid;
-+  grid-template-columns: repeat(5, minmax(0, 1fr));
-+  gap: 8px;
++  /* half-size tiles (was 5 columns): 23 avatars fit in 3 rows, so the lobby does not scroll */
++  grid-template-columns: repeat(10, minmax(0, 1fr));
++  gap: 5px;
 +}
 +.xp-avatar {
 +  aspect-ratio: 1;
++  min-width: 0;  /* index.css forces 44×44 buttons on touch screens; avatar tiles are deliberately smaller */
++  min-height: 0;
 +  padding: 0;
 +  overflow: hidden;
 +  background: var(--xp-smb-sky);
 +  border: 2px solid var(--xp-ink);
-+  box-shadow: 2px 2px 0 var(--xp-ink);
++  box-shadow: 1px 1px 0 var(--xp-ink);
 +  cursor: pointer;
 +}
 +.xp-avatar img { display: block; width: 100%; height: 100%; object-fit: cover; }
 +.xp-avatar:hover { border-color: var(--xp-select); }
 +.xp-avatar[aria-pressed="true"] {
-+  outline: 4px solid var(--xp-orange);
++  outline: 3px solid var(--xp-orange);
 +  outline-offset: 0;
 +  border-color: var(--xp-ink);
-+  box-shadow: 4px 4px 0 var(--xp-ink);
++  box-shadow: 2px 2px 0 var(--xp-ink);
 +}
 +
 +/* Notes / balloons */
@@ -2356,7 +2420,7 @@
 +  .xp-heading { font-size: 19px; }
 +  .xp-tile-icons img { width: 44px; height: 44px; }
 +  .xp-tile-title { font-size: 16px; }
-+  .xp-avatar-grid { gap: 6px; }
++  .xp-avatar-grid { grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px; } /* ~39px tiles on a 390px phone */
 +}
 +@media (prefers-reduced-motion: reduce) {
 +  .xp-progress::before { animation: none; left: 0; width: 100%; }
@@ -2374,7 +2438,7 @@
 +  { value: 'hard', label: 'Hard', badge: 'orange', board: 'bg-amber-500/80',
 +    description: 'Searches deeper, reads your plan and blocks whoever is leading.' },
 +  { value: 'veryhard', label: 'Very Hard', badge: 'red', board: 'bg-rose-600/80',
-+    description: 'Deepest search. Every AI plays as one team against you.' },
++    description: 'The toughest opponents. Good luck.' },
 +]
 +
 +export const DEFAULT_AI_LEVEL = 'medium'

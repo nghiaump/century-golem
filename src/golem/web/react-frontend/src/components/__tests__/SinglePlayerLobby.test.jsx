@@ -32,10 +32,9 @@ describe('SinglePlayerLobby', () => {
     expect(body.numAI).toBe(1)
   })
 
-  test('discloses the coalition for Very Hard', () => {
+  test('Very Hard shows no extra note about how the AIs play', () => {
     render(<SinglePlayerLobby onStartGame={() => {}} onBack={() => {}} />)
-    expect(screen.queryByText(/play as one team against you/i)).toBeNull()
     fireEvent.click(screen.getByDisplayValue('veryhard'))
-    expect(screen.getByText(/All AIs play as one team against you/i)).toBeTruthy()
+    expect(screen.queryByText(/one team/i)).toBeNull()
   })
 })

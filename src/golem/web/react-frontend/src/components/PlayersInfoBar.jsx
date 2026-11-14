@@ -44,13 +44,14 @@ const PlayersInfoBar = () => {
   return (
     <div data-players-info-bar className="w-full flex-shrink-0 py-1.5 px-2 bg-black/60">
       <div className="flex items-center justify-center gap-2 flex-wrap">
-        {otherPlayers.map((player) => {
+        {otherPlayers.map((player, i) => {
           const isCurrentTurn = currentPlayer?.id === player.id
           
           return (
             <div
-              key={player.id}
-              className={`relative flex items-center gap-2 px-2 py-1 rounded-xl ${isCurrentTurn ? 'bg-yellow-500/20' : 'bg-white/5'}`}
+              // waiting-room rows all have id 0: keying on id alone left ghost rows after the game started
+              key={player.id ? `p${player.id}` : `w${i}-${player.name}`}
+              className={`relative flex items-center gap-2 px-2 py-1 rounded-xl max-w-[13rem] ${isCurrentTurn ? 'bg-yellow-500/20' : 'bg-white/5'}`}
             >
               {/* AI thinking: overlaid, so the row keeps its size (no layout shift) */}
               {isCurrentTurn && player.isAI && gameState.aiThinking?.playerID === player.id && (
@@ -85,7 +86,7 @@ const PlayersInfoBar = () => {
               <div className="flex flex-col text-[10px]">
                 {/* Row 1: Name + Points */}
                 <div className="flex items-center gap-1">
-                  <span className={`text-white font-medium ${player.online === false ? 'opacity-60' : ''}`}>
+                  <span className={`text-white font-medium truncate max-w-[6.5rem] ${player.online === false ? 'opacity-60' : ''}`}>
                     {player.name}
                     {player.isAI && <AiLevelBadge level={player.aiLevel} />}
                     {!player.isAI && player.online === false && <span className="text-gray-400 ml-1">(offline)</span>}

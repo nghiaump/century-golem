@@ -17,12 +17,8 @@ const SinglePlayerLobby = ({ onStartGame, onBack }) => {
   const { isMobile } = useOrientation()
 
   const avatars = AVATAR_IDS
-  const opponentCounts = [
-    { value: 1, label: isMobile ? '1 AI (2P)' : '1 AI Opponent (2 Players)' },
-    { value: 2, label: isMobile ? '2 AI (3P)' : '2 AI Opponents (3 Players)' },
-    { value: 3, label: isMobile ? '3 AI (4P)' : '3 AI Opponents (4 Players)' },
-    { value: 4, label: isMobile ? '4 AI (5P)' : '4 AI Opponents (5 Players)' },
-  ]
+  // one compact row (the status bar shows the total number of players)
+  const opponentCounts = [1, 2, 3, 4].map((n) => ({ value: n, label: `${n} AI`, title: `${n} AI opponent${n > 1 ? 's' : ''} (${n + 1} players)` }))
 
   const startGame = async () => {
     setLoading(true)
@@ -79,9 +75,9 @@ const SinglePlayerLobby = ({ onStartGame, onBack }) => {
           {/* Number of AI Opponents */}
           <div>
             <span className="xp-field-label">AI Opponents</span>
-            <div className="xp-list" role="radiogroup">
+            <div className="xp-list xp-list--row" role="radiogroup" aria-label="Number of AI opponents">
               {opponentCounts.map((diff) => (
-                <label key={diff.value} className="xp-list-item" data-selected={numAI === diff.value}>
+                <label key={diff.value} className="xp-list-item" data-selected={numAI === diff.value} title={diff.title}>
                   <input
                     type="radio"
                     name="numAI"
@@ -113,12 +109,6 @@ const SinglePlayerLobby = ({ onStartGame, onBack }) => {
                 </label>
               ))}
             </div>
-            {difficulty === 'veryhard' && (
-              <p className="xp-note mt-2">
-                All AIs play as one team against you and may sacrifice their own score to stop you. The highest
-                score still wins. With a single AI, Very Hard simply searches deeper.
-              </p>
-            )}
           </div>
 
           {/* Avatar Selection */}
@@ -130,7 +120,7 @@ const SinglePlayerLobby = ({ onStartGame, onBack }) => {
                   type="button"
                   key={avatar}
                   onClick={() => setSelectedAvatar(avatar)}
-                  className="xp-avatar touch-target"
+                  className="xp-avatar"
                   aria-pressed={selectedAvatar === avatar}
                   aria-label={`Avatar ${avatar}`}
                 >

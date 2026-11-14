@@ -22,3 +22,9 @@ ghế sau. Lobby ghi rõ ở Very Hard: "All AIs play as one team against you…
 
 ## Phương án đã loại
 Liên minh ở cả Hard; không liên minh ở mọi cấp (người dùng chọn phương án hiện tại).
+
+## Cập nhật 2026-11-15
+Người dùng yêu cầu **bỏ dòng công bố liên minh** ở lobby ("All AIs play as one team…") và mô tả Very Hard chỉ còn
+"The toughest opponents. Good luck." — người chơi chỉ cần biết đây là mức khó nhất. Hành vi liên minh giữ nguyên; cờ
+`coalition` vẫn có trong state (không hiển thị).
+

@@ -260,29 +260,36 @@
 .xp-list-item:hover { background: var(--xp-hover); }
 .xp-list-item[data-selected="true"] { background: var(--xp-select); color: #fff; }
 .xp-list-item input[type="radio"] { width: 16px; height: 16px; accent-color: #2f8a2f; }
+/* Compact one-row variant (e.g. number of AI opponents) — keeps the lobby within one screen */
+.xp-list--row { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); }
+.xp-list--row .xp-list-item { justify-content: center; gap: 6px; padding: 7px 6px; border-bottom: none; border-right: 1px dotted #9a9a90; white-space: nowrap; }
+.xp-list--row .xp-list-item:last-child { border-right: none; }
 
 /* Avatar picker */
 .xp-avatar-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 8px;
+  /* half-size tiles (was 5 columns): 23 avatars fit in 3 rows, so the lobby does not scroll */
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 5px;
 }
 .xp-avatar {
   aspect-ratio: 1;
+  min-width: 0;  /* index.css forces 44×44 buttons on touch screens; avatar tiles are deliberately smaller */
+  min-height: 0;
   padding: 0;
   overflow: hidden;
   background: var(--xp-smb-sky);
   border: 2px solid var(--xp-ink);
-  box-shadow: 2px 2px 0 var(--xp-ink);
+  box-shadow: 1px 1px 0 var(--xp-ink);
   cursor: pointer;
 }
 .xp-avatar img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .xp-avatar:hover { border-color: var(--xp-select); }
 .xp-avatar[aria-pressed="true"] {
-  outline: 4px solid var(--xp-orange);
+  outline: 3px solid var(--xp-orange);
   outline-offset: 0;
   border-color: var(--xp-ink);
-  box-shadow: 4px 4px 0 var(--xp-ink);
+  box-shadow: 2px 2px 0 var(--xp-ink);
 }
 
 /* Notes / balloons */
@@ -342,7 +349,7 @@
   .xp-heading { font-size: 19px; }
   .xp-tile-icons img { width: 44px; height: 44px; }
   .xp-tile-title { font-size: 16px; }
-  .xp-avatar-grid { gap: 6px; }
+  .xp-avatar-grid { grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px; } /* ~39px tiles on a 390px phone */
 }
 @media (prefers-reduced-motion: reduce) {
   .xp-progress::before { animation: none; left: 0; width: 100%; }

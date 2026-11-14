@@ -80,7 +80,7 @@ Rules check: the official last round triggers on the **6th golem with 2–3 play
 - [Goodman & Lucas](https://ar5iv.labs.arxiv.org/html/2006.08659): MCTS is robust to inaccurate opponent models.
 - Utility shaping: logistic of (own − best other), with a margin term so the AI never plays aimlessly.
 - Fairness: research recommends AIs never coordinate against the human. **This project deliberately deviates for Very
-  Hard** (user decision, disclosed in the lobby — see [ADR 0004](../adr/0004-ham-loi-ich-theo-cap-va-lien-minh.md)).
+  Hard** (user decision; the lobby note was later removed at the user's request — see [ADR 0004](../adr/0004-ham-loi-ich-theo-cap-va-lien-minh.md)).
 
 ## 4. Difficulty design
 

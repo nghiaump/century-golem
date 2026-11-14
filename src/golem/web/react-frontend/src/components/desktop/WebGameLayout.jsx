@@ -255,10 +255,12 @@ const WebGameLayout = () => {
           </div>
         )}
 
-        {/* Row 1 - ALL Players in one row (auto height) */}
-        <div className="flex gap-2 sm:gap-3 justify-center items-center flex-wrap overflow-x-auto">
+        {/* Row 1 - ALL Players in one row (auto height). Side padding keeps the cards clear of the
+            floating buttons (✨ skin toggle top-left; sound + activity feed top-right, ~120px); cards
+            shrink between 11rem and 16rem so 5 players fit in one row instead of running under them. */}
+        <div className="flex gap-2 sm:gap-3 justify-center items-center flex-wrap px-12 sm:px-32">
           {otherPlayers.map((player) => (
-            <div key={player.id || player.name} className="w-48 sm:w-64 flex-shrink-0">
+            <div key={player.id || player.name} className="flex-1 min-w-[11rem] max-w-[16rem]">
               {/* In waiting mode, don't highlight current player (currentPlayer is 0/null) */}
               <PlayerCard player={player} isCurrentPlayer={!isWaiting && currentPlayer?.id === player.id} />
             </div>

@@ -255,7 +255,7 @@ const Lobby = ({ onJoinGame, onBack, initialRoomId = null }) => {
                     type="button"
                     key={num}
                     onClick={() => setSelectedAvatar(num.toString())}
-                    className="xp-avatar touch-target"
+                    className="xp-avatar"
                     aria-pressed={selectedAvatar === num.toString()}
                     aria-label={`Avatar ${num}`}
                   >

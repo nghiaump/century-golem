@@ -1,9 +1,11 @@
 import React from 'react';
 import useGameStore from '../store/gameStore';
 import soundManager from '../utils/sounds';
+import useOrientation from '../hooks/useOrientation';
 
 export default function SoundToggleButton() {
   const { soundsMuted, toggleSoundsMuted } = useGameStore();
+  const { isMobile } = useOrientation();
 
   const handleToggle = () => {
     const newMutedState = toggleSoundsMuted();
@@ -13,7 +15,8 @@ export default function SoundToggleButton() {
   return (
     <button
       onClick={handleToggle}
-      className="fixed top-4 right-20 z-50 p-2 bg-gray-800/80 hover:bg-gray-700/90 text-white rounded-lg shadow-lg transition-all duration-200 backdrop-blur-sm border border-gray-600/50"
+      // phone: stacked under the activity-feed button in the right gutter, clear of the players bar
+      className={`fixed ${isMobile ? 'top-14 right-2' : 'top-4 right-20'} z-50 p-2 bg-gray-800/80 hover:bg-gray-700/90 text-white rounded-lg shadow-lg transition-all duration-200 backdrop-blur-sm border border-gray-600/50`}
       title={soundsMuted ? 'Unmute sounds' : 'Mute sounds'}
       aria-label={soundsMuted ? 'Unmute sounds' : 'Mute sounds'}
     >

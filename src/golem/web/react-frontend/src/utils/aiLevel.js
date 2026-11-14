@@ -8,7 +8,7 @@ export const AI_LEVELS = [
   { value: 'hard', label: 'Hard', badge: 'orange', board: 'bg-amber-500/80',
     description: 'Searches deeper, reads your plan and blocks whoever is leading.' },
   { value: 'veryhard', label: 'Very Hard', badge: 'red', board: 'bg-rose-600/80',
-    description: 'Deepest search. Every AI plays as one team against you.' },
+    description: 'The toughest opponents. Good luck.' },
 ]
 
 export const DEFAULT_AI_LEVEL = 'medium'

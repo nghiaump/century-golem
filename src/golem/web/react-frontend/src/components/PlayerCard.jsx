@@ -57,11 +57,11 @@ const PlayerCard = ({ player, isCurrentPlayer }) => {
         </div>
         
         {/* Name */}
-        <div className={`text-white font-bold text-sm flex-1 ${player.online === false ? 'opacity-60' : ''}`}>
-          {player.name || 'Player'}
-          {player.isAI && <AiLevelBadge level={player.aiLevel} />}
+        <div className={`text-white font-bold text-sm flex-1 min-w-0 flex items-center ${player.online === false ? 'opacity-60' : ''}`}>
+          <span className="truncate" title={player.name || 'Player'}>{player.name || 'Player'}</span>
+          {player.isAI && <AiLevelBadge level={player.aiLevel} className="flex-shrink-0" />}
           {!player.isAI && player.online === false && (
-            <span className="text-gray-400 text-xs ml-1">(offline)</span>
+            <span className="text-gray-400 text-xs ml-1 flex-shrink-0">(offline)</span>
           )}
         </div>
         
