@@ -50,8 +50,14 @@ const PlayersInfoBar = () => {
           return (
             <div
               key={player.id}
-              className={`flex items-center gap-2 px-2 py-1 rounded-xl ${isCurrentTurn ? 'bg-yellow-500/20' : 'bg-white/5'}`}
+              className={`relative flex items-center gap-2 px-2 py-1 rounded-xl ${isCurrentTurn ? 'bg-yellow-500/20' : 'bg-white/5'}`}
             >
+              {/* AI thinking: overlaid, so the row keeps its size (no layout shift) */}
+              {isCurrentTurn && player.isAI && gameState.aiThinking?.playerID === player.id && (
+                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 z-10 px-1.5 rounded-full bg-purple-800/90 text-[9px] leading-4 whitespace-nowrap pointer-events-none">
+                  <AiThinkingIndicator />
+                </div>
+              )}
               {/* Avatar with timer ring for current turn */}
               <div className="relative">
                 {isCurrentTurn && !player.isAI && <TimerRing duration={gameState.turnTimeout || 60} />}
@@ -84,9 +90,6 @@ const PlayersInfoBar = () => {
                     {player.isAI && <AiLevelBadge level={player.aiLevel} />}
                     {!player.isAI && player.online === false && <span className="text-gray-400 ml-1">(offline)</span>}
                   </span>
-                  {isCurrentTurn && player.isAI && gameState.aiThinking?.playerID === player.id && (
-                    <AiThinkingIndicator className="text-[10px]" />
-                  )}
                   <span className="text-yellow-400 font-bold">★{player.points || 0}</span>
                 </div>
                 

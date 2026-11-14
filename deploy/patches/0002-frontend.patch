@@ -82,7 +82,7 @@
                    <span className="text-green-400 font-bold">Your Turn</span>
                  ) : (
 -                  <span className="text-yellow-400">{currentPlayer?.name}'s Turn</span>
-+                  <span className="text-yellow-400">
++                  <span className="text-yellow-400 whitespace-nowrap">
 +                    {currentPlayer?.name}'s Turn
 +                    {currentPlayer?.isAI && gameState?.aiThinking?.playerID === currentPlayer?.id && (
 +                      <AiThinkingIndicator className="ml-2 text-xs" />
@@ -195,7 +195,7 @@
                        </div>
                      ) : (
 -                      <div className="px-3 py-1 bg-white/10 text-white/50 rounded-lg text-sm">Waiting...</div>
-+                      <div className="px-3 py-1 bg-white/10 text-white/50 rounded-lg text-sm">
++                      <div className="px-3 py-1 bg-white/10 text-white/50 rounded-lg text-sm w-52 text-center whitespace-nowrap overflow-hidden text-ellipsis">
 +                        {currentPlayer?.isAI && gameState?.aiThinking?.playerID === currentPlayer?.id
 +                          ? <AiThinkingIndicator label={`${currentPlayer.name} is thinking`} />
 +                          : 'Waiting...'}
@@ -1087,7 +1087,18 @@
    if (!player) return null
  
    const golemsCount = player.pointCards?.length || 0
-@@ -32,16 +38,17 @@
+@@ -28,20 +34,28 @@
+         <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-pulse" />
+       )}
+ 
++      {/* AI thinking: overlaid on the bottom edge so the card never changes size (no layout shift) */}
++      {thinking && (
++        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 z-10 px-2 py-px rounded-full bg-purple-800/90 border border-purple-300/50 text-[10px] leading-4 whitespace-nowrap pointer-events-none">
++          <AiThinkingIndicator />
++        </div>
++      )}
++
+       {/* Row 1: Avatar + Name + Golems (top right) */}
        <div className="flex items-center gap-2 mb-1">
          {/* Avatar with online status indicator */}
          <div className="relative flex-shrink-0">
@@ -1115,7 +1126,7 @@
              <div 
                className={`
                  absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white shadow
-@@ -55,9 +62,11 @@
+@@ -55,7 +69,8 @@
          {/* Name */}
          <div className={`text-white font-bold text-sm flex-1 ${player.online === false ? 'opacity-60' : ''}`}>
            {player.name || 'Player'}
@@ -1124,10 +1135,7 @@
 +          {!player.isAI && player.online === false && (
              <span className="text-gray-400 text-xs ml-1">(offline)</span>
            )}
-+          {thinking && <AiThinkingIndicator className="ml-2 text-xs font-normal" />}
          </div>
-         
-         {/* Golems count (top right) */}
 --- a/web/react-frontend/src/components/PlayersInfoBar.jsx
 +++ b/web/react-frontend/src/components/PlayersInfoBar.jsx
 @@ -1,5 +1,8 @@
@@ -1139,8 +1147,19 @@
  
  // Timer Ring around avatar
  const TimerRing = ({ duration = 60 }) => {
-@@ -51,16 +54,17 @@
+@@ -47,20 +50,27 @@
+           return (
+             <div
+               key={player.id}
+-              className={`flex items-center gap-2 px-2 py-1 rounded-xl ${isCurrentTurn ? 'bg-yellow-500/20' : 'bg-white/5'}`}
++              className={`relative flex items-center gap-2 px-2 py-1 rounded-xl ${isCurrentTurn ? 'bg-yellow-500/20' : 'bg-white/5'}`}
              >
++              {/* AI thinking: overlaid, so the row keeps its size (no layout shift) */}
++              {isCurrentTurn && player.isAI && gameState.aiThinking?.playerID === player.id && (
++                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 z-10 px-1.5 rounded-full bg-purple-800/90 text-[9px] leading-4 whitespace-nowrap pointer-events-none">
++                  <AiThinkingIndicator />
++                </div>
++              )}
                {/* Avatar with timer ring for current turn */}
                <div className="relative">
 -                {isCurrentTurn && <TimerRing duration={60} />}
@@ -1167,7 +1186,7 @@
                    <div 
                      className={`
                        absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white shadow
-@@ -77,8 +81,12 @@
+@@ -77,7 +87,8 @@
                  <div className="flex items-center gap-1">
                    <span className={`text-white font-medium ${player.online === false ? 'opacity-60' : ''}`}>
                      {player.name}
@@ -1175,12 +1194,8 @@
 +                    {player.isAI && <AiLevelBadge level={player.aiLevel} />}
 +                    {!player.isAI && player.online === false && <span className="text-gray-400 ml-1">(offline)</span>}
                    </span>
-+                  {isCurrentTurn && player.isAI && gameState.aiThinking?.playerID === player.id && (
-+                    <AiThinkingIndicator className="text-[10px]" />
-+                  )}
                    <span className="text-yellow-400 font-bold">★{player.points || 0}</span>
                  </div>
-                 
 --- a/web/react-frontend/src/components/SinglePlayerLobby.jsx
 +++ b/web/react-frontend/src/components/SinglePlayerLobby.jsx
 @@ -1,20 +1,23 @@

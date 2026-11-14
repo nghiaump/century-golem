@@ -34,6 +34,13 @@ const PlayerCard = ({ player, isCurrentPlayer }) => {
         <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-pulse" />
       )}
 
+      {/* AI thinking: overlaid on the bottom edge so the card never changes size (no layout shift) */}
+      {thinking && (
+        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 z-10 px-2 py-px rounded-full bg-purple-800/90 border border-purple-300/50 text-[10px] leading-4 whitespace-nowrap pointer-events-none">
+          <AiThinkingIndicator />
+        </div>
+      )}
+
       {/* Row 1: Avatar + Name + Golems (top right) */}
       <div className="flex items-center gap-2 mb-1">
         {/* Avatar with online status indicator */}
@@ -66,7 +73,6 @@ const PlayerCard = ({ player, isCurrentPlayer }) => {
           {!player.isAI && player.online === false && (
             <span className="text-gray-400 text-xs ml-1">(offline)</span>
           )}
-          {thinking && <AiThinkingIndicator className="ml-2 text-xs font-normal" />}
         </div>
         
         {/* Golems count (top right) */}

@@ -499,7 +499,7 @@ const WebGameLayout = () => {
                         Your Turn
                       </div>
                     ) : (
-                      <div className="px-3 py-1 bg-white/10 text-white/50 rounded-lg text-sm">
+                      <div className="px-3 py-1 bg-white/10 text-white/50 rounded-lg text-sm w-52 text-center whitespace-nowrap overflow-hidden text-ellipsis">
                         {currentPlayer?.isAI && gameState?.aiThinking?.playerID === currentPlayer?.id
                           ? <AiThinkingIndicator label={`${currentPlayer.name} is thinking`} />
                           : 'Waiting...'}

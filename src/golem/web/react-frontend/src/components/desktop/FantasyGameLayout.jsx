@@ -723,7 +723,7 @@ const FantasyGameLayout = ({ onNewGame, onBackToMenu }) => {
                 {currentPlayer?.id === myPlayer?.id ? (
                   <span className="text-green-400 font-bold">Your Turn</span>
                 ) : (
-                  <span className="text-yellow-400">
+                  <span className="text-yellow-400 whitespace-nowrap">
                     {currentPlayer?.name}'s Turn
                     {currentPlayer?.isAI && gameState?.aiThinking?.playerID === currentPlayer?.id && (
                       <AiThinkingIndicator className="ml-2 text-xs" />
