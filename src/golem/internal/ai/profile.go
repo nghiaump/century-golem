@@ -102,6 +102,8 @@ type Profile struct {
 
 	CPuct    float64 // PUCT exploration constant
 	MaxNodes int     // node cap per search tree
+
+	Weights *Weights // evaluator weights (nil = DefaultWeights); tuning experiments only
 }
 
 // DefaultProfile returns the tuned defaults for a level (see docs/ai/tinh-chinh.md).

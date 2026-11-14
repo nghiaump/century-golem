@@ -66,13 +66,24 @@ type Agent interface {
 	Profile() Profile
 }
 
-// NewAgent returns the agent for a level.
+// NewAgent returns the agent for a level (Easy: 1-ply policy; others: MCTS ensemble).
 func NewAgent(l Level, rt *Runtime) Agent {
 	if rt == nil {
 		rt = DefaultRuntime()
 	}
-	return newGreedyAgent(rt.Profile(l), rt)
+	return newSearchAgent(rt.Profile(l), rt)
 }
+
+// NewAgentWithProfile returns an agent with an explicit profile (tests, tuning, benchmarks).
+func NewAgentWithProfile(p Profile, rt *Runtime) Agent {
+	if rt == nil {
+		rt = DefaultRuntime()
+	}
+	return newSearchAgent(p, rt)
+}
+
+// NewLegacyGreedy returns the simple engine-based greedy policy (a tournament baseline).
+func NewLegacyGreedy() Agent { return newGreedyAgent(DefaultProfile(Easy), DefaultRuntime()) }
 
 // strategyAgent adapts a legacy game.AIStrategy (BasicAI, RestOnlyAI) to the Agent interface.
 type strategyAgent struct {
