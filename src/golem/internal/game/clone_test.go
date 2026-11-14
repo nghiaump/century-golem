@@ -60,3 +60,19 @@ func TestClone_WinnerRemapped(t *testing.T) {
 		t.Fatal("winner must point into the clone's own players")
 	}
 }
+
+func TestRedactDeckOrder_SortsByID(t *testing.T) {
+	gs := NewGameState(3, 77)
+	c := gs.Clone()
+	c.RedactDeckOrder()
+	for _, deck := range [][]*Card{c.Market.ActionDeck, c.Market.PointDeck} {
+		for i := 1; i < len(deck); i++ {
+			if deck[i-1].ID > deck[i].ID {
+				t.Fatal("redacted deck must be in ID order")
+			}
+		}
+	}
+	if len(c.Market.ActionDeck) != len(gs.Market.ActionDeck) {
+		t.Fatal("redaction must keep the deck contents")
+	}
+}

@@ -31,6 +31,13 @@ type Config struct {
 	SessionIdleEndedSeconds   int // finished game (default 120)
 	MaxSessions               int // cap on rooms in memory; creating more returns 503 (default 100, 0 = unlimited)
 
+	// Computer opponents (see docs/ai/README.md).
+	AIMaxThreads     int  // server-wide cap on AI search threads (default 0 = auto: min(4, NumCPU/2))
+	AIThinkScalePct  int  // multiplies every AI think budget, in percent (default 100, clamped 10..300)
+	AIMinDelayMs     int  // minimum visible thinking time per AI move (default 800)
+	AIMaxNodes       int  // node cap per search tree (default 200000)
+	AIPauseWhenEmpty bool // no AI moves while nobody is connected to the room (default true)
+
 	// Firebase authentication
 	FirebaseCredentialsFile string // Path to Firebase service account JSON
 	GoogleOAuthClientID     string // Google OAuth client ID
@@ -65,6 +72,12 @@ func LoadConfig() Config {
 		SessionIdleEndedSeconds:   getEnvInt("SESSION_IDLE_ENDED_SECONDS", 120),
 		MaxSessions:               getEnvInt("MAX_SESSIONS", 100),
 
+		AIMaxThreads:     getEnvInt("AI_MAX_THREADS", 0),
+		AIThinkScalePct:  clamp(getEnvInt("AI_THINK_SCALE_PCT", 100), 10, 300),
+		AIMinDelayMs:     clamp(getEnvInt("AI_MIN_DELAY_MS", 800), 0, 10000),
+		AIMaxNodes:       getEnvInt("AI_MAX_NODES", 200000),
+		AIPauseWhenEmpty: getEnvInt("AI_PAUSE_WHEN_EMPTY", 1) != 0,
+
 		// Firebase authentication
 		FirebaseCredentialsFile: getEnv("FIREBASE_CREDENTIALS_FILE", ""),
 		GoogleOAuthClientID:     getEnv("GOOGLE_OAUTH_CLIENT_ID", ""),
@@ -88,4 +101,8 @@ func getEnvInt(key string, defaultValue int) int {
 		}
 	}
 	return defaultValue
+}
+
+func clamp(v, lo, hi int) int {
+	return max(lo, min(hi, v))
 }

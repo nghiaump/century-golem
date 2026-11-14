@@ -1,6 +1,7 @@
 package session
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math/rand"
@@ -9,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"golem_century/internal/ai"
 	"golem_century/internal/eventstore"
 	"golem_century/internal/game"
 	"golem_century/internal/logger"
@@ -55,7 +57,6 @@ type Spectator struct {
 type GameSession struct {
 	ID            string
 	GameState     *game.GameState
-	Engine        *game.Engine
 	CreatedAt     time.Time             // When session was created
 	LastActivity  time.Time             // Last time someone was in the room
 	EventStore    eventstore.EventStore // Event store for recording actions
@@ -80,6 +81,22 @@ type GameSession struct {
 	// stop is closed by Close to end the game loop; ActionChan is never closed (senders could panic).
 	stop      chan struct{}
 	closeOnce sync.Once
+
+	// AI (see ai_turns.go). Guarded by mu; agents run on cloned snapshots outside the lock.
+	mode           Mode
+	aiLevels       []ai.Level                           // single-player: level per AI (AI 1..n)
+	aiRuntime      *ai.Runtime                          // server-wide thread pool and budgets
+	pauseWhenEmpty bool                                 // no AI moves while nobody is connected
+	agentFactory   func(ai.Level, *ai.Runtime) ai.Agent // tests
+	agents         map[int]ai.Agent                     // player ID -> agent (AI seats)
+	timeoutAgents  map[int]ai.Agent                     // player ID -> who plays for a timed-out human
+	teams          []int                                // team per seat (AIs share team 1)
+	seed           int64                                // game seed (reproducible AI randomness)
+	stepSeq        uint64                               // bumped on every applied step; stale AI results are dropped
+	aiJob          *aiJob                               // in-flight AI decision, if any
+	aiResults      chan aiResult                        // AI goroutine -> game loop
+	ctx            context.Context                      // cancelled by Close (stops searches)
+	cancel         context.CancelFunc
 }
 
 // PlayerAction represents an action from a player
@@ -92,7 +109,11 @@ type PlayerAction struct {
 // NewGameSession creates a new game session
 func NewGameSession(sessionID string, maxPlayers int, turnTimeoutInSecond int, eventstore eventstore.EventStore, logger *logger.Logger) *GameSession {
 	now := time.Now()
+	ctx, cancel := context.WithCancel(context.Background())
 	return &GameSession{
+		ctx:           ctx,
+		cancel:        cancel,
+		aiResults:     make(chan aiResult, 1),
 		ID:            sessionID,
 		CreatedAt:     now,
 		LastActivity:  now,
@@ -262,7 +283,7 @@ func (gs *GameSession) StartGame() error {
 		return fmt.Errorf("game is not in waiting status")
 	}
 
-	if !strings.HasPrefix(gs.ID, "single") {
+	if !gs.isSingle() {
 		// Check that we have at least 2 players
 		// When it's player vs player room
 		if len(gs.connectedPlayers) < 2 {
@@ -273,61 +294,27 @@ func (gs *GameSession) StartGame() error {
 	// Initialize game state
 	seed := time.Now().UnixNano()
 
-	// For single player mode, use maxPlayers (includes AI)
-	// For multiplayer, use connected players count
+	// Single player: every seat (humans + AIs); multiplayer: the connected humans.
 	numPlayers := len(gs.connectedPlayers)
-	if strings.HasPrefix(gs.ID, "single") {
+	if gs.isSingle() {
 		numPlayers = gs.maxPlayers
 		gs.logger.Info("Single player mode: using maxPlayers for game state",
 			zap.Int("maxPlayers", gs.maxPlayers),
 			zap.Int("connectedPlayers", len(gs.connectedPlayers)),
+			zap.Strings("aiLevels", sortedLevels(gs.aiLevels)),
 		)
 	}
 
-	gameState := game.NewGameState(numPlayers, seed)
-
-	var aiPlayer game.AIStrategy
-	aiPlayer = game.NewRestOnlyAI()
-	if strings.HasPrefix(gs.ID, "single") {
-		// When it's player vs AI room
-		aiPlayer = game.NewAIPlayer(gameState.RNG)
-	}
-
-	// Initialize engine
-	engine := &game.Engine{
-		GameState: gameState,
-		AI:        aiPlayer,
-	}
-
-	// Set game state and engine, update status to playing, set turn start time
-	gs.GameState = gameState
-	gs.Engine = engine
+	gs.GameState = game.NewGameState(numPlayers, seed)
+	gs.seed = seed
 	gs.status = GameStatusPlaying
 	gs.TurnStartTime = time.Now()
 
+	// Seat humans (random seats in single player) and create one agent per AI seat.
+	gs.assignSeats(rand.New(rand.NewSource(seed)))
+
 	// Update number of players in the game equals to the number of connected players
 	gs.maxPlayers = len(gs.connectedPlayers)
-
-	// Assign player IDs for waiting players
-	shuffledClientIDs := gs.getShuffledClientIDs(gs.connectedPlayers)
-	for i, clientID := range shuffledClientIDs {
-		gs.assignedPlayers[i+1] = clientID
-
-		pi := gs.connectedPlayers[clientID]
-		pi.PlayerID = i + 1
-
-		gs.GameState.Players[i].Name = pi.Name
-		gs.GameState.Players[i].IsAI = false // Human player
-	}
-
-	// For single player mode, mark remaining players as AI
-	if strings.HasPrefix(gs.ID, "single") {
-		numHumans := len(gs.connectedPlayers)
-		for i := numHumans; i < len(gs.GameState.Players); i++ {
-			gs.GameState.Players[i].IsAI = true
-			gs.GameState.Players[i].Name = fmt.Sprintf("AI %d", i+1-numHumans)
-		}
-	}
 
 	// Store initial game state in event store
 	if gs.EventStore != nil {
@@ -335,7 +322,7 @@ func (gs *GameSession) StartGame() error {
 			GameID:    gs.ID,
 			PlayerID:  0,                     // System event
 			Action:    game.Action{Type: -1}, // Special marker for initial state
-			GameState: gs.GameState,
+			GameState: gs.GameState.Clone(),
 		}
 		resp := gs.EventStore.StoreEvent(req)
 		if resp.Error != nil {
@@ -381,10 +368,18 @@ func (gs *GameSession) getShuffledClientIDs(players map[string]*PlayerInfo) []st
 	return clientIDs
 }
 
+// findAvailablePlayerID returns the first human seat without a connected client (AI seats are
+// never handed to a human).
 func (gs *GameSession) findAvailablePlayerID() int {
-	for i := 1; i <= gs.maxPlayers; i++ {
-		if _, ok := gs.assignedPlayers[i]; !ok {
-			return i
+	if gs.GameState == nil {
+		return 0
+	}
+	for _, p := range gs.GameState.Players {
+		if p.IsAI {
+			continue
+		}
+		if _, ok := gs.assignedPlayers[p.ID]; !ok {
+			return p.ID
 		}
 	}
 	return 0
@@ -399,8 +394,12 @@ func (gs *GameSession) addPlayerToGame(playerID int, clientID string, name strin
 		return fmt.Errorf("game is full")
 	}
 
+	// AI seats and out-of-range IDs are never handed to a human
+	if playerID < 0 || playerID > len(gs.GameState.Players) || (playerID > 0 && gs.GameState.Players[playerID-1].IsAI) {
+		playerID = 0
+	}
 	// check if playerID is already in the players list
-	if _, ok := gs.assignedPlayers[playerID]; ok {
+	if _, ok := gs.assignedPlayers[playerID]; ok && playerID > 0 {
 		gs.logger.Warn("playerID is in use by another player", zap.Int("playerID", playerID))
 		playerID = 0 // auto-assign next available player ID
 	}
@@ -733,16 +732,17 @@ func (gs *GameSession) handleChatMessage(clientID string, req map[string]any) {
 
 func (gs *GameSession) handlePlayerAction(clientID string, req map[string]any) {
 	gs.mu.RLock()
-	defer gs.mu.RUnlock()
-
 	if gs.status != GameStatusPlaying { // game not started yet
+		gs.mu.RUnlock()
 		return
 	}
-	if _, ok := gs.connectedPlayers[clientID]; !ok { // invalid clientID from obsolete connection
+	pi, ok := gs.connectedPlayers[clientID]
+	if !ok { // invalid clientID from obsolete connection
+		gs.mu.RUnlock()
 		return
 	}
-
-	playerID := gs.connectedPlayers[clientID].PlayerID
+	playerID := pi.PlayerID
+	gs.mu.RUnlock() // never hold the lock while handing the action to the game loop
 
 	actionTypeStr, _ := req["actionType"].(string)
 	cardIndex, _ := req["cardIndex"].(float64)
@@ -877,6 +877,10 @@ func (gs *GameSession) handlePlayerAction(clientID string, req map[string]any) {
 		Action:   gameAction,
 	}:
 	case <-gs.stop: // session closed: drop the action instead of blocking forever
+	default: // the loop is far behind (flooding client): tell the sender instead of blocking
+		gs.mu.RLock()
+		gs.sendToPlayer(clientID, map[string]any{"type": "error", "error": "server busy, please retry"})
+		gs.mu.RUnlock()
 	}
 }
 
@@ -1196,171 +1200,6 @@ func (gs *GameSession) sendToPlayer(clientID string, data map[string]any) error 
 	return nil
 }
 
-// handleAIDiscard handles the discard action when AI has pending discards
-func (gs *GameSession) handleAIDiscard(player *game.Player) {
-	discardResources := game.NewResources()
-	remaining := player.PendingDiscard
-	for _, crystalType := range []game.CrystalType{game.Yellow, game.Green, game.Blue, game.Pink} {
-		available := player.Resources.Get(crystalType)
-		toDiscard := min(available, remaining)
-		discardResources.Add(crystalType, toDiscard)
-		remaining -= toDiscard
-		if remaining <= 0 {
-			break
-		}
-	}
-	discardAction := game.Action{
-		Type:             game.Discard,
-		DiscardResources: discardResources,
-	}
-	gs.GameState.ExecuteAction(discardAction)
-	gs.broadcastState()
-}
-
-// storeGameEvent stores an action in the event store
-func (gs *GameSession) storeGameEvent(playerID int, action game.Action) {
-	if gs.EventStore != nil {
-		req := eventstore.StoreEventRequest{
-			GameID:    gs.ID,
-			PlayerID:  playerID,
-			Action:    action,
-			GameState: gs.GameState,
-		}
-		resp := gs.EventStore.StoreEvent(req)
-		if resp.Error != nil {
-			// Don't fail the action if event store fails
-		}
-	}
-}
-
-// advanceTurn advances to the next turn and resets the timer
-func (gs *GameSession) advanceTurn() {
-	if !gs.GameState.GameOver {
-		currentPlayer := gs.GameState.GetCurrentPlayer()
-		if currentPlayer.PendingDiscard == 0 {
-			gs.GameState.NextTurn()
-			// Reset turn timer for next player
-			gs.mu.Lock()
-			gs.TurnStartTime = time.Now()
-			gs.mu.Unlock()
-		}
-	}
-}
-
-// executeAITurn executes a single AI turn with proper error handling
-func (gs *GameSession) executeAITurn(player *game.Player) {
-	aiAction := gs.Engine.AI.ChooseAction(player, gs.GameState.Market, gs.GameState)
-	if err := gs.GameState.ExecuteAction(aiAction); err == nil {
-		gs.storeGameEvent(player.ID, aiAction)
-		gs.GameState.CheckGameOver()
-		gs.advanceTurn()
-		gs.broadcastState()
-	} else {
-		// If AI action fails, try rest
-		gs.GameState.ExecuteAction(game.Action{Type: game.Rest})
-		gs.GameState.CheckGameOver()
-		gs.advanceTurn()
-		gs.broadcastState()
-	}
-}
-
-// runGameLoop runs the game loop for a session
-func (gs *GameSession) runGameLoop() {
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
-
-	// Initialize AI for timeout handling
-	if gs.Engine.AI == nil {
-		gs.Engine.AI = game.NewAIPlayer(gs.GameState.RNG)
-	}
-
-	// Set the start time for the first turn and mark the game as started
-	// gs.mu.Lock()
-	// gs.TurnStartTime = time.Now()
-	// gs.mu.Unlock()
-
-	for !gs.GameState.GameOver {
-		select {
-		case <-gs.stop:
-			return // session closed (idle reaper or shutdown)
-		case action := <-gs.ActionChan:
-			// Process player action
-			currentPlayer := gs.GameState.GetCurrentPlayer()
-			if action.PlayerID == currentPlayer.ID {
-				if err := gs.GameState.ExecuteAction(action.Action); err == nil {
-					gs.storeGameEvent(action.PlayerID, action.Action)
-					gs.GameState.CheckGameOver()
-					gs.advanceTurn()
-					gs.broadcastState()
-				} else {
-					// Send error to player
-					errorMsg := map[string]interface{}{
-						"type":  "error",
-						"error": err.Error(),
-					}
-					gs.sendToPlayer(action.ClientID, errorMsg)
-				}
-			}
-
-		case <-ticker.C:
-			currentPlayer := gs.GameState.GetCurrentPlayer()
-
-			// Check for turn timeout (only for human players)
-			// gs.mu.RLock()
-			turnDuration := time.Since(gs.TurnStartTime)
-			timeout := gs.TurnTimeout
-			// gs.mu.RUnlock()
-
-			if gs.GameState.Round == 1 && gs.GameState.CurrentTurn == 0 {
-				// Skip timeout check for first turn to allow setup
-				continue
-			}
-
-			gs.logger.Debug("Checking turn timeout", zap.Bool("isAI", currentPlayer.IsAI), zap.Int("playerID", currentPlayer.ID), zap.Duration("turnDuration", turnDuration), zap.Duration("timeout", timeout))
-			if !currentPlayer.IsAI && turnDuration >= timeout {
-				gs.logger.Info("[1] AI taking action due to timeout", zap.Duration("turnDuration", turnDuration), zap.Duration("timeout", timeout))
-				// Timeout! Let AI make the move
-				gs.handleTurnTimeout(currentPlayer)
-				continue
-			}
-
-			// Check if current player is AI
-			if currentPlayer.IsAI && gs.Engine.AI != nil {
-				gs.logger.Info("[2] AI taking action", zap.Duration("turnDuration", turnDuration), zap.Duration("timeout", timeout))
-				// AI turn - execute AI action with a small delay for UX
-				time.Sleep(500 * time.Millisecond)
-
-				// AI chooses action (including discard if needed)
-				gs.executeAITurn(currentPlayer)
-			}
-		}
-	}
-
-	// Game over - send final state
-	gs.mu.Lock()
-	gs.status = GameStatusEnded
-	gs.mu.Unlock()
-
-	gs.broadcastState()
-}
-
-// handleTurnTimeout handles the case when a player's turn times out
-func (gs *GameSession) handleTurnTimeout(player *game.Player) {
-	// Send timeout notification to all clients
-	timeoutMsg := map[string]interface{}{
-		"type":     "turnTimeout",
-		"playerID": player.ID,
-		"message":  fmt.Sprintf("%s took too long. AI is making a move.", player.Name),
-	}
-	gs.broadcast(timeoutMsg)
-
-	// Small delay so the notification is visible
-	time.Sleep(500 * time.Millisecond)
-
-	// Let AI make the move (it will handle discard if needed)
-	gs.executeAITurn(player)
-}
-
 // broadcastState broadcasts the current game state to all players
 func (gs *GameSession) broadcastState() {
 	gs.broadcast(gs.serializeState())
@@ -1414,6 +1253,8 @@ func (gs *GameSession) serializeState() map[string]interface{} {
 			bJoinedAt, _ := b["joinedAt"].(string)
 			return strings.Compare(aJoinedAt, bJoinedAt)
 		})
+		// Single player: show the AI opponents (with their level) before the game starts.
+		waitingPlayers = append(waitingPlayers, gs.waitingAIRows()...)
 
 		return map[string]interface{}{
 			"type": "state",
@@ -1426,7 +1267,10 @@ func (gs *GameSession) serializeState() map[string]interface{} {
 			"players":         waitingPlayers,
 			"maxChatMessages": gs.maxChatMsgs,
 			// "market":          map[string]interface{}{},
-			"status": gs.status,
+			"status":     gs.status,
+			"mode":       gs.modeName(),
+			"numPlayers": gs.maxPlayers,
+			"coalition":  gs.isSingle() && gs.waitingCoalition(),
 		}
 	}
 
@@ -1463,9 +1307,10 @@ func (gs *GameSession) serializeState() map[string]interface{} {
 			"coins":          serializeCards(p.Coins),
 			"hasRested":      p.HasRested,
 			"isAI":           p.IsAI,
+			"aiLevel":        gs.aiLevelOf(p.ID),
 			"pendingDiscard": p.PendingDiscard,
 			"joinedAt":       joinedAt,
-			"online":         pi != nil,
+			"online":         pi != nil || p.IsAI,
 		}
 	}
 
@@ -1473,6 +1318,7 @@ func (gs *GameSession) serializeState() map[string]interface{} {
 	for i, card := range gs.GameState.Market.ActionCards {
 		cost := gs.GameState.Market.GetActionCardCost(i)
 		serialized := serializeCardWithCost(card, cost)
+		serialized["placeCrystals"] = gs.GameState.Market.CrystalsToPlace(i) // official price: k crystals of any colour
 		// Ensure deposits field exists
 		if _, exists := serialized["deposits"]; !exists {
 			serialized["deposits"] = make(map[string]string)
@@ -1504,7 +1350,12 @@ func (gs *GameSession) serializeState() map[string]interface{} {
 			"pointDeck":   len(gs.GameState.Market.PointDeck),
 			"coins":       marketCoins,
 		},
-		"status": gs.status,
+		"status":      gs.status,
+		"mode":        gs.modeName(),
+		"turnTimeout": int(gs.TurnTimeout / time.Second),
+		"golemsToEnd": gs.GameState.GolemsToEnd(),
+		"coalition":   gs.coalitionActive(),
+		"aiThinking":  gs.thinkingInfoLocked(),
 	}
 }
 
@@ -1661,8 +1512,9 @@ func (gs *GameSession) Close() error {
 	gs.assignedPlayers = make(map[int]string)
 	gs.spectators = make(map[string]*Spectator)
 
-	// Stop the game loop. ActionChan stays open: closing it would make the loop spin on zero values
-	// and make any in-flight sender panic.
+	// Stop the game loop and any AI search. ActionChan stays open: closing it would make the loop
+	// spin on zero values and make any in-flight sender panic.
+	gs.cancel()
 	close(gs.stop)
 
 	gs.logger.Info("Game session closed successfully", zap.String("sessionID", gs.ID))

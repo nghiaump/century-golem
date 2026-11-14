@@ -117,9 +117,9 @@ func TestAcquire_BadDeposits_StateUnchanged(t *testing.T) {
 	before := stateJSON(t, gs)
 
 	cases := []Action{
-		{Type: AcquireCard, CardIndex: 2, DepositList: []DepositData{{Crystal: Yellow}}},                     // wrong count
+		{Type: AcquireCard, CardIndex: 2, DepositList: []DepositData{{Crystal: Yellow}}},                    // wrong count
 		{Type: AcquireCard, CardIndex: 2, DepositList: []DepositData{{Crystal: Yellow}, {Crystal: Yellow}}}, // only 1 yellow
-		{Type: AcquireCard, CardIndex: 3},                                                                   // fallback: only 2 crystals
+		{Type: AcquireCard, CardIndex: 3}, // fallback: only 2 crystals
 	}
 	for i, a := range cases {
 		if _, err := gs.Step(a); !errors.Is(err, ErrBadDeposits) {

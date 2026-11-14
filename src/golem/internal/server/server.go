@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"golem_century/internal/ai"
 	"golem_century/internal/auth"
 	"golem_century/internal/config"
 	"golem_century/internal/eventstore"
@@ -32,6 +33,8 @@ type GameServer struct {
 	mu               sync.RWMutex
 	config           *config.Config
 	cleanupInterval  time.Duration // how often each room checks whether it is idle (30s; tests shorten it)
+	aiRuntime        *ai.Runtime   // server-wide AI thread pool and budgets, shared by all rooms
+	aiPauseWhenEmpty bool
 }
 
 // NewGameServerRequest represents request to create a new game server
@@ -61,14 +64,40 @@ func NewGameServer(req NewGameServerRequest) *GameServer {
 		FirebaseAuth:     req.FirebaseAuth,
 		config:           req.Config,
 		cleanupInterval:  30 * time.Second,
+		aiRuntime:        newAIRuntime(req.Config),
+		aiPauseWhenEmpty: req.Config.AIPauseWhenEmpty,
 	}
 }
 
+// newAIRuntime builds the shared AI runtime from config (zero values fall back to defaults).
+func newAIRuntime(cfg *config.Config) *ai.Runtime {
+	rt := &ai.Runtime{
+		Sched:    ai.NewScheduler(cfg.AIMaxThreads),
+		ScalePct: cfg.AIThinkScalePct,
+		MaxNodes: cfg.AIMaxNodes,
+		MinDelay: time.Duration(cfg.AIMinDelayMs) * time.Millisecond,
+	}
+	if rt.ScalePct == 0 {
+		rt.ScalePct = 100
+	}
+	return rt
+}
+
 func (gs *GameServer) CreateSessionV2(sessionID string, maxPlayers int, turnTimeoutInSeconds int) *session.GameSession {
+	return gs.createSession(sessionID, maxPlayers, turnTimeoutInSeconds)
+}
+
+// CreateSinglePlayerSession creates a single-player room: one human plus one AI per level.
+func (gs *GameServer) CreateSinglePlayerSession(sessionID string, levels []ai.Level, turnTimeoutInSeconds int) *session.GameSession {
+	return gs.createSession(sessionID, 1+len(levels), turnTimeoutInSeconds, session.WithSinglePlayer(levels))
+}
+
+func (gs *GameServer) createSession(sessionID string, maxPlayers int, turnTimeoutInSeconds int, opts ...session.Option) *session.GameSession {
 	gs.mu.Lock()
 	defer gs.mu.Unlock()
 
 	session := session.NewGameSession(sessionID, maxPlayers, turnTimeoutInSeconds, gs.EventStore, gs.Logger)
+	session.ApplyOptions(append([]sessionOption{sessionWithAI(gs)}, opts...)...)
 	gs.SessionsV2[sessionID] = session
 
 	gs.Logger.Info("Session V2 created",
@@ -196,4 +225,16 @@ func (gs *GameServer) Shutdown() error {
 
 	gs.Logger.Info("Game server shutdown complete")
 	return nil
+}
+
+type sessionOption = session.Option
+
+func sessionWithAI(gs *GameServer) session.Option {
+	return session.WithAIRuntime(gs.aiRuntime, gs.aiPauseWhenEmpty)
+}
+
+// isLiveGame reports whether a game is still being played in memory (deck order must stay hidden).
+func (gs *GameServer) isLiveGame(gameID string) bool {
+	s, ok := gs.GetSessionV2(gameID)
+	return ok && s.GetStatus() == session.GameStatusPlaying
 }

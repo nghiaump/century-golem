@@ -55,6 +55,16 @@ func (gs *GameServer) HandleGetEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// While the game is still being played, hide the deck order (players must not be able to
+	// look up upcoming cards; the AI never does either). Finished games stay fully visible.
+	if gs.isLiveGame(gameID) {
+		for _, e := range resp.Events {
+			if e.GameState != nil {
+				e.GameState.RedactDeckOrder()
+			}
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"events": resp.Events,
@@ -89,6 +99,10 @@ func (gs *GameServer) HandleGetSnapshot(w http.ResponseWriter, r *http.Request) 
 	if resp.Snapshot == nil {
 		sendJSONError(w, http.StatusNotFound, "Snapshot not found")
 		return
+	}
+
+	if gs.isLiveGame(gameID) && resp.Snapshot.GameState != nil {
+		resp.Snapshot.GameState.RedactDeckOrder()
 	}
 
 	w.Header().Set("Content-Type", "application/json")

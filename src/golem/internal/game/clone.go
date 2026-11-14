@@ -1,5 +1,7 @@
 package game
 
+import "sort"
+
 // Clone returns an independent deep copy of the game state, cheap enough to take once per AI
 // decision (session snapshot) or per candidate move in a 1-ply search.
 //
@@ -76,4 +78,17 @@ func cloneCardSlice(s []*Card) []*Card {
 	out := make([]*Card, len(s))
 	copy(out, s)
 	return out
+}
+
+// RedactDeckOrder replaces the order of both decks by card-ID order, erasing the hidden
+// information (used on copies served by public endpoints while a game is live).
+func (gs *GameState) RedactDeckOrder() {
+	if gs == nil || gs.Market == nil {
+		return
+	}
+	byID := func(s []*Card) {
+		sort.Slice(s, func(i, j int) bool { return s[i].ID < s[j].ID })
+	}
+	byID(gs.Market.ActionDeck)
+	byID(gs.Market.PointDeck)
 }

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"golem_century/internal/ai"
 	"golem_century/internal/auth"
 	"golem_century/internal/session"
 
@@ -388,9 +389,11 @@ func (gs *GameServer) HandleCreateSinglePlayer(w http.ResponseWriter, r *http.Re
 	}
 
 	var req struct {
-		NumAI       int    `json:"numAI"`       // Number of AI opponents (1-3)
-		SessionID   string `json:"sessionID"`   // Optional custom session ID
-		TurnTimeout int    `json:"turnTimeout"` // Optional turn timeout in seconds (default 60)
+		NumAI       int      `json:"numAI"`       // Number of AI opponents (1-4)
+		Difficulty  string   `json:"difficulty"`  // easy | medium | hard | veryhard (default medium), for every AI
+		AILevels    []string `json:"aiLevels"`    // optional per-AI levels (len == numAI); overrides difficulty
+		SessionID   string   `json:"sessionID"`   // Optional custom session ID (forced to start with "single_")
+		TurnTimeout int      `json:"turnTimeout"` // Optional turn timeout in seconds (default 60)
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -398,9 +401,16 @@ func (gs *GameServer) HandleCreateSinglePlayer(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// Validate number of AI opponents (player + AI = 2-4 total)
+	// Validate number of AI opponents (player + AI = 2-5 total)
 	if req.NumAI < 1 || req.NumAI > 4 {
 		sendJSONError(w, http.StatusBadRequest, "Number of AI opponents must be 1-4")
+		return
+	}
+
+	// Difficulty: one level for every AI, or an explicit list per AI.
+	levels, err := parseAILevels(req.NumAI, req.Difficulty, req.AILevels)
+	if err != nil {
+		sendJSONError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -409,21 +419,22 @@ func (gs *GameServer) HandleCreateSinglePlayer(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// Default turn timeout to 60 seconds if not specified or invalid
-	gs.Logger.Info("Default turn timeout:", zap.Int("turnTimeout", gs.config.DefaultTurnTimeoutInSeconds))
 	if req.TurnTimeout <= 0 {
 		req.TurnTimeout = gs.config.DefaultTurnTimeoutInSeconds
 	}
 
-	// Use custom session ID if provided, otherwise generate one
+	// Use custom session ID if provided (always "single_"-prefixed so it never shows up in the
+	// multiplayer room list), otherwise generate one.
 	var sessionID string
 	if req.SessionID != "" {
-		// Check if session already exists
-		if _, exists := gs.GetSessionV2(req.SessionID); exists {
+		sessionID = req.SessionID
+		if !strings.HasPrefix(sessionID, "single") {
+			sessionID = "single_" + sessionID
+		}
+		if _, exists := gs.GetSessionV2(sessionID); exists {
 			sendJSONError(w, http.StatusConflict, "Session ID already exists")
 			return
 		}
-		sessionID = req.SessionID
 	} else {
 		sessionID = fmt.Sprintf("single_%d", time.Now().UnixNano())
 	}
@@ -431,18 +442,57 @@ func (gs *GameServer) HandleCreateSinglePlayer(w http.ResponseWriter, r *http.Re
 	// Total players = 1 human + numAI
 	totalPlayers := 1 + req.NumAI
 
-	gs.CreateSessionV2(sessionID, totalPlayers, req.TurnTimeout)
+	gs.CreateSinglePlayerSession(sessionID, levels, req.TurnTimeout)
 
+	levelNames := make([]string, len(levels))
+	coalition := false
+	for i, l := range levels {
+		levelNames[i] = l.String()
+		coalition = coalition || l == ai.VeryHard
+	}
 	response := map[string]interface{}{
 		"sessionID":   sessionID,
 		"numPlayers":  totalPlayers,
 		"numAI":       req.NumAI,
 		"mode":        "singlePlayer",
 		"turnTimeout": req.TurnTimeout,
+		"difficulty":  levelNames[0],
+		"aiLevels":    levelNames,
+		"coalition":   coalition,
 	}
 
 	gs.Logger.Info("Created single-player V2 session", zap.String("sessionID", sessionID), zap.Int("numAI", req.NumAI), zap.Int("turnTimeout", req.TurnTimeout), zap.Any("response", response))
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
+}
+
+// parseAILevels resolves the AI levels of a single-player request: an explicit per-AI list wins,
+// otherwise `difficulty` (default "medium") applies to every AI.
+func parseAILevels(numAI int, difficulty string, perAI []string) ([]ai.Level, error) {
+	levels := make([]ai.Level, numAI)
+	if len(perAI) > 0 {
+		if len(perAI) != numAI {
+			return nil, fmt.Errorf("aiLevels must list exactly %d levels", numAI)
+		}
+		for i, s := range perAI {
+			l, err := ai.ParseLevel(s)
+			if err != nil {
+				return nil, err
+			}
+			levels[i] = l
+		}
+		return levels, nil
+	}
+	if strings.TrimSpace(difficulty) == "" {
+		difficulty = "medium"
+	}
+	l, err := ai.ParseLevel(difficulty)
+	if err != nil {
+		return nil, err
+	}
+	for i := range levels {
+		levels[i] = l
+	}
+	return levels, nil
 }
