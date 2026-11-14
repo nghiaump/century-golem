@@ -16,9 +16,9 @@ func testProfile(l Level) Profile {
 	return p
 }
 
-func decide(t *testing.T, a Agent, gs *game.GameState, iters int, teams []int) Decision {
+func decide(t *testing.T, a Agent, gs *game.GameState, iters int, humans []bool) Decision {
 	t.Helper()
-	d, err := a.Decide(context.Background(), gs.Clone(), DecideOptions{Seed: 7, Iterations: iters, Teams: teams})
+	d, err := a.Decide(context.Background(), gs.Clone(), DecideOptions{Seed: 7, Iterations: iters, Humans: humans})
 	if err != nil {
 		t.Fatalf("decide: %v", err)
 	}
@@ -155,7 +155,7 @@ func scenario(t *testing.T, golems []string) *game.GameState {
 }
 
 // The human (seat 1) is one turn from a valuable golem the AI can claim right now: Hard (human
-// leading) and Very Hard (coalition) must take it.
+// leading) and Very Hard (person counted stronger) must take it.
 func TestScenario_DenyHumansTargetGolem(t *testing.T) {
 	for _, l := range []Level{Hard, VeryHard} {
 		gs := scenario(t, []string{"golem_0022", "golem_0230", "golem_3200", "golem_0040", "golem_2003"})
@@ -164,8 +164,7 @@ func TestScenario_DenyHumansTargetGolem(t *testing.T) {
 		human.Resources = &game.Resources{Blue: 2, Pink: 3} // …and so can the human, on their next turn
 		human.PointCards = []*game.Card{{ID: 9901, Type: game.PointCard, Points: 14}}
 		human.Points = 14
-		teams := []int{1, 100}
-		d := decide(t, NewAgentWithProfile(testProfile(l), DefaultRuntime()), gs, 1500, teams)
+		d := decide(t, NewAgentWithProfile(testProfile(l), DefaultRuntime()), gs, 1500, []bool{false, true})
 		if d.Action.Type != game.ClaimPointCard || gs.Market.PointCards[d.Action.CardIndex].Name != "golem_3200" {
 			t.Errorf("%v should claim golem_3200 before the human, chose %+v", l, d.Action)
 		}
@@ -179,7 +178,7 @@ func TestScenario_TakeLastCopper(t *testing.T) {
 	ai, human := gs.Players[0], gs.Players[1]
 	ai.Resources = &game.Resources{Yellow: 2, Blue: 3}
 	human.Resources = &game.Resources{Yellow: 2, Blue: 2, Green: 2}
-	d := decide(t, NewAgentWithProfile(testProfile(Hard), DefaultRuntime()), gs, 1500, []int{1, 100})
+	d := decide(t, NewAgentWithProfile(testProfile(Hard), DefaultRuntime()), gs, 1500, []bool{false, true})
 	if d.Action.Type != game.ClaimPointCard || d.Action.CardIndex != 0 {
 		t.Errorf("Hard should take the last copper (golem 0), chose %+v", d.Action)
 	}
@@ -206,7 +205,7 @@ func TestIntent_TookTargetGolem(t *testing.T) {
 	// The human can claim golem_3200 on their very next turn, so waiting would lose it. (With a
 	// 2-turn human the AI may correctly take a free card first and still claim in time.)
 	human.Resources = &game.Resources{Blue: 2, Pink: 3}
-	d := decide(t, NewAgentWithProfile(testProfile(VeryHard), DefaultRuntime()), gs, 1500, []int{1, 100})
+	d := decide(t, NewAgentWithProfile(testProfile(VeryHard), DefaultRuntime()), gs, 1500, []bool{false, true})
 	if d.Action.Type != game.ClaimPointCard || gs.Market.PointCards[d.Action.CardIndex].Name != "golem_3200" {
 		t.Fatalf("Very Hard should claim the human's target golem_3200, chose %+v", d.Action)
 	}

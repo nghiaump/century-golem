@@ -50,7 +50,7 @@ Play solo against 1–4 AI opponents or with up to 5 friends, right in the brows
 
 #### 🎮 Gameplay
 - **Solo vs AI** with **4 difficulty levels** (Easy → Very Hard): Monte-Carlo tree search that reads your plan,
-  blocks the leader and, at Very Hard, plays as a team against you — see [AI overview](docs/ai/README.md)
+  blocks the leader and, at Very Hard, treats you as its main rival — see [AI overview](docs/ai/README.md)
 - **Online multiplayer** for 2–5 players: create a room (optional custom ID) or join one from the open-room list
 - **Spectate** rooms that are already in progress
 - **Turn timer** (60 s by default); when it runs out, an AI plays the turn for you
@@ -244,7 +244,7 @@ DOCKER_BUILDKIT=1 docker compose up -d --build --no-deps server    # redeploy ba
 | `GET` | `/health` | Liveness: `OK` |
 | `GET` | `/api/list` | Open multiplayer rooms (single-player games are hidden) |
 | `POST` | `/api/create` | `{numPlayers, sessionID?, creatorName}`: new multiplayer room |
-| `POST` | `/api/single` | `{numAI: 1..4, difficulty?: "easy"\|"medium"\|"hard"\|"veryhard", turnTimeout?}` → `{sessionID: "single_…", difficulty, aiLevels, coalition}` |
+| `POST` | `/api/single` | `{numAI: 1..4, difficulty?: "easy"\|"medium"\|"hard"\|"veryhard", turnTimeout?}` → `{sessionID: "single_…", difficulty, aiLevels}` |
 | `POST` | `/api/join` | Join a room |
 | `POST` | `/api/sessions/start` | `{sessionID}`: start the game |
 | `WS` | `/ws?session=&name=&avatar=[&spectate=true][&clientID=]` | Game channel (`state`, `playerAssigned`, …) |

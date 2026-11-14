@@ -78,9 +78,10 @@ const (
 	UtilityOwn UtilityKind = iota
 	// UtilityBeatLeader maximises the margin over the best other player, whoever leads.
 	UtilityBeatLeader
-	// UtilityCoalition makes every AI play for the AI team against the human(s): the reward is the
-	// best AI score minus the best human score, shared by all AI seats (Very Hard, disclosed in the lobby).
-	UtilityCoalition
+	// UtilityRival plays for the AI's own win (Very Hard): the margin over the strongest rival,
+	// blended with the average one so feeding any opponent costs, with people counted a few points
+	// stronger than they are so a close person is blocked first. AIs never share a reward.
+	UtilityRival
 )
 
 // Profile holds every knob a level turns.
@@ -118,7 +119,7 @@ func DefaultProfile(l Level) Profile {
 		return Profile{Level: Hard, Utility: UtilityBeatLeader, Search: true, Budget: 1400 * time.Millisecond,
 			Workers: 2, Epsilon: 0.15, RolloutTurns: 2, OppModel: true, CPuct: 0.8, MaxNodes: 200000}
 	case VeryHard:
-		return Profile{Level: VeryHard, Utility: UtilityCoalition, Search: true, Budget: 3000 * time.Millisecond,
+		return Profile{Level: VeryHard, Utility: UtilityRival, Search: true, Budget: 3000 * time.Millisecond,
 			Workers: 4, Epsilon: 0.10, RolloutTurns: 2, OppModel: true, EndgameToTerminal: true,
 			CPuct: 0.8, MaxNodes: 200000}
 	}

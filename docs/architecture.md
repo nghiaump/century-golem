@@ -88,7 +88,7 @@ internal/ai: agent theo ghế (Easy 1-ply · Medium/Hard/Very Hard MCTS ensemble
 | GET | `/health` | `OK` |
 | GET | `/api/list` | danh sách phòng đang có |
 | POST | `/api/create` | `{numPlayers, sessionID?, creatorName}` — phòng nhiều người |
-| POST | `/api/single` | `{numAI: 1..4, difficulty?: easy\|medium\|hard\|veryhard (mặc định medium), aiLevels?: [...], turnTimeout?, sessionID?}` → `{sessionID: "single_<ns>", difficulty, aiLevels, coalition, …}`; difficulty lạ ⇒ 400; ID tự đặt bị ép tiền tố `single_` |
+| POST | `/api/single` | `{numAI: 1..4, difficulty?: easy\|medium\|hard\|veryhard (mặc định medium), aiLevels?: [...], turnTimeout?, sessionID?}` → `{sessionID: "single_<ns>", difficulty, aiLevels, …}`; difficulty lạ ⇒ 400; ID tự đặt bị ép tiền tố `single_` |
 | POST | `/api/join` | vào phòng |
 | POST | `/api/sessions/start` | `{sessionID}` bắt đầu ván |
 | WS | `/ws?session=&name=&avatar=[&spectate=true][&clientID=]` | kênh chơi; message `state`, `playerAssigned`, `aiThinking`, `aiIntent`, `turnTimeout`, ... (bảng field: `docs/ai/thiet-ke.md` §8) |

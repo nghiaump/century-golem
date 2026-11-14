@@ -93,7 +93,7 @@ type GameSession struct {
 	agentFactory   func(ai.Level, *ai.Runtime) ai.Agent // tests
 	agents         map[int]ai.Agent                     // player ID -> agent (AI seats)
 	timeoutAgents  map[int]ai.Agent                     // player ID -> who plays for a timed-out human
-	teams          []int                                // team per seat (AIs share team 1)
+	humans         []bool                               // seats played by people
 	seed           int64                                // game seed (reproducible AI randomness)
 	stepSeq        uint64                               // bumped on every applied step; stale AI results are dropped
 	aiJob          *aiJob                               // in-flight AI decision, if any
@@ -1285,7 +1285,6 @@ func (gs *GameSession) serializeState() map[string]interface{} {
 			"status":     gs.status,
 			"mode":       gs.modeName(),
 			"numPlayers": gs.maxPlayers,
-			"coalition":  gs.isSingle() && gs.waitingCoalition(),
 		}
 	}
 
@@ -1373,7 +1372,6 @@ func (gs *GameSession) serializeState() map[string]interface{} {
 		"mode":        gs.modeName(),
 		"turnTimeout": int(gs.TurnTimeout / time.Second),
 		"golemsToEnd": gs.GameState.GolemsToEnd(),
-		"coalition":   gs.coalitionActive(),
 		"aiThinking":  gs.thinkingInfoLocked(),
 	}
 }

@@ -79,7 +79,7 @@ vòng lặp 100ms chạy tới hết ván rồi object nằm trong RAM mãi.
 
 ### 0003 AI 4 mức — `internal/ai` (2026-11-14, ADR 0002–0005)
 - `ai/sim`: simulator gọn, differential test 2000 ván với engine. `ai`: evaluator, utility theo cấp (own / beat-the-leader /
-  liên minh), MCTS open-loop ensemble, mô hình đối thủ, intent, scheduler luồng toàn server, profile theo cấp.
+  rival — bản liên minh ban đầu đã bỏ, xem bên dưới), MCTS open-loop ensemble, mô hình đối thủ, intent, scheduler luồng toàn server, profile theo cấp.
 - `ai/arena` + `ai/arena/aibench` (CLI benchmark/giải đấu, không build vào image). Chi tiết: `docs/ai/`.
 
 ### 0003 Session / server cho AI (2026-11-14)
@@ -87,11 +87,19 @@ vòng lặp 100ms chạy tới hết ván rồi object nằm trong RAM mãi.
   người chơi đơn, agent theo ghế, **game loop mới**: mọi mutate + broadcast dưới `gs.mu`, AI nghĩ trên bản clone ở goroutine
   riêng, bỏ kết quả cũ theo `stepSeq`, huỷ search khi `Close`/người đi, event lưu ngoài lock từ bản clone.
 - `session.go`: bỏ `Engine`; `handlePlayerAction` không giữ RLock khi gửi action; `findAvailablePlayerID` không giao ghế AI
-  cho người; state thêm `aiLevel`, `mode`, `turnTimeout`, `golemsToEnd`, `coalition`, `aiThinking`, `placeCrystals`; phòng chờ
+  cho người; state thêm `aiLevel`, `mode`, `turnTimeout`, `golemsToEnd`, `aiThinking`, `placeCrystals`; phòng chờ
   hiện dòng AI; AI không còn "(offline)".
 - `server`: runtime AI dùng chung, `CreateSinglePlayerSession`, `/api/single` nhận `difficulty`/`aiLevels`, ID tự đặt bị ép
   `single_`; `/api/events`, `/api/snapshot` ẩn thứ tự deck của ván đang chơi. `config.go`: biến `AI_*`.
 - Test mới: `session/ai_session_test.go` (7), `server/single_ai_test.go`.
+
+### Very Hard: bỏ liên minh, thành đối thủ cạnh tranh (2026-11-15, ADR 0008, theo phản hồi người dùng)
+- `ai/utility.go`: `UtilityCoalition` → `UtilityRival` (mỗi AI tự chơi để thắng; người được tính mạnh hơn 3 điểm giữa ván,
+  1 điểm cuối ván; trừ 0.7·đối thủ mạnh nhất + 0.3·trung bình ⇒ "biếu" ai cũng thiệt). `immediateWin` chỉ tính AI tự thắng;
+  denial prior VH = người dẫn đầu + người đang bám sát; bỏ intent `sacrifice`.
+- `DecideOptions.Teams []int` → `Humans []bool` (session `gs.humans`, arena `PlayGame(..., humans)`); bỏ field `coalition`
+  ở response `/api/single`, state ván và state phòng chờ; `aibench coalition` → `aibench vshuman`; smoke-test kiểm `aiLevels`.
+- Test mới `ai/utility_test.go` (biếu AI khác bị trừ, chặn người được ưu tiên, thứ tự thắng/thua cuối ván).
 
 ### Avatar & tên AI (2026-11-14, theo yêu cầu người dùng)
 - 23 avatar: 12 nhân vật khác nhau + tối đa 1 biến thể mỗi nhân vật (trước: 15, trong đó 4 biến thể Koopa). `AVATAR_VERSION`

@@ -79,8 +79,10 @@ Rules check: the official last round triggers on the **6th golem with 2–3 play
 - Denial value = Δ(opponent value) − Δ(own value); act when the gap is large.
 - [Goodman & Lucas](https://ar5iv.labs.arxiv.org/html/2006.08659): MCTS is robust to inaccurate opponent models.
 - Utility shaping: logistic of (own − best other), with a margin term so the AI never plays aimlessly.
-- Fairness: research recommends AIs never coordinate against the human. **This project deliberately deviates for Very
-  Hard** (user decision; the lobby note was later removed at the user's request — see [ADR 0004](../adr/0004-ham-loi-ich-theo-cap-va-lien-minh.md)).
+- Fairness: research recommends AIs never coordinate against the human. The first Very Hard did (a shared AI-team
+  reward, [ADR 0004](../adr/0004-ham-loi-ich-theo-cap-va-lien-minh.md)); in play it produced absurd "gifts" (an AI
+  spending big crystals so the next AI could pick them up), so it was replaced by a self-interested **rival** utility
+  that only biases attention towards the human ([ADR 0008](../adr/0008-very-hard-doi-thu-canh-tranh.md)).
 
 ## 4. Difficulty design
 

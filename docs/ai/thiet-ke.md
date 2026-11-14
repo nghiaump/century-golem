@@ -66,9 +66,15 @@ Trọng số hiện tại: xem `DefaultWeights` và lịch sử ở [`tinh-chinh
 ## 5. Utility (`utility.go`)
 
 Reward mỗi ghế trong [0,1] = σ(x/scale), scale 6 giữa ván, 2.5 khi ván kết thúc (điểm chính xác):
-Own `x = v_i − mean(v_đối thủ)` · BeatLeader `x = v_i − max(v_đối thủ)` · Coalition `x = max(v_AI) − max(v_người)`.
+Own `x = v_i − mean(v_đối thủ)` · BeatLeader `x = v_i − max(v_đối thủ)` ·
+Rival (Very Hard) giữa ván `x = v_i − (0.7·max e_j + 0.3·mean e_j)` với `e_j = v_j + 3` nếu j là người, `v_j` nếu là AI;
+cuối ván Rival: thắng ⇒ `x = max(0.5, v_i − max v_j)`, thua ⇒ `x = min(−0.5, v_i − max(v_j + 1·người))` (thắng luôn hơn
+thua; thua người tệ hơn thua AI một chút). Hằng số `humanEdgeMid/humanEdgeTerminal/rivalLeadShare` ở đầu `utility.go`.
 Hoà (x = 0) ở cuối ván được giải theo luật ghế sau. Góc nhìn (`perspective`): Easy/Medium coi mọi ghế là Own; Hard coi mọi
-ghế là BeatLeader; Very Hard: ghế cùng đội AI = Coalition, người = BeatLeader (không có người ⇒ BeatLeader cho tất cả).
+ghế là BeatLeader; Very Hard: AI khác = Rival (đối thủ như mình), người = BeatLeader; không biết ai là người
+(`DecideOptions.Humans` nil, vd giải đấu 2 bot) ⇒ Rival không cộng edge — với 2 người trùng hệt BeatLeader.
+**Không ghế nào chia sẻ phần thưởng với ghế khác** — bản "Coalition" cũ (max AI − max người, chung cho mọi AI) làm AI
+"biếu" crystal cho AI đi sau và đã bị bỏ ([ADR 0008](../adr/0008-very-hard-doi-thu-canh-tranh.md)).
 
 ## 6. MCTS (`mcts.go`, `search_agent.go`)
 
@@ -87,8 +93,7 @@ ghế là BeatLeader; Very Hard: ghế cùng đội AI = Coalition, người = B
 - `golemTargets(h)`: xác suất golem mục tiêu ∝ exp(0.6·(giá trị chiết khấu − max)), kèm số lượt cần.
 - Intent (≤1/nước, không lặp cùng loại+mục tiêu trong 2 vòng):
   `took_target_golem` (claim golem người đó nhắm với P≥0.45, ≤2 lượt) · `block_coin` (claim ô có coin người đó sắp lấy) ·
-  `took_wanted_card` (mua trade mạnh người đó đủ input dùng) · `sacrifice` (VH: chọn nước kém cho bản thân > 0.75 điểm
-  so với nước tốt nhất để chặn) · `rushing` (AI còn 1 golem là kích hoạt kết thúc). `Motive=true` khi denial thực sự đổi
+  `took_wanted_card` (mua trade mạnh người đó đủ input dùng) · `rushing` (AI còn 1 golem là kích hoạt kết thúc). `Motive=true` khi denial thực sự đổi
   lựa chọn ⇒ chữ "is blocking" thay vì "grabbed … before you".
 
 ## 8. Giao thức WebSocket (thêm, tương thích ngược)
@@ -98,7 +103,7 @@ ghế là BeatLeader; Very Hard: ghế cùng đội AI = Coalition, người = B
 | S→C | `aiThinking` | `{playerID, level, budgetMs, timeout}` khi AI (hoặc AI chơi thay người hết giờ) bắt đầu nghĩ |
 | S→C | `aiIntent` | `{playerID, playerName, targetPlayerID, kind, cardID, message}` chỉ tới người bị nhắm (+ spectator); `targetPlayerID=0` ⇒ broadcast |
 | S→C | `state.players[].aiLevel` | `easy|medium|hard|veryhard` hoặc `""` |
-| S→C | `state.{mode, turnTimeout, golemsToEnd, coalition, aiThinking}` | `aiThinking` = `{playerID, level, timeout}` hoặc `null` |
+| S→C | `state.{mode, turnTimeout, golemsToEnd, aiThinking}` | `aiThinking` = `{playerID, level, timeout}` hoặc `null` |
 | S→C | `state.market.actionCards[].placeCrystals` | số crystal phải đặt (luật chính thức) |
 | S→C | waiting state: `mode`, `numPlayers`, dòng AI `{isAI, aiLevel, aiIndex}` | phòng chờ hiện AI |
 

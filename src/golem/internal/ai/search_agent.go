@@ -44,7 +44,7 @@ func (a *searchAgent) Decide(ctx context.Context, snap *game.GameState, o Decide
 	}
 	seat := st.Seat()
 	n := int(st.N)
-	pv := newPerspective(n, seat, a.p, o.Teams)
+	pv := newPerspective(n, seat, a.p, o.Humans)
 	pl := policy{ev: a.ev, denialWeight: 0.5}
 	if a.p.OppModel {
 		pl.denial = denialTargets(&st, seat, &pv, a.ev)
@@ -61,7 +61,7 @@ func (a *searchAgent) Decide(ctx context.Context, snap *game.GameState, o Decide
 	case len(legal) == 1:
 		chosen = legal[0]
 	default:
-		if w, ok := immediateWin(&st, legal, &pv, drawer); ok {
+		if w, ok := immediateWin(&st, legal, drawer); ok {
 			chosen = w
 			break
 		}
@@ -102,7 +102,7 @@ func (a *searchAgent) Decide(ctx context.Context, snap *game.GameState, o Decide
 		}
 		d.Discard = &game.Resources{Yellow: int(disc[0]), Green: int(disc[1]), Blue: int(disc[2]), Pink: int(disc[3])}
 	}
-	d.Intents = a.intent.detect(&st, chosen, seat, &pv, a.p, a.ev, o.Teams)
+	d.Intents = a.intent.detect(&st, chosen, seat, a.p, a.ev, o.Humans)
 	d.Stats.Elapsed = time.Since(start)
 	return d, nil
 }
@@ -239,8 +239,8 @@ func (a *searchAgent) search(ctx context.Context, st *sim.State, pv *perspective
 	return best.act, stats, true
 }
 
-// immediateWin returns a move that ends the game with the mover (or its coalition) winning.
-func immediateWin(st *sim.State, legal []sim.Action, pv *perspective, d sim.Drawer) (sim.Action, bool) {
+// immediateWin returns a move that ends the game with the mover winning.
+func immediateWin(st *sim.State, legal []sim.Action, d sim.Drawer) (sim.Action, bool) {
 	if !st.LastRound {
 		return sim.Action{}, false
 	}
@@ -252,25 +252,17 @@ func immediateWin(st *sim.State, legal []sim.Action, pv *perspective, d sim.Draw
 		if !c.Over {
 			continue
 		}
-		w := int(c.Winner)
-		mine := w == mover || (pv.kind[mover] == UtilityCoalition && pv.isAI[w])
-		if mine && c.P[mover].FinalPoints() > bestPts {
+		if int(c.Winner) == mover && c.P[mover].FinalPoints() > bestPts {
 			best, bestPts, found = a, c.P[mover].FinalPoints(), true
 		}
 	}
 	return best, found
 }
 
-// denialTargets marks whose losses count as gains in the priors: the leader (beat-the-leader)
-// or every human (coalition).
+// denialTargets marks whose losses count as gains in the priors: the leader when it is close
+// (beat-the-leader); a rival also marks every person within humanEdgeMid of that bar.
 func denialTargets(st *sim.State, seat int, pv *perspective, ev evaluator) [sim.MaxPlayers]bool {
 	var out [sim.MaxPlayers]bool
-	if pv.kind[seat] == UtilityCoalition {
-		for i := 0; i < int(st.N); i++ {
-			out[i] = !pv.isAI[i]
-		}
-		return out
-	}
 	var v [sim.MaxPlayers]float64
 	ev.values(st, &v)
 	leader := -1
@@ -281,6 +273,13 @@ func denialTargets(st *sim.State, seat int, pv *perspective, ev evaluator) [sim.
 	}
 	if leader >= 0 && v[leader] >= v[seat]-2 {
 		out[leader] = true
+	}
+	if pv.kind[seat] == UtilityRival {
+		for i := 0; i < int(st.N); i++ {
+			if pv.human[i] && v[i]+humanEdgeMid >= v[seat]-2 {
+				out[i] = true
+			}
+		}
 	}
 	return out
 }

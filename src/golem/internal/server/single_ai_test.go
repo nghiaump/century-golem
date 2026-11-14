@@ -23,7 +23,7 @@ func TestCreateSinglePlayer_Difficulty(t *testing.T) {
 	gs := newCleanupTestServer(config.Config{})
 
 	code, out := postSingle(t, gs, `{"numAI":1}`)
-	if code != http.StatusOK || out["difficulty"] != "medium" || out["coalition"] != false {
+	if code != http.StatusOK || out["difficulty"] != "medium" || out["coalition"] != nil {
 		t.Fatalf("default difficulty: code=%d body=%v", code, out)
 	}
 	if !strings.HasPrefix(out["sessionID"].(string), "single_") {
@@ -31,7 +31,7 @@ func TestCreateSinglePlayer_Difficulty(t *testing.T) {
 	}
 
 	code, out = postSingle(t, gs, `{"numAI":3,"difficulty":"veryhard"}`)
-	if code != http.StatusOK || out["difficulty"] != "veryhard" || out["coalition"] != true {
+	if code != http.StatusOK || out["difficulty"] != "veryhard" || out["coalition"] != nil {
 		t.Fatalf("veryhard: code=%d body=%v", code, out)
 	}
 	s, ok := gs.GetSessionV2(out["sessionID"].(string))

@@ -445,10 +445,8 @@ func (gs *GameServer) HandleCreateSinglePlayer(w http.ResponseWriter, r *http.Re
 	gs.CreateSinglePlayerSession(sessionID, levels, req.TurnTimeout)
 
 	levelNames := make([]string, len(levels))
-	coalition := false
 	for i, l := range levels {
 		levelNames[i] = l.String()
-		coalition = coalition || l == ai.VeryHard
 	}
 	response := map[string]interface{}{
 		"sessionID":   sessionID,
@@ -458,7 +456,6 @@ func (gs *GameServer) HandleCreateSinglePlayer(w http.ResponseWriter, r *http.Re
 		"turnTimeout": req.TurnTimeout,
 		"difficulty":  levelNames[0],
 		"aiLevels":    levelNames,
-		"coalition":   coalition,
 	}
 
 	gs.Logger.Info("Created single-player V2 session", zap.String("sessionID", sessionID), zap.Int("numAI", req.NumAI), zap.Int("turnTimeout", req.TurnTimeout), zap.Any("response", response))

@@ -7,14 +7,14 @@
 ## Levels
 
 Pick one level for every AI in the single-player lobby (default **Medium**, remembered per browser). The lobby only
-says Very Hard is the toughest level; the team play below is intentionally not announced (user decision).
+says Very Hard is the toughest level.
 
 | Level | How it plays | Think time* |
 |---|---|---|
 | **Easy** | Looks one move ahead and picks among the near-best moves at random (softmax). Never makes silly moves (resting with nothing to pick up, missing a game-winning claim). | ~0.8 s (min. delay) |
 | **Medium** | Monte-Carlo tree search, 1 worker, maximises its own score; mild randomness in the final choice. | 0.3 s |
 | **Hard** | Search with 2 workers, reads opponents' plans, plays to **beat whoever is leading** (human or AI) — denial included. | 1.4 s |
-| **Very Hard** | Search with 4 workers, plan recognition, exact endgame rollouts, and **all AIs play as one team against you**: an AI may sacrifice its own score to take the golem or card you need. The highest score still wins. With a single AI there is no team, it just searches deeper. | 3.0 s |
+| **Very Hard** | Search with 4 workers, plan recognition, exact endgame rollouts. **Every AI plays for its own win** — it never feeds another AI — but counts you as a few points stronger than you are, so if you are close it blocks you first. With a single AI it simply searches deeper than Hard. | 3.0 s |
 
 \* per move on the production phone (Pixel 3 XL); a minimum visible delay of 0.8 s applies to every level.
 
@@ -30,10 +30,13 @@ says Very Hard is the toughest level; the team play below is intentionally not a
    value at the end); progress towards the visible golems — net points (golem + coin − crystals spent) discounted by the
    estimated turns to afford it and by whether an opponent gets there first; the "step value" of the player's cards
    (e.g. `2 yellow → 2 green` repeated 5× = +10 levels per play); clutter and tempo costs.
-4. **Utility per level.** Easy/Medium: own score. Hard: margin over the best other player. Very Hard: best AI score minus
-   best human score, shared by all AIs.
+4. **Utility per level.** Easy/Medium: own score. Hard: margin over the best other player. Very Hard ("rival"): margin
+   over 0.7 × the strongest + 0.3 × the average opponent, humans counted +3 points mid-game (+1 at the end), so a gift
+   to any opponent always costs and a close human is blocked first. No AI ever shares another AI's reward
+   ([ADR 0008](../adr/0008-very-hard-doi-thu-canh-tranh.md)).
 5. **Opponent model.** For every opponent: which golem they are going for (softmax over discounted value), how close
-   they are, coin races. It biases the search towards denial (Hard: against the leader; Very Hard: against humans) and
+   they are, coin races. It biases the search towards denial (Hard: against the leader; Very Hard: the leader plus any
+   human who is close) and
    can produce **intent toasts** ("Bowser took the golem you were going for") — off by default (`AI_INTENT_MESSAGES`).
 
 ## Configuration (server, `deploy/docker-compose.yml`)
@@ -48,8 +51,8 @@ says Very Hard is the toughest level; the team play below is intentionally not a
 | `AI_INTENT_MESSAGES` | `0` | send intent toasts to humans (off by default) |
 
 API: `POST /api/single {"numAI": 1..4, "difficulty": "easy|medium|hard|veryhard"}` (default `medium`), optional
-`"aiLevels": [...]` per AI. The response echoes `difficulty`, `aiLevels`, `coalition`. WebSocket adds `aiThinking`
-and `aiIntent` messages; the state carries `aiLevel` per player, `aiThinking`, `coalition`, `golemsToEnd`.
+`"aiLevels": [...]` per AI. The response echoes `difficulty` and `aiLevels`. WebSocket adds `aiThinking`
+and `aiIntent` messages; the state carries `aiLevel` per player, `aiThinking`, `golemsToEnd`.
 
 ## Tools
 
@@ -58,7 +61,7 @@ and `aiIntent` messages; the state carries `aiLevel` per player, `aiThinking`, `
 ```bash
 go run ./internal/ai/arena/aibench bench -level veryhard -n 30      # think time + iterations on this machine
 go run ./internal/ai/arena/aibench ladder -seeds 100                # every adjacent level + baselines
-go run ./internal/ai/arena/aibench coalition -seeds 50 -players 4   # proxy human vs 3 Very Hard / 3 Hard
+go run ./internal/ai/arena/aibench vshuman -seeds 50 -players 4     # proxy human vs 3 Very Hard / 3 Hard
 go run ./internal/ai/arena/aibench variant -level medium -gamma 0.7 # A/B test evaluator weights
 ```
 

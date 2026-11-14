@@ -1,6 +1,6 @@
 --- a/internal/ai/agent.go
 +++ b/internal/ai/agent.go
-@@ -0,0 +1,119 @@
+@@ -0,0 +1,118 @@
 +package ai
 +
 +import (
@@ -17,7 +17,6 @@
 +	IntentTookTargetGolem IntentKind = "took_target_golem" // claimed the golem the target was going for
 +	IntentBlockCoin       IntentKind = "block_coin"        // took a coin slot the target was racing for
 +	IntentTookWantedCard  IntentKind = "took_wanted_card"  // acquired a merchant card the target needed
-+	IntentSacrifice       IntentKind = "sacrifice"         // gave up own value to hinder the target (coalition)
 +	IntentRushing         IntentKind = "rushing"           // is one golem away from triggering the end
 +)
 +
@@ -50,9 +49,9 @@
 +
 +// DecideOptions carries per-decision context the snapshot does not hold.
 +type DecideOptions struct {
-+	// Teams[i] is the team of seat i (players with the same team share a coalition reward).
-+	// nil means everybody is on their own team.
-+	Teams []int
++	// Humans[i] reports whether seat i is played by a person (Very Hard counts people a few
++	// points stronger; intents are only reported to people). nil: no seat is known to be human.
++	Humans []bool
 +	// Seed drives every random choice of this decision (reproducible tests and tournaments).
 +	Seed uint64
 +	// Iterations > 0 replaces the time budget by a fixed iteration count (deterministic tests).
@@ -244,7 +243,7 @@
 +//	aibench bench      -level veryhard -n 30            # think time / iterations on THIS machine
 +//	aibench tournament -a hard -b medium -players 2 -seeds 200 -iters-a 40000 -iters-b 6000
 +//	aibench ladder     -seeds 100                       # every adjacent pair + baselines
-+//	aibench coalition  -seeds 50 -players 4             # proxy human vs 3 Very Hard / 3 Hard
++//	aibench vshuman    -seeds 50 -players 4             # proxy human vs 3 Very Hard / 3 Hard
 +//
 +// It lives under internal/ so it ships in the backend patch, but it is never built into the
 +// production image.
@@ -267,7 +266,7 @@
 +
 +func main() {
 +	if len(os.Args) < 2 {
-+		fmt.Fprintln(os.Stderr, "usage: aibench bench|tournament|ladder|coalition [flags]")
++		fmt.Fprintln(os.Stderr, "usage: aibench bench|tournament|ladder|vshuman|variant [flags]")
 +		os.Exit(2)
 +	}
 +	switch os.Args[1] {
@@ -277,8 +276,8 @@
 +		tournament(os.Args[2:])
 +	case "ladder":
 +		ladder(os.Args[2:])
-+	case "coalition":
-+		coalition(os.Args[2:])
++	case "vshuman":
++		vsHuman(os.Args[2:])
 +	case "variant":
 +		variant(os.Args[2:])
 +	default:
@@ -423,8 +422,8 @@
 +	}
 +}
 +
-+func coalition(args []string) {
-+	fs := flag.NewFlagSet("coalition", flag.ExitOnError)
++func vsHuman(args []string) {
++	fs := flag.NewFlagSet("vshuman", flag.ExitOnError)
 +	seeds := fs.Int("seeds", 50, "seeds (human plays every seat)")
 +	players := fs.Int("players", 4, "players")
 +	parallel := fs.Int("parallel", 0, "parallel games")
@@ -437,7 +436,7 @@
 +		arena.LevelBot(ai.VeryHard, int(float64(ladderIters[ai.VeryHard])**oppScale), 0),
 +	} {
 +		start := time.Now()
-+		r := arena.Coalition(human, opp, *players, *seeds, 1, *parallel)
++		r := arena.VsHuman(human, opp, *players, *seeds, 1, *parallel)
 +		fmt.Printf("proxy human vs %d×%-9s: %4d games, human wins %5.1f%% [%4.1f–%4.1f] (fair share %.0f%%)  errors %d  (%s)\n",
 +			*players-1, r.Opponents, r.Games, 100*r.WinRate, 100*r.Lo, 100*r.Hi, 100/float64(*players), len(r.Errors), time.Since(start).Round(time.Second))
 +	}
@@ -674,7 +673,7 @@
 +}
 --- a/internal/ai/arena/match.go
 +++ b/internal/ai/arena/match.go
-@@ -0,0 +1,243 @@
+@@ -0,0 +1,244 @@
 +package arena
 +
 +import (
@@ -701,8 +700,9 @@
 +// MaxRounds aborts a game that stalls (no real game gets close: ~35–70 rounds).
 +var MaxRounds = 150
 +
-+// PlayGame plays one game with bots[i] in seat i. teams (optional) is passed to every agent.
-+func PlayGame(seed int64, bots []Bot, teams []int) GameResult {
++// PlayGame plays one game with bots[i] in seat i. humans (optional) marks the seats every agent
++// should treat as people.
++func PlayGame(seed int64, bots []Bot, humans []bool) GameResult {
 +	n := len(bots)
 +	gs := game.NewGameState(n, seed)
 +	agents := make([]ai.Agent, n)
@@ -724,7 +724,7 @@
 +		}
 +		seat := gs.CurrentTurn % n
 +		d, err := agents[seat].Decide(context.Background(), gs.Clone(), ai.DecideOptions{
-+			Seed: uint64(seed)*1000003 + uint64(step), Iterations: bots[seat].Iterations, Teams: teams,
++			Seed: uint64(seed)*1000003 + uint64(step), Iterations: bots[seat].Iterations, Humans: humans,
 +		})
 +		if err != nil {
 +			res.Err = fmt.Errorf("seat %d (%s) step %d: %w", seat, bots[seat].Name, step, err)
@@ -864,8 +864,8 @@
 +		s.A, s.B, s.Players, s.Games, 100*s.WinRate, 100*s.WilsonLo, 100*s.Hi, Elo(s.WinRate), s.MarginA, s.MeanRounds, len(s.Errors))
 +}
 +
-+// CoalitionResult is the outcome of 1 proxy-human vs (players−1) AIs.
-+type CoalitionResult struct {
++// VsHumanResult is the outcome of 1 proxy-human vs (players−1) AIs.
++type VsHumanResult struct {
 +	Opponents string
 +	Games     int
 +	HumanWins int
@@ -874,14 +874,14 @@
 +	Errors    []error
 +}
 +
-+// Coalition seats a proxy human against players−1 copies of opp, rotating the human's seat, with
-+// teams set so coalition-utility AIs play together against the human.
-+func Coalition(human, opp Bot, players, seeds int, firstSeed int64, parallel int) CoalitionResult {
++// VsHuman seats a proxy human against players−1 copies of opp, rotating the human's seat; the AIs
++// know which seat is the "human" (as in a real single-player game).
++func VsHuman(human, opp Bot, players, seeds int, firstSeed int64, parallel int) VsHumanResult {
 +	if parallel <= 0 {
 +		parallel = runtime.NumCPU()
 +	}
 +	var mu sync.Mutex
-+	out := CoalitionResult{Opponents: opp.Name}
++	out := VsHumanResult{Opponents: opp.Name}
 +	sem := make(chan struct{}, parallel)
 +	var wg sync.WaitGroup
 +	for s := 0; s < seeds; s++ {
@@ -892,12 +892,12 @@
 +				defer wg.Done()
 +				defer func() { <-sem }()
 +				bots := make([]Bot, players)
-+				teams := make([]int, players)
++				humans := make([]bool, players)
 +				for i := range bots {
-+					bots[i], teams[i] = opp, 1
++					bots[i] = opp
 +				}
-+				bots[hs], teams[hs] = human, 100+hs
-+				r := PlayGame(seed, bots, teams)
++				bots[hs], humans[hs] = human, true
++				r := PlayGame(seed, bots, humans)
 +				mu.Lock()
 +				defer mu.Unlock()
 +				if r.Err != nil {
@@ -1402,7 +1402,7 @@
 +}
 --- a/internal/ai/intent.go
 +++ b/internal/ai/intent.go
-@@ -0,0 +1,125 @@
+@@ -0,0 +1,122 @@
 +package ai
 +
 +import (
@@ -1441,8 +1441,8 @@
 +	return prob, turns
 +}
 +
-+// detect inspects the chosen move against every human seat (seats outside the AI's team).
-+func (it *intentTracker) detect(st *sim.State, a sim.Action, seat int, pv *perspective, p Profile, ev evaluator, teams []int) []Intent {
++// detect inspects the chosen move against every human seat (every other seat when humans is nil).
++func (it *intentTracker) detect(st *sim.State, a sim.Action, seat int, p Profile, ev evaluator, humans []bool) []Intent {
 +	if it.last == nil {
 +		it.last = map[string]int16{}
 +	}
@@ -1450,8 +1450,8 @@
 +		if i == seat {
 +			return false
 +		}
-+		if seat < len(teams) && i < len(teams) {
-+			return teams[i] != teams[seat]
++		if humans != nil {
++			return i < len(humans) && humans[i]
 +		}
 +		return true
 +	}
@@ -1464,7 +1464,7 @@
 +		return []Intent{{Kind: kind, TargetID: target, CardID: cardID, Motive: motive}}
 +	}
 +
-+	// was this move chosen against our own short-term interest? (motive / sacrifice)
++	// was this move chosen against our own short-term interest? (motive)
 +	ownBest, ownChosen := math.Inf(-1), 0.0
 +	if p.Level >= Hard {
 +		var buf [256]sim.Action
@@ -1492,9 +1492,6 @@
 +				continue
 +			}
 +			prob, turns := golemTargets(st, h, ev)
-+			if p.Utility == UtilityCoalition && againstSelf && turns[j] <= 3 {
-+				return emit(IntentSacrifice, h+1, golemID, true)
-+			}
 +			if prob[j] >= 0.45 && turns[j] <= 2 {
 +				return emit(IntentTookTargetGolem, h+1, golemID, againstSelf)
 +			}
@@ -1921,7 +1918,7 @@
 +}
 --- a/internal/ai/profile.go
 +++ b/internal/ai/profile.go
-@@ -0,0 +1,135 @@
+@@ -0,0 +1,136 @@
 +// Package ai implements the computer opponents for Century: Golem Edition.
 +//
 +// All levels share one engine (evaluation, opponent model, search); a Profile decides how much
@@ -2002,9 +1999,10 @@
 +	UtilityOwn UtilityKind = iota
 +	// UtilityBeatLeader maximises the margin over the best other player, whoever leads.
 +	UtilityBeatLeader
-+	// UtilityCoalition makes every AI play for the AI team against the human(s): the reward is the
-+	// best AI score minus the best human score, shared by all AI seats (Very Hard, disclosed in the lobby).
-+	UtilityCoalition
++	// UtilityRival plays for the AI's own win (Very Hard): the margin over the strongest rival,
++	// blended with the average one so feeding any opponent costs, with people counted a few points
++	// stronger than they are so a close person is blocked first. AIs never share a reward.
++	UtilityRival
 +)
 +
 +// Profile holds every knob a level turns.
@@ -2042,7 +2040,7 @@
 +		return Profile{Level: Hard, Utility: UtilityBeatLeader, Search: true, Budget: 1400 * time.Millisecond,
 +			Workers: 2, Epsilon: 0.15, RolloutTurns: 2, OppModel: true, CPuct: 0.8, MaxNodes: 200000}
 +	case VeryHard:
-+		return Profile{Level: VeryHard, Utility: UtilityCoalition, Search: true, Budget: 3000 * time.Millisecond,
++		return Profile{Level: VeryHard, Utility: UtilityRival, Search: true, Budget: 3000 * time.Millisecond,
 +			Workers: 4, Epsilon: 0.10, RolloutTurns: 2, OppModel: true, EndgameToTerminal: true,
 +			CPuct: 0.8, MaxNodes: 200000}
 +	}
@@ -2157,7 +2155,7 @@
 +}
 --- a/internal/ai/search_agent.go
 +++ b/internal/ai/search_agent.go
-@@ -0,0 +1,332 @@
+@@ -0,0 +1,331 @@
 +package ai
 +
 +import (
@@ -2204,7 +2202,7 @@
 +	}
 +	seat := st.Seat()
 +	n := int(st.N)
-+	pv := newPerspective(n, seat, a.p, o.Teams)
++	pv := newPerspective(n, seat, a.p, o.Humans)
 +	pl := policy{ev: a.ev, denialWeight: 0.5}
 +	if a.p.OppModel {
 +		pl.denial = denialTargets(&st, seat, &pv, a.ev)
@@ -2221,7 +2219,7 @@
 +	case len(legal) == 1:
 +		chosen = legal[0]
 +	default:
-+		if w, ok := immediateWin(&st, legal, &pv, drawer); ok {
++		if w, ok := immediateWin(&st, legal, drawer); ok {
 +			chosen = w
 +			break
 +		}
@@ -2262,7 +2260,7 @@
 +		}
 +		d.Discard = &game.Resources{Yellow: int(disc[0]), Green: int(disc[1]), Blue: int(disc[2]), Pink: int(disc[3])}
 +	}
-+	d.Intents = a.intent.detect(&st, chosen, seat, &pv, a.p, a.ev, o.Teams)
++	d.Intents = a.intent.detect(&st, chosen, seat, a.p, a.ev, o.Humans)
 +	d.Stats.Elapsed = time.Since(start)
 +	return d, nil
 +}
@@ -2399,8 +2397,8 @@
 +	return best.act, stats, true
 +}
 +
-+// immediateWin returns a move that ends the game with the mover (or its coalition) winning.
-+func immediateWin(st *sim.State, legal []sim.Action, pv *perspective, d sim.Drawer) (sim.Action, bool) {
++// immediateWin returns a move that ends the game with the mover winning.
++func immediateWin(st *sim.State, legal []sim.Action, d sim.Drawer) (sim.Action, bool) {
 +	if !st.LastRound {
 +		return sim.Action{}, false
 +	}
@@ -2412,25 +2410,17 @@
 +		if !c.Over {
 +			continue
 +		}
-+		w := int(c.Winner)
-+		mine := w == mover || (pv.kind[mover] == UtilityCoalition && pv.isAI[w])
-+		if mine && c.P[mover].FinalPoints() > bestPts {
++		if int(c.Winner) == mover && c.P[mover].FinalPoints() > bestPts {
 +			best, bestPts, found = a, c.P[mover].FinalPoints(), true
 +		}
 +	}
 +	return best, found
 +}
 +
-+// denialTargets marks whose losses count as gains in the priors: the leader (beat-the-leader)
-+// or every human (coalition).
++// denialTargets marks whose losses count as gains in the priors: the leader when it is close
++// (beat-the-leader); a rival also marks every person within humanEdgeMid of that bar.
 +func denialTargets(st *sim.State, seat int, pv *perspective, ev evaluator) [sim.MaxPlayers]bool {
 +	var out [sim.MaxPlayers]bool
-+	if pv.kind[seat] == UtilityCoalition {
-+		for i := 0; i < int(st.N); i++ {
-+			out[i] = !pv.isAI[i]
-+		}
-+		return out
-+	}
 +	var v [sim.MaxPlayers]float64
 +	ev.values(st, &v)
 +	leader := -1
@@ -2441,6 +2431,13 @@
 +	}
 +	if leader >= 0 && v[leader] >= v[seat]-2 {
 +		out[leader] = true
++	}
++	if pv.kind[seat] == UtilityRival {
++		for i := 0; i < int(st.N); i++ {
++			if pv.human[i] && v[i]+humanEdgeMid >= v[seat]-2 {
++				out[i] = true
++			}
++		}
 +	}
 +	return out
 +}
@@ -2492,7 +2489,7 @@
 +}
 --- a/internal/ai/search_test.go
 +++ b/internal/ai/search_test.go
-@@ -0,0 +1,231 @@
+@@ -0,0 +1,230 @@
 +package ai
 +
 +import (
@@ -2511,9 +2508,9 @@
 +	return p
 +}
 +
-+func decide(t *testing.T, a Agent, gs *game.GameState, iters int, teams []int) Decision {
++func decide(t *testing.T, a Agent, gs *game.GameState, iters int, humans []bool) Decision {
 +	t.Helper()
-+	d, err := a.Decide(context.Background(), gs.Clone(), DecideOptions{Seed: 7, Iterations: iters, Teams: teams})
++	d, err := a.Decide(context.Background(), gs.Clone(), DecideOptions{Seed: 7, Iterations: iters, Humans: humans})
 +	if err != nil {
 +		t.Fatalf("decide: %v", err)
 +	}
@@ -2650,7 +2647,7 @@
 +}
 +
 +// The human (seat 1) is one turn from a valuable golem the AI can claim right now: Hard (human
-+// leading) and Very Hard (coalition) must take it.
++// leading) and Very Hard (person counted stronger) must take it.
 +func TestScenario_DenyHumansTargetGolem(t *testing.T) {
 +	for _, l := range []Level{Hard, VeryHard} {
 +		gs := scenario(t, []string{"golem_0022", "golem_0230", "golem_3200", "golem_0040", "golem_2003"})
@@ -2659,8 +2656,7 @@
 +		human.Resources = &game.Resources{Blue: 2, Pink: 3} // …and so can the human, on their next turn
 +		human.PointCards = []*game.Card{{ID: 9901, Type: game.PointCard, Points: 14}}
 +		human.Points = 14
-+		teams := []int{1, 100}
-+		d := decide(t, NewAgentWithProfile(testProfile(l), DefaultRuntime()), gs, 1500, teams)
++		d := decide(t, NewAgentWithProfile(testProfile(l), DefaultRuntime()), gs, 1500, []bool{false, true})
 +		if d.Action.Type != game.ClaimPointCard || gs.Market.PointCards[d.Action.CardIndex].Name != "golem_3200" {
 +			t.Errorf("%v should claim golem_3200 before the human, chose %+v", l, d.Action)
 +		}
@@ -2674,7 +2670,7 @@
 +	ai, human := gs.Players[0], gs.Players[1]
 +	ai.Resources = &game.Resources{Yellow: 2, Blue: 3}
 +	human.Resources = &game.Resources{Yellow: 2, Blue: 2, Green: 2}
-+	d := decide(t, NewAgentWithProfile(testProfile(Hard), DefaultRuntime()), gs, 1500, []int{1, 100})
++	d := decide(t, NewAgentWithProfile(testProfile(Hard), DefaultRuntime()), gs, 1500, []bool{false, true})
 +	if d.Action.Type != game.ClaimPointCard || d.Action.CardIndex != 0 {
 +		t.Errorf("Hard should take the last copper (golem 0), chose %+v", d.Action)
 +	}
@@ -2701,7 +2697,7 @@
 +	// The human can claim golem_3200 on their very next turn, so waiting would lose it. (With a
 +	// 2-turn human the AI may correctly take a free card first and still claim in time.)
 +	human.Resources = &game.Resources{Blue: 2, Pink: 3}
-+	d := decide(t, NewAgentWithProfile(testProfile(VeryHard), DefaultRuntime()), gs, 1500, []int{1, 100})
++	d := decide(t, NewAgentWithProfile(testProfile(VeryHard), DefaultRuntime()), gs, 1500, []bool{false, true})
 +	if d.Action.Type != game.ClaimPointCard || gs.Market.PointCards[d.Action.CardIndex].Name != "golem_3200" {
 +		t.Fatalf("Very Hard should claim the human's target golem_3200, chose %+v", d.Action)
 +	}
@@ -3659,7 +3655,7 @@
 +}
 --- a/internal/ai/utility.go
 +++ b/internal/ai/utility.go
-@@ -0,0 +1,111 @@
+@@ -0,0 +1,118 @@
 +package ai
 +
 +import (
@@ -3668,53 +3664,45 @@
 +	"golem_century/internal/ai/sim"
 +)
 +
++// Rival utility (Very Hard). Every AI plays for its own win; nobody shares a reward.
++//   - People count as humanEdgeMid points stronger than their evaluation mid-game, so a person
++//     who is close is the first rival an AI blocks. At the end the bias shrinks to
++//     humanEdgeTerminal: losing to a person is graded a little worse than losing to an AI,
++//     but a win is always a win and a loss always a loss.
++//   - Mid-game the margin is taken against rivalLeadShare·strongest + (1−rivalLeadShare)·average
++//     rival, so handing crystals or cards to ANY opponent costs something (no "gifts" to the AI
++//     that moves next).
++const (
++	humanEdgeMid      = 3.0
++	humanEdgeTerminal = 1.0
++	rivalLeadShare    = 0.7
++)
++
 +// perspective says what every seat maximises, from the searching agent's point of view.
 +type perspective struct {
 +	n     int
 +	kind  [sim.MaxPlayers]UtilityKind
-+	team  [sim.MaxPlayers]int  // coalition team per seat
-+	isAI  [sim.MaxPlayers]bool // seats on the AI team (coalition)
++	human [sim.MaxPlayers]bool // seats played by people (DecideOptions.Humans)
 +	scale float64              // points per unit of the logistic (mid-game)
 +}
 +
-+// newPerspective builds the utilities: the agent's own seat uses its profile; in coalition mode
-+// every AI-team seat shares the team reward and humans are modelled as beat-the-leader; otherwise
-+// Easy/Medium see everyone as score maximisers and Hard sees everyone as beat-the-leader.
-+func newPerspective(n int, seat int, p Profile, teams []int) perspective {
++// newPerspective builds the utilities: Easy/Medium see everyone as score maximisers, Hard sees
++// everyone as beat-the-leader, Very Hard models the other AIs as rivals like itself and people
++// as beat-the-leader. The agent's own seat always uses its profile.
++func newPerspective(n int, seat int, p Profile, humans []bool) perspective {
 +	pv := perspective{n: n, scale: 6}
-+	myTeam := -1
-+	if seat < len(teams) {
-+		myTeam = teams[seat]
-+	}
 +	for i := 0; i < n; i++ {
-+		pv.team[i] = 100 + i
-+		if i < len(teams) {
-+			pv.team[i] = teams[i]
-+		}
++		pv.human[i] = i != seat && i < len(humans) && humans[i]
 +		switch p.Utility {
-+		case UtilityCoalition:
-+			pv.isAI[i] = pv.team[i] == myTeam
-+			if pv.isAI[i] {
-+				pv.kind[i] = UtilityCoalition
-+			} else {
++		case UtilityRival:
++			pv.kind[i] = UtilityRival
++			if pv.human[i] {
 +				pv.kind[i] = UtilityBeatLeader
 +			}
 +		case UtilityBeatLeader:
 +			pv.kind[i] = UtilityBeatLeader
 +		default:
 +			pv.kind[i] = UtilityOwn
-+		}
-+	}
-+	// a coalition needs at least one opponent outside the team; otherwise beat the leader
-+	if p.Utility == UtilityCoalition {
-+		others := false
-+		for i := 0; i < n; i++ {
-+			others = others || !pv.isAI[i]
-+		}
-+		if !others {
-+			for i := 0; i < n; i++ {
-+				pv.kind[i] = UtilityBeatLeader
-+			}
 +		}
 +	}
 +	return pv
@@ -3726,14 +3714,6 @@
 +	scale := pv.scale
 +	if terminal {
 +		scale = 2.5 // final scores are exact: sharpen
-+	}
-+	bestAI, bestHuman := math.Inf(-1), math.Inf(-1)
-+	for i := 0; i < pv.n; i++ {
-+		if pv.isAI[i] {
-+			bestAI = math.Max(bestAI, v[i])
-+		} else {
-+			bestHuman = math.Max(bestHuman, v[i])
-+		}
 +	}
 +	for i := 0; i < pv.n; i++ {
 +		var x float64
@@ -3747,28 +3727,124 @@
 +			}
 +			x = v[i] - sum/float64(max(1, pv.n-1))
 +		case UtilityBeatLeader:
-+			best := math.Inf(-1)
++			x = v[i] - pv.strongest(v, i, 0)
++		case UtilityRival:
++			if terminal && winner >= 0 {
++				if winner == i {
++					x = math.Max(0.5, v[i]-pv.strongest(v, i, 0))
++				} else {
++					x = math.Min(-0.5, v[i]-pv.strongest(v, i, humanEdgeTerminal))
++				}
++				break
++			}
++			sum := 0.0
 +			for j := 0; j < pv.n; j++ {
 +				if j != i {
-+					best = math.Max(best, v[j])
++					sum += v[j] + pv.edge(j, humanEdgeMid)
 +				}
 +			}
-+			x = v[i] - best
-+		case UtilityCoalition:
-+			x = bestAI - bestHuman
++			mean := sum / float64(max(1, pv.n-1))
++			x = v[i] - (rivalLeadShare*pv.strongest(v, i, humanEdgeMid) + (1-rivalLeadShare)*mean)
 +		}
 +		if terminal && x == 0 && winner >= 0 { // a tie on points: turn order decides
-+			won := winner == i
-+			if pv.kind[i] == UtilityCoalition {
-+				won = pv.isAI[winner]
-+			}
-+			if won {
++			if winner == i {
 +				x = 0.5
 +			} else {
 +				x = -0.5
 +			}
 +		}
 +		r[i] = 1 / (1 + math.Exp(-x/scale))
++	}
++}
++
++// strongest returns the best value among the seats other than i, people raised by edge.
++func (pv *perspective) strongest(v *[sim.MaxPlayers]float64, i int, edge float64) float64 {
++	best := math.Inf(-1)
++	for j := 0; j < pv.n; j++ {
++		if j != i {
++			best = math.Max(best, v[j]+pv.edge(j, edge))
++		}
++	}
++	return best
++}
++
++func (pv *perspective) edge(j int, e float64) float64 {
++	if pv.human[j] {
++		return e
++	}
++	return 0
++}
+--- a/internal/ai/utility_test.go
++++ b/internal/ai/utility_test.go
+@@ -0,0 +1,70 @@
++package ai
++
++import (
++	"testing"
++
++	"golem_century/internal/ai/sim"
++)
++
++// Seat 0 is the Very Hard agent, seat 1 another AI, seat 2 a person.
++func rivalView() perspective {
++	return newPerspective(3, 0, DefaultProfile(VeryHard), []bool{false, false, true})
++}
++
++func reward0(pv perspective, v [sim.MaxPlayers]float64, terminal bool, winner int) float64 {
++	var r [sim.MaxPlayers]float64
++	pv.rewards(&v, terminal, winner, &r)
++	return r[0]
++}
++
++func TestRivalUtility_GiftsToAnotherAICost(t *testing.T) {
++	pv := rivalView()
++	base := [sim.MaxPlayers]float64{20, 14, 18}
++	// The reported Very Hard bug: spend own crystals so the AI moving next picks them up.
++	gift := [sim.MaxPlayers]float64{18, 17, 18}
++	if reward0(pv, gift, false, -1) >= reward0(pv, base, false, -1) {
++		t.Fatal("handing value to another AI must lower the rival reward")
++	}
++	// Even a pure gift (no cost to us) to an AI that stays behind must not be neutral.
++	if reward0(pv, [sim.MaxPlayers]float64{20, 16, 18}, false, -1) >= reward0(pv, base, false, -1) {
++		t.Fatal("feeding a trailing AI must still cost something")
++	}
++}
++
++func TestRivalUtility_PersonCountsStronger(t *testing.T) {
++	pv := rivalView()
++	// Same loss of value for the opponent: hurting the person is worth more than hurting the AI.
++	hitAI := reward0(pv, [sim.MaxPlayers]float64{20, 16, 19}, false, -1)
++	hitHuman := reward0(pv, [sim.MaxPlayers]float64{20, 19, 16}, false, -1)
++	if hitHuman <= hitAI {
++		t.Fatalf("blocking a close person should be preferred: human %.4f vs AI %.4f", hitHuman, hitAI)
++	}
++}
++
++func TestRivalUtility_TerminalOrdering(t *testing.T) {
++	pv := rivalView()
++	win := reward0(pv, [sim.MaxPlayers]float64{25, 24, 24}, true, 0)
++	tieWin := reward0(pv, [sim.MaxPlayers]float64{24, 20, 24}, true, 0) // later seat on a tie… modelled by winner
++	loseToAI := reward0(pv, [sim.MaxPlayers]float64{24, 25, 20}, true, 1)
++	loseToHuman := reward0(pv, [sim.MaxPlayers]float64{24, 20, 25}, true, 2)
++	if !(win > 0.5 && tieWin > 0.5) {
++		t.Fatalf("a win must be rewarded above 0.5: win %.3f tie-win %.3f", win, tieWin)
++	}
++	if !(loseToAI < 0.5 && loseToHuman < loseToAI) {
++		t.Fatalf("a loss must be below 0.5 and losing to a person worse: AI %.3f human %.3f", loseToAI, loseToHuman)
++	}
++	if loseToAI >= tieWin {
++		t.Fatal("any win must beat any loss")
++	}
++}
++
++func TestPerspective_VeryHardWithoutPeopleIsPlainRival(t *testing.T) {
++	pv := newPerspective(2, 0, DefaultProfile(VeryHard), nil)
++	if pv.kind[0] != UtilityRival || pv.kind[1] != UtilityRival || pv.human[1] {
++		t.Fatalf("unexpected perspective: %+v", pv)
++	}
++	pv = newPerspective(3, 1, DefaultProfile(VeryHard), []bool{true, false, false})
++	if pv.kind[0] != UtilityBeatLeader || !pv.human[0] || pv.kind[1] != UtilityRival || pv.kind[2] != UtilityRival {
++		t.Fatalf("people are modelled as beat-the-leader, AIs as rivals: %+v", pv)
 +	}
 +}
 --- a/internal/config/config.go
@@ -5687,7 +5763,7 @@
  	} else {
  		sessionID = fmt.Sprintf("single_%d", time.Now().UnixNano())
  	}
-@@ -416,14 +442,23 @@
+@@ -416,14 +442,20 @@
  	// Total players = 1 human + numAI
  	totalPlayers := 1 + req.NumAI
  
@@ -5695,10 +5771,8 @@
 +	gs.CreateSinglePlayerSession(sessionID, levels, req.TurnTimeout)
  
 +	levelNames := make([]string, len(levels))
-+	coalition := false
 +	for i, l := range levels {
 +		levelNames[i] = l.String()
-+		coalition = coalition || l == ai.VeryHard
 +	}
  	response := map[string]interface{}{
  		"sessionID":   sessionID,
@@ -5708,11 +5782,10 @@
  		"turnTimeout": req.TurnTimeout,
 +		"difficulty":  levelNames[0],
 +		"aiLevels":    levelNames,
-+		"coalition":   coalition,
  	}
  
  	gs.Logger.Info("Created single-player V2 session", zap.String("sessionID", sessionID), zap.Int("numAI", req.NumAI), zap.Int("turnTimeout", req.TurnTimeout), zap.Any("response", response))
-@@ -431,3 +466,33 @@
+@@ -431,3 +463,33 @@
  	w.Header().Set("Content-Type", "application/json")
  	json.NewEncoder(w).Encode(response)
  }
@@ -5945,7 +6018,7 @@
 +	gs := newCleanupTestServer(config.Config{})
 +
 +	code, out := postSingle(t, gs, `{"numAI":1}`)
-+	if code != http.StatusOK || out["difficulty"] != "medium" || out["coalition"] != false {
++	if code != http.StatusOK || out["difficulty"] != "medium" || out["coalition"] != nil {
 +		t.Fatalf("default difficulty: code=%d body=%v", code, out)
 +	}
 +	if !strings.HasPrefix(out["sessionID"].(string), "single_") {
@@ -5953,7 +6026,7 @@
 +	}
 +
 +	code, out = postSingle(t, gs, `{"numAI":3,"difficulty":"veryhard"}`)
-+	if code != http.StatusOK || out["difficulty"] != "veryhard" || out["coalition"] != true {
++	if code != http.StatusOK || out["difficulty"] != "veryhard" || out["coalition"] != nil {
 +		t.Fatalf("veryhard: code=%d body=%v", code, out)
 +	}
 +	s, ok := gs.GetSessionV2(out["sessionID"].(string))
@@ -5979,7 +6052,7 @@
 +}
 --- a/internal/session/ai_session_test.go
 +++ b/internal/session/ai_session_test.go
-@@ -0,0 +1,336 @@
+@@ -0,0 +1,339 @@
 +package session
 +
 +import (
@@ -6114,8 +6187,11 @@
 +	if players[0]["aiLevel"] != "hard" || players[1]["aiLevel"] != "veryhard" || players[1]["isAI"] != true {
 +		t.Fatalf("unexpected AI rows: %+v", players)
 +	}
-+	if st["mode"] != "single" || st["coalition"] != true || st["numPlayers"] != 3 {
-+		t.Fatalf("unexpected waiting payload: mode=%v coalition=%v numPlayers=%v", st["mode"], st["coalition"], st["numPlayers"])
++	if st["mode"] != "single" || st["numPlayers"] != 3 {
++		t.Fatalf("unexpected waiting payload: mode=%v numPlayers=%v", st["mode"], st["numPlayers"])
++	}
++	if _, ok := st["coalition"]; ok {
++		t.Fatal("the waiting payload must not carry a coalition flag any more")
 +	}
 +}
 +
@@ -6318,7 +6394,7 @@
 +}
 --- a/internal/session/ai_turns.go
 +++ b/internal/session/ai_turns.go
-@@ -0,0 +1,639 @@
+@@ -0,0 +1,615 @@
 +package session
 +
 +import (
@@ -6455,15 +6531,13 @@
 +	gs.timeoutAgents = map[int]ai.Agent{}
 +	gs.aiAvatars = map[int]string{}
 +	avatars := gs.aiAvatarsLocked(n)
-+	gs.teams = make([]int, n)
++	gs.humans = append([]bool(nil), human...)
 +	levels := make([]ai.Level, 0, n)
 +	k := 0
 +	for seat := 0; seat < n; seat++ {
 +		if human[seat] {
-+			gs.teams[seat] = 100 + seat
 +			continue
 +		}
-+		gs.teams[seat] = 1
 +		p := gs.GameState.Players[seat]
 +		if !gs.isSingle() { // multiplayer: no AI seats exist (n == humans)
 +			continue
@@ -6479,16 +6553,6 @@
 +	if gs.isSingle() {
 +		gs.aiLevels = levels
 +	}
-+}
-+
-+// coalitionActive reports whether some AI plays the coalition utility against humans. Caller holds gs.mu.
-+func (gs *GameSession) coalitionActive() bool {
-+	for _, a := range gs.agents {
-+		if a.Profile().Utility == ai.UtilityCoalition {
-+			return true
-+		}
-+	}
-+	return false
 +}
 +
 +// timeoutAgentFor returns who plays for a timed-out human: in single-player a Medium AI playing
@@ -6650,8 +6714,8 @@
 +		minDelay = gs.aiRuntime.MinDelay
 +	}
 +	opts := ai.DecideOptions{
-+		Teams: append([]int(nil), gs.teams...),
-+		Seed:  uint64(gs.seed) ^ (seq << 8) ^ uint64(playerID),
++		Humans: append([]bool(nil), gs.humans...),
++		Seed:   uint64(gs.seed) ^ (seq << 8) ^ uint64(playerID),
 +	}
 +	go func() {
 +		start := time.Now()
@@ -6841,8 +6905,6 @@
 +		return aiName + " grabbed the coin bonus before you"
 +	case ai.IntentTookWantedCard:
 +		return aiName + " grabbed the merchant card you needed"
-+	case ai.IntentSacrifice:
-+		return aiName + " is sacrificing points to stop you"
 +	case ai.IntentRushing:
 +		return aiName + " is one golem away from ending the game"
 +	}
@@ -6948,16 +7010,6 @@
 +	}
 +	return "multi"
 +}
-+
-+// waitingCoalition reports whether a waiting single-player room has a Very Hard AI. Caller holds gs.mu.
-+func (gs *GameSession) waitingCoalition() bool {
-+	for k := 0; k < gs.maxPlayers-1; k++ {
-+		if gs.aiLevelAt(k) == ai.VeryHard {
-+			return true
-+		}
-+	}
-+	return false
-+}
 --- a/internal/session/session.go
 +++ b/internal/session/session.go
 @@ -1,6 +1,7 @@
@@ -7004,7 +7056,7 @@
 +	agentFactory   func(ai.Level, *ai.Runtime) ai.Agent // tests
 +	agents         map[int]ai.Agent                     // player ID -> agent (AI seats)
 +	timeoutAgents  map[int]ai.Agent                     // player ID -> who plays for a timed-out human
-+	teams          []int                                // team per seat (AIs share team 1)
++	humans         []bool                               // seats played by people
 +	seed           int64                                // game seed (reproducible AI randomness)
 +	stepSeq        uint64                               // bumped on every applied step; stale AI results are dropped
 +	aiJob          *aiJob                               // in-flight AI decision, if any
@@ -7521,7 +7573,7 @@
  
  		return map[string]interface{}{
  			"type": "state",
-@@ -1416,7 +1282,10 @@
+@@ -1416,7 +1282,9 @@
  			"players":         waitingPlayers,
  			"maxChatMessages": gs.maxChatMsgs,
  			// "market":          map[string]interface{}{},
@@ -7529,11 +7581,10 @@
 +			"status":     gs.status,
 +			"mode":       gs.modeName(),
 +			"numPlayers": gs.maxPlayers,
-+			"coalition":  gs.isSingle() && gs.waitingCoalition(),
  		}
  	}
  
-@@ -1426,9 +1295,12 @@
+@@ -1426,9 +1294,12 @@
  		joinedAt := ""
  
  		pi := gs.getPlayerInfo(p.ID)
@@ -7546,7 +7597,7 @@
  		}
  
  		resourcesMap := map[string]int{
-@@ -1453,9 +1325,11 @@
+@@ -1453,9 +1324,11 @@
  			"coins":          serializeCards(p.Coins),
  			"hasRested":      p.HasRested,
  			"isAI":           p.IsAI,
@@ -7559,7 +7610,7 @@
  		}
  	}
  
-@@ -1463,6 +1337,7 @@
+@@ -1463,6 +1336,7 @@
  	for i, card := range gs.GameState.Market.ActionCards {
  		cost := gs.GameState.Market.GetActionCardCost(i)
  		serialized := serializeCardWithCost(card, cost)
@@ -7567,7 +7618,7 @@
  		// Ensure deposits field exists
  		if _, exists := serialized["deposits"]; !exists {
  			serialized["deposits"] = make(map[string]string)
-@@ -1494,7 +1369,12 @@
+@@ -1494,7 +1368,11 @@
  			"pointDeck":   len(gs.GameState.Market.PointDeck),
  			"coins":       marketCoins,
  		},
@@ -7576,12 +7627,11 @@
 +		"mode":        gs.modeName(),
 +		"turnTimeout": int(gs.TurnTimeout / time.Second),
 +		"golemsToEnd": gs.GameState.GolemsToEnd(),
-+		"coalition":   gs.coalitionActive(),
 +		"aiThinking":  gs.thinkingInfoLocked(),
  	}
  }
  
-@@ -1589,6 +1469,12 @@
+@@ -1589,6 +1467,12 @@
  
  // Close gracefully closes the game session, disconnecting all players and spectators
  func (gs *GameSession) Close() error {
@@ -7594,7 +7644,7 @@
  	gs.mu.Lock()
  	defer gs.mu.Unlock()
  
-@@ -1645,8 +1531,10 @@
+@@ -1645,8 +1529,10 @@
  	gs.assignedPlayers = make(map[int]string)
  	gs.spectators = make(map[string]*Spectator)
  

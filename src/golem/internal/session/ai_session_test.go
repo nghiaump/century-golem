@@ -132,8 +132,11 @@ func TestAISession_WaitingPayloadListsAIs(t *testing.T) {
 	if players[0]["aiLevel"] != "hard" || players[1]["aiLevel"] != "veryhard" || players[1]["isAI"] != true {
 		t.Fatalf("unexpected AI rows: %+v", players)
 	}
-	if st["mode"] != "single" || st["coalition"] != true || st["numPlayers"] != 3 {
-		t.Fatalf("unexpected waiting payload: mode=%v coalition=%v numPlayers=%v", st["mode"], st["coalition"], st["numPlayers"])
+	if st["mode"] != "single" || st["numPlayers"] != 3 {
+		t.Fatalf("unexpected waiting payload: mode=%v numPlayers=%v", st["mode"], st["numPlayers"])
+	}
+	if _, ok := st["coalition"]; ok {
+		t.Fatal("the waiting payload must not carry a coalition flag any more")
 	}
 }
 

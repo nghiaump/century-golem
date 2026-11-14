@@ -36,8 +36,8 @@ func golemTargets(st *sim.State, h int, ev evaluator) (prob [sim.GolemRowSize]fl
 	return prob, turns
 }
 
-// detect inspects the chosen move against every human seat (seats outside the AI's team).
-func (it *intentTracker) detect(st *sim.State, a sim.Action, seat int, pv *perspective, p Profile, ev evaluator, teams []int) []Intent {
+// detect inspects the chosen move against every human seat (every other seat when humans is nil).
+func (it *intentTracker) detect(st *sim.State, a sim.Action, seat int, p Profile, ev evaluator, humans []bool) []Intent {
 	if it.last == nil {
 		it.last = map[string]int16{}
 	}
@@ -45,8 +45,8 @@ func (it *intentTracker) detect(st *sim.State, a sim.Action, seat int, pv *persp
 		if i == seat {
 			return false
 		}
-		if seat < len(teams) && i < len(teams) {
-			return teams[i] != teams[seat]
+		if humans != nil {
+			return i < len(humans) && humans[i]
 		}
 		return true
 	}
@@ -59,7 +59,7 @@ func (it *intentTracker) detect(st *sim.State, a sim.Action, seat int, pv *persp
 		return []Intent{{Kind: kind, TargetID: target, CardID: cardID, Motive: motive}}
 	}
 
-	// was this move chosen against our own short-term interest? (motive / sacrifice)
+	// was this move chosen against our own short-term interest? (motive)
 	ownBest, ownChosen := math.Inf(-1), 0.0
 	if p.Level >= Hard {
 		var buf [256]sim.Action
@@ -87,9 +87,6 @@ func (it *intentTracker) detect(st *sim.State, a sim.Action, seat int, pv *persp
 				continue
 			}
 			prob, turns := golemTargets(st, h, ev)
-			if p.Utility == UtilityCoalition && againstSelf && turns[j] <= 3 {
-				return emit(IntentSacrifice, h+1, golemID, true)
-			}
 			if prob[j] >= 0.45 && turns[j] <= 2 {
 				return emit(IntentTookTargetGolem, h+1, golemID, againstSelf)
 			}

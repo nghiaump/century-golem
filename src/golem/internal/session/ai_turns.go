@@ -134,15 +134,13 @@ func (gs *GameSession) assignSeats(rng *rand.Rand) {
 	gs.timeoutAgents = map[int]ai.Agent{}
 	gs.aiAvatars = map[int]string{}
 	avatars := gs.aiAvatarsLocked(n)
-	gs.teams = make([]int, n)
+	gs.humans = append([]bool(nil), human...)
 	levels := make([]ai.Level, 0, n)
 	k := 0
 	for seat := 0; seat < n; seat++ {
 		if human[seat] {
-			gs.teams[seat] = 100 + seat
 			continue
 		}
-		gs.teams[seat] = 1
 		p := gs.GameState.Players[seat]
 		if !gs.isSingle() { // multiplayer: no AI seats exist (n == humans)
 			continue
@@ -158,16 +156,6 @@ func (gs *GameSession) assignSeats(rng *rand.Rand) {
 	if gs.isSingle() {
 		gs.aiLevels = levels
 	}
-}
-
-// coalitionActive reports whether some AI plays the coalition utility against humans. Caller holds gs.mu.
-func (gs *GameSession) coalitionActive() bool {
-	for _, a := range gs.agents {
-		if a.Profile().Utility == ai.UtilityCoalition {
-			return true
-		}
-	}
-	return false
 }
 
 // timeoutAgentFor returns who plays for a timed-out human: in single-player a Medium AI playing
@@ -329,8 +317,8 @@ func (gs *GameSession) startAIJobLocked(playerID int, agent ai.Agent, timeout bo
 		minDelay = gs.aiRuntime.MinDelay
 	}
 	opts := ai.DecideOptions{
-		Teams: append([]int(nil), gs.teams...),
-		Seed:  uint64(gs.seed) ^ (seq << 8) ^ uint64(playerID),
+		Humans: append([]bool(nil), gs.humans...),
+		Seed:   uint64(gs.seed) ^ (seq << 8) ^ uint64(playerID),
 	}
 	go func() {
 		start := time.Now()
@@ -520,8 +508,6 @@ func intentMessage(aiName string, it ai.Intent) string {
 		return aiName + " grabbed the coin bonus before you"
 	case ai.IntentTookWantedCard:
 		return aiName + " grabbed the merchant card you needed"
-	case ai.IntentSacrifice:
-		return aiName + " is sacrificing points to stop you"
 	case ai.IntentRushing:
 		return aiName + " is one golem away from ending the game"
 	}
@@ -626,14 +612,4 @@ func (gs *GameSession) modeName() string {
 		return "single"
 	}
 	return "multi"
-}
-
-// waitingCoalition reports whether a waiting single-player room has a Very Hard AI. Caller holds gs.mu.
-func (gs *GameSession) waitingCoalition() bool {
-	for k := 0; k < gs.maxPlayers-1; k++ {
-		if gs.aiLevelAt(k) == ai.VeryHard {
-			return true
-		}
-	}
-	return false
 }

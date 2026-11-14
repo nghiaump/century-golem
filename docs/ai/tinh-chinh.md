@@ -13,8 +13,9 @@
 - Thống kê: tỉ lệ thắng + **khoảng tin cậy Wilson 95%**, Elo quy đổi, chênh điểm trung bình, số vòng trung bình.
   ~160 ván ⇒ ±7.5%; ~400 ván phát hiện được 55% vs 50%.
 - Chặn ván treo: `arena.MaxRounds = 150` (ván thật 35–70 vòng) ⇒ ghi lỗi kèm trạng thái để điều tra.
-- Mục tiêu (2 người): mỗi cấp thắng cấp dưới **≥ 70%**; Very Hard vs Hard **≥ 60%** (2 người không có liên minh);
-  coalition test: "người proxy" thắng ít hẳn khi gặp 3 Very Hard so với 3 Hard.
+- Mục tiêu (2 người): mỗi cấp thắng cấp dưới **≥ 70%**; Very Hard vs Hard **≥ 60%**;
+  test 4 người (`vshuman`): "người proxy" thắng ít hơn khi gặp 3 Very Hard so với 3 Hard — **không** bằng thông đồng
+  (ADR 0008: AI không bao giờ "biếu" AI khác).
 
 ## 2. Lệnh
 
@@ -23,7 +24,7 @@
 go build -o /tmp/aibench ./internal/ai/arena/aibench
 /tmp/aibench variant -level medium -seeds 80 -iters 3000 -crystal 0.75 -cpuct 0.8   # A/B trọng số / tham số
 /tmp/aibench ladder -seeds 100                                                       # các cặp cấp + baseline
-/tmp/aibench coalition -seeds 25 -players 4 -iter-scale 0.25 -human-iters 100000     # liên minh Very Hard
+/tmp/aibench vshuman -seeds 25 -players 4 -iter-scale 0.25 -human-iters 100000       # người proxy vs 3 Hard / 3 Very Hard
 /tmp/aibench tournament -a hard -b medium -players 4 -seeds 40 -iters-a 40000 -iters-b 5000
 ```
 Cờ của `variant`: `-crystal -p1 -p2 -gamma -contested -engine -played -extracard -cpuct -eps -rollout`.
@@ -73,7 +74,7 @@ Cờ của `variant`: `-crystal -p1 -p2 -gamma -contested -engine -played -extra
 Nhận xét: khoảng cách Easy → Medium rất lớn (Easy dành cho người mới, vẫn mạnh hơn AI cũ); Medium (mặc định) đã thắng
 AI cũ 100% với +33 điểm. Ván giữa các cấp mạnh ngắn hơn (~40 vòng) — gần số liệu chuyên gia (30–40 lượt/ván 2 người).
 
-## 6. Coalition test (4 người)
+## 6. Người proxy vs 3 AI (4 người, `aibench vshuman`, trước đây gọi là coalition test)
 
 Người chơi proxy = profile Hard (beat-the-leader) với **100 000 iteration/quyết định** (gấp đôi đối thủ VH ở thang 0.25);
 đối thủ = 3 AI cùng cấp, ngân sách 0.25× (Hard 10k, Very Hard 50k), 4 người, người proxy xoay mọi ghế, 25 seed (100 ván).
@@ -81,15 +82,31 @@ Người chơi proxy = profile Hard (beat-the-leader) với **100 000 iteration/
 | Đối thủ | Người proxy thắng | Khoảng 95% | Phần công bằng |
 |---|---|---|---|
 | 3 × Hard (mỗi AI tự chơi, chặn người dẫn) | 29.0% | 21.0–38.5 | 25% |
-| 3 × Very Hard (liên minh) | **0.0%** (0/100) | 0.0–3.7 | 25% |
+| 3 × Very Hard — Coalition (2026-11-14, **đã bỏ**) | 0.0% (0/100) | 0.0–3.7 | 25% |
+| 3 × Very Hard — **Rival** (2026-11-15, hiện tại) | **21.0%** (21/100) | 14.2–30.0 | 25% |
 
-Người proxy có ngân sách lớn hơn hẳn từng AI nên thắng hơn phần công bằng một chút trước 3 Hard (29%); trước liên minh
-Very Hard thì **không thắng ván nào** — đạt mục tiêu "≤ 10%, thấp rõ so với 3 Hard". Lưu ý: người thật chơi khác bot
-proxy; theo dõi tỉ lệ thắng thật sau khi chạy (§7) và hạ độ gắt nếu Very Hard quá nản (vd giảm `denialWeight` hoặc
-ngân sách).
+Người proxy có ngân sách lớn hơn hẳn từng AI nên thắng hơn phần chia đều một chút trước 3 Hard (29%).
+
+Bản Coalition đạt 0% nhưng là nhờ **thông đồng**. Người dùng chơi thật và thấy AI rải crystal to để lấy lá vô nghĩa, cốt
+để AI đi sau nhặt. Đo lại cùng điều kiện (thêm bộ đếm trong một test chẩn đoán tạm, không commit):
+
+| | Coalition | Rival |
+|---|---|---|
+| Lượt AI mua bài có đặt crystal | 903 | 334 |
+| Đặt crystal đắt hơn mức rẻ nhất có thể | 41.4% (374) | 4.2% (14) |
+| …người đi ngay sau nhặt được | 285 | 6 |
+
+Rival (ADR 0008): mỗi AI chơi để tự thắng, coi người mạnh hơn 3 điểm. Very Hard vẫn khó hơn Hard (21% so với 29%) mà
+không còn "biếu".
+
+Với 2 người, Rival trùng hệt BeatLeader. Đã kiểm 24 ván VH vs Hard giữa code cũ và code mới trên cùng seed, kết quả giống
+hệt, nên số 62% ở §5 vẫn đúng.
+
+Muốn khó hơn: tăng `humanEdgeMid` (`utility.go`) rồi đo lại bằng lệnh `vshuman` ở trên. Lưu ý người thật chơi khác bot
+proxy, nên cần theo dõi tỉ lệ thắng thật (§7).
 
 ## 7. Việc tiếp theo (gợi ý)
 
 - Quét tiếp ở Hard/Very Hard (Contested, Engine theo phase, Epsilon) với ngân sách thời gian.
-- Tách prior denial weight (0.5) thành tham số và đo ở coalition test.
+- Tách prior denial weight (0.5) thành tham số và đo bằng `vshuman`; thử `humanEdgeMid` 4–5 nếu Very Hard cần khó hơn.
 - Theo dõi tỉ lệ thắng của người thật theo cấp (log `AI move` + kết quả ván) để chỉnh lại sau khi chạy thật.

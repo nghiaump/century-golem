@@ -3,7 +3,7 @@
 //	aibench bench      -level veryhard -n 30            # think time / iterations on THIS machine
 //	aibench tournament -a hard -b medium -players 2 -seeds 200 -iters-a 40000 -iters-b 6000
 //	aibench ladder     -seeds 100                       # every adjacent pair + baselines
-//	aibench coalition  -seeds 50 -players 4             # proxy human vs 3 Very Hard / 3 Hard
+//	aibench vshuman    -seeds 50 -players 4             # proxy human vs 3 Very Hard / 3 Hard
 //
 // It lives under internal/ so it ships in the backend patch, but it is never built into the
 // production image.
@@ -26,7 +26,7 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "usage: aibench bench|tournament|ladder|coalition [flags]")
+		fmt.Fprintln(os.Stderr, "usage: aibench bench|tournament|ladder|vshuman|variant [flags]")
 		os.Exit(2)
 	}
 	switch os.Args[1] {
@@ -36,8 +36,8 @@ func main() {
 		tournament(os.Args[2:])
 	case "ladder":
 		ladder(os.Args[2:])
-	case "coalition":
-		coalition(os.Args[2:])
+	case "vshuman":
+		vsHuman(os.Args[2:])
 	case "variant":
 		variant(os.Args[2:])
 	default:
@@ -182,8 +182,8 @@ func ladder(args []string) {
 	}
 }
 
-func coalition(args []string) {
-	fs := flag.NewFlagSet("coalition", flag.ExitOnError)
+func vsHuman(args []string) {
+	fs := flag.NewFlagSet("vshuman", flag.ExitOnError)
 	seeds := fs.Int("seeds", 50, "seeds (human plays every seat)")
 	players := fs.Int("players", 4, "players")
 	parallel := fs.Int("parallel", 0, "parallel games")
@@ -196,7 +196,7 @@ func coalition(args []string) {
 		arena.LevelBot(ai.VeryHard, int(float64(ladderIters[ai.VeryHard])**oppScale), 0),
 	} {
 		start := time.Now()
-		r := arena.Coalition(human, opp, *players, *seeds, 1, *parallel)
+		r := arena.VsHuman(human, opp, *players, *seeds, 1, *parallel)
 		fmt.Printf("proxy human vs %d×%-9s: %4d games, human wins %5.1f%% [%4.1f–%4.1f] (fair share %.0f%%)  errors %d  (%s)\n",
 			*players-1, r.Opponents, r.Games, 100*r.WinRate, 100*r.Lo, 100*r.Hi, 100/float64(*players), len(r.Errors), time.Since(start).Round(time.Second))
 	}

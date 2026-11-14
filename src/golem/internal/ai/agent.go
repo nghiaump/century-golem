@@ -14,7 +14,6 @@ const (
 	IntentTookTargetGolem IntentKind = "took_target_golem" // claimed the golem the target was going for
 	IntentBlockCoin       IntentKind = "block_coin"        // took a coin slot the target was racing for
 	IntentTookWantedCard  IntentKind = "took_wanted_card"  // acquired a merchant card the target needed
-	IntentSacrifice       IntentKind = "sacrifice"         // gave up own value to hinder the target (coalition)
 	IntentRushing         IntentKind = "rushing"           // is one golem away from triggering the end
 )
 
@@ -47,9 +46,9 @@ type Decision struct {
 
 // DecideOptions carries per-decision context the snapshot does not hold.
 type DecideOptions struct {
-	// Teams[i] is the team of seat i (players with the same team share a coalition reward).
-	// nil means everybody is on their own team.
-	Teams []int
+	// Humans[i] reports whether seat i is played by a person (Very Hard counts people a few
+	// points stronger; intents are only reported to people). nil: no seat is known to be human.
+	Humans []bool
 	// Seed drives every random choice of this decision (reproducible tests and tournaments).
 	Seed uint64
 	// Iterations > 0 replaces the time budget by a fixed iteration count (deterministic tests).

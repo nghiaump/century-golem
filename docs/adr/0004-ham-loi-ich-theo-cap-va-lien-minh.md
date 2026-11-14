@@ -1,6 +1,7 @@
 # ADR 0004 — Hàm lợi ích theo cấp; Very Hard = liên minh AI
 
-- Trạng thái: Accepted (2026-11-14) · Quyết định của người dùng
+- Trạng thái: Accepted (2026-11-14) · Quyết định của người dùng · **phần Very Hard bị thay bởi
+  [ADR 0008](0008-very-hard-doi-thu-canh-tranh.md) (2026-11-15)** — Easy/Medium/Hard giữ nguyên
 
 ## Bối cảnh
 Người dùng muốn AI "tham lam", chặn chiến lược của người chơi, thậm chí hy sinh để counter. Research khuyến nghị AI không

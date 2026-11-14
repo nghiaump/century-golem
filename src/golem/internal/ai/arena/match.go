@@ -24,8 +24,9 @@ type GameResult struct {
 // MaxRounds aborts a game that stalls (no real game gets close: ~35–70 rounds).
 var MaxRounds = 150
 
-// PlayGame plays one game with bots[i] in seat i. teams (optional) is passed to every agent.
-func PlayGame(seed int64, bots []Bot, teams []int) GameResult {
+// PlayGame plays one game with bots[i] in seat i. humans (optional) marks the seats every agent
+// should treat as people.
+func PlayGame(seed int64, bots []Bot, humans []bool) GameResult {
 	n := len(bots)
 	gs := game.NewGameState(n, seed)
 	agents := make([]ai.Agent, n)
@@ -47,7 +48,7 @@ func PlayGame(seed int64, bots []Bot, teams []int) GameResult {
 		}
 		seat := gs.CurrentTurn % n
 		d, err := agents[seat].Decide(context.Background(), gs.Clone(), ai.DecideOptions{
-			Seed: uint64(seed)*1000003 + uint64(step), Iterations: bots[seat].Iterations, Teams: teams,
+			Seed: uint64(seed)*1000003 + uint64(step), Iterations: bots[seat].Iterations, Humans: humans,
 		})
 		if err != nil {
 			res.Err = fmt.Errorf("seat %d (%s) step %d: %w", seat, bots[seat].Name, step, err)
@@ -187,8 +188,8 @@ func (s Summary) String() string {
 		s.A, s.B, s.Players, s.Games, 100*s.WinRate, 100*s.WilsonLo, 100*s.Hi, Elo(s.WinRate), s.MarginA, s.MeanRounds, len(s.Errors))
 }
 
-// CoalitionResult is the outcome of 1 proxy-human vs (players−1) AIs.
-type CoalitionResult struct {
+// VsHumanResult is the outcome of 1 proxy-human vs (players−1) AIs.
+type VsHumanResult struct {
 	Opponents string
 	Games     int
 	HumanWins int
@@ -197,14 +198,14 @@ type CoalitionResult struct {
 	Errors    []error
 }
 
-// Coalition seats a proxy human against players−1 copies of opp, rotating the human's seat, with
-// teams set so coalition-utility AIs play together against the human.
-func Coalition(human, opp Bot, players, seeds int, firstSeed int64, parallel int) CoalitionResult {
+// VsHuman seats a proxy human against players−1 copies of opp, rotating the human's seat; the AIs
+// know which seat is the "human" (as in a real single-player game).
+func VsHuman(human, opp Bot, players, seeds int, firstSeed int64, parallel int) VsHumanResult {
 	if parallel <= 0 {
 		parallel = runtime.NumCPU()
 	}
 	var mu sync.Mutex
-	out := CoalitionResult{Opponents: opp.Name}
+	out := VsHumanResult{Opponents: opp.Name}
 	sem := make(chan struct{}, parallel)
 	var wg sync.WaitGroup
 	for s := 0; s < seeds; s++ {
@@ -215,12 +216,12 @@ func Coalition(human, opp Bot, players, seeds int, firstSeed int64, parallel int
 				defer wg.Done()
 				defer func() { <-sem }()
 				bots := make([]Bot, players)
-				teams := make([]int, players)
+				humans := make([]bool, players)
 				for i := range bots {
-					bots[i], teams[i] = opp, 1
+					bots[i] = opp
 				}
-				bots[hs], teams[hs] = human, 100+hs
-				r := PlayGame(seed, bots, teams)
+				bots[hs], humans[hs] = human, true
+				r := PlayGame(seed, bots, humans)
 				mu.Lock()
 				defer mu.Unlock()
 				if r.Err != nil {
