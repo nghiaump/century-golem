@@ -1,12 +1,8 @@
 import React from 'react'
 import PlayerAvatar from './PlayerAvatar'
 import AiLevelBadge from './AiLevelBadge'
-import AiThinkingIndicator from './AiThinkingIndicator'
-import useGameStore from '../store/gameStore'
 
 const PlayerCard = ({ player, isCurrentPlayer }) => {
-  const aiThinking = useGameStore((s) => s.gameState?.aiThinking)
-  const thinking = player.isAI && isCurrentPlayer && aiThinking?.playerID === player.id
   if (!player) return null
 
   const golemsCount = player.pointCards?.length || 0
@@ -34,12 +30,6 @@ const PlayerCard = ({ player, isCurrentPlayer }) => {
         <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-pulse" />
       )}
 
-      {/* AI thinking: overlaid on the bottom edge so the card never changes size (no layout shift) */}
-      {thinking && (
-        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 z-10 px-2 py-px rounded-full bg-purple-800/90 border border-purple-300/50 text-[10px] leading-4 whitespace-nowrap pointer-events-none">
-          <AiThinkingIndicator />
-        </div>
-      )}
 
       {/* Row 1: Avatar + Name + Golems (top right) */}
       <div className="flex items-center gap-2 mb-1">

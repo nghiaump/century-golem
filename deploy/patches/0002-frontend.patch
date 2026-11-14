@@ -1074,29 +1074,17 @@
 +export default PlayerAvatar
 --- a/web/react-frontend/src/components/PlayerCard.jsx
 +++ b/web/react-frontend/src/components/PlayerCard.jsx
-@@ -1,6 +1,12 @@
+@@ -1,4 +1,6 @@
  import React from 'react'
 +import PlayerAvatar from './PlayerAvatar'
 +import AiLevelBadge from './AiLevelBadge'
-+import AiThinkingIndicator from './AiThinkingIndicator'
-+import useGameStore from '../store/gameStore'
  
  const PlayerCard = ({ player, isCurrentPlayer }) => {
-+  const aiThinking = useGameStore((s) => s.gameState?.aiThinking)
-+  const thinking = player.isAI && isCurrentPlayer && aiThinking?.playerID === player.id
    if (!player) return null
- 
-   const golemsCount = player.pointCards?.length || 0
-@@ -28,20 +34,28 @@
+@@ -28,20 +30,22 @@
          <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-pulse" />
        )}
  
-+      {/* AI thinking: overlaid on the bottom edge so the card never changes size (no layout shift) */}
-+      {thinking && (
-+        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 z-10 px-2 py-px rounded-full bg-purple-800/90 border border-purple-300/50 text-[10px] leading-4 whitespace-nowrap pointer-events-none">
-+          <AiThinkingIndicator />
-+        </div>
-+      )}
 +
        {/* Row 1: Avatar + Name + Golems (top right) */}
        <div className="flex items-center gap-2 mb-1">
@@ -1126,7 +1114,7 @@
              <div 
                className={`
                  absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white shadow
-@@ -55,7 +69,8 @@
+@@ -55,7 +59,8 @@
          {/* Name */}
          <div className={`text-white font-bold text-sm flex-1 ${player.online === false ? 'opacity-60' : ''}`}>
            {player.name || 'Player'}
