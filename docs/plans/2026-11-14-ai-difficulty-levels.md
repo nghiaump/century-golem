@@ -263,3 +263,6 @@ info/quyết định AI · tham số `AI_THINK_SCALE_PCT` để hạ tải nếu
 | 2026-11-14 | M3: simulator đặt ở `internal/ai/sim` kèm luôn chuyển đổi `ToGameAction/FromGameAction` (plan ghi `internal/ai/convert.go`) | sim cần bảng lá của engine; gom một chỗ |
 | 2026-11-14 | M4/M6: trọng số vòng 1 (CrystalLevel 0.75, Progress2 0.35, CPuct 0.8, RolloutTurns 2); thêm `endWeight` (sửa ván treo ở goal−1) và anti-stall từ vòng 100 | kết quả giải đấu — `docs/ai/tinh-chinh.md` |
 | 2026-11-14 | M8: Pixel tắt (pin 19%, không sạc) khi benchmark Very Hard; người dùng chọn **chờ cắm sạc** rồi mới deploy (không phục vụ tạm từ rtx) | sự cố — `docs/ai/hieu-nang.md` |
+| 2026-11-14 | M8: deploy lên pixel3xl sau khi cắm sạc (smoke local + public, privacy sạch; VH 3.00 s / 184k–224k iteration ở ván thật) | — |
+| 2026-11-14 | Quy ước commit mới của người dùng: một dòng, prefix `feat/fix/chore/docs/ci…`, **không** Co-Authored-By; viết lại toàn bộ message cũ + force push (bước M8.5 trong plan gốc ghi "kèm Co-Authored-By" — không còn áp dụng) | yêu cầu người dùng |
+

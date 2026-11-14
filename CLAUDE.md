@@ -93,6 +93,8 @@ docker run --rm -v "$PWD/../src/golem":/src:ro -v golem-gomod:/go/pkg -v golem-g
 - Đổi luật ⇒ sửa **cả** `internal/game` và `internal/ai/sim`; `TestDifferential_SimMatchesEngine` phải pass.
 - ⛔ AI đọc thứ tự deck thật: chỉ đi qua `sim.FromGame` (pool không thứ tự). Mọi nước AI được `Validate` lại trên engine.
 - Đổi tên patch ⇒ `git mv` + xoá file cũ (sanitize áp mọi `patches/*.patch`); patch đặt tên theo phạm vi thư mục.
+- **Commit message**: một dòng ngắn gọn, prefix `feat:` `fix:` `chore:` `docs:` `ci:` `refactor:` `test:` (có thể kèm scope,
+  vd `feat(ai): …`); ⛔ không body dài, ⛔ không dòng `Co-Authored-By` / không nhắc Claude.
 
 ## Bẫy đã gặp
 - **AI/game loop**: mọi mutate GameState + broadcast phải dưới `gs.mu`; AI nghĩ trên `Clone()`; ⛔ gọi agent khi đang giữ

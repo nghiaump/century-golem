@@ -24,6 +24,11 @@ So sánh rtx (Threadripper 3960X, cùng lệnh): Medium 9.6k it/quyết định,
 | Hard | 1.410 s | 46 732 | 46.4 MiB |
 | Very Hard | — (máy tắt giữa chừng, xem sự cố bên dưới) | | |
 
+### Production (sau deploy, ván thật 5 người: 1 người + 4 Very Hard, máy đang sạc)
+
+Log `AI move`: mỗi nước Very Hard **3.00 s**, **184k–224k iteration**, 4 worker; RAM container server ~140 MiB;
+nhiệt độ ~50 °C; pin vẫn tăng khi đang sạc (+1.7 A). AI dừng khi người chơi ngắt kết nối (`AI_PAUSE_WHEN_EMPTY`).
+
 ## ⚠ Sự cố 2026-11-14: Pixel tắt khi benchmark Very Hard lúc pin 19%
 
 Chạy `aibench bench -level veryhard` (4 luồng, liên tục) khi máy đang **chạy pin 19%, không sạc** ⇒ máy tắt (Tailscale

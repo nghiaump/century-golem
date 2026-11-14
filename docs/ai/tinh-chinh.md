@@ -75,7 +75,16 @@ AI cũ 100% với +33 điểm. Ván giữa các cấp mạnh ngắn hơn (~40 v�
 
 ## 6. Coalition test (4 người)
 
-COALITION_RESULTS
+Người chơi proxy = profile Hard (beat-the-leader) với **100 000 iteration/quyết định** (gấp đôi đối thủ VH ở thang 0.25);
+đối thủ = 3 AI cùng cấp, ngân sách 0.25× (Hard 10k, Very Hard 50k), 4 người, người proxy xoay mọi ghế, 25 seed (100 ván).
+
+| Đối thủ | Người proxy thắng | Khoảng 95% | Phần công bằng |
+|---|---|---|---|
+| 3 × Hard (mỗi AI tự chơi, chặn người dẫn) | 29.0% | 21.0–38.5 | 25% |
+| 3 × Very Hard (liên minh) | *đang chạy — sẽ cập nhật* | | 25% |
+
+Người proxy có ngân sách lớn hơn hẳn từng AI nên thắng hơn phần công bằng một chút trước 3 Hard; mục tiêu là tỉ lệ này
+giảm rõ khi đối thủ là liên minh Very Hard.
 
 ## 7. Việc tiếp theo (gợi ý)
 
