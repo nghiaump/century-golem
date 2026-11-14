@@ -102,8 +102,10 @@ vòng lặp 100ms chạy tới hết ván rồi object nằm trong RAM mãi.
 ### 0002 (f) UI AI 4 mức (2026-11-14)
 - `SinglePlayerLobby.jsx`: chọn độ khó (XP list + badge, mặc định Medium, nhớ trong localStorage, ghi chú liên minh ở
   Very Hard), gửi `difficulty`. `XpWaitingRoom.jsx`: dòng AI kèm mức, sửa key trùng.
-- Bàn chơi (style upstream): `AiLevelBadge.jsx`, `AiThinkingIndicator.jsx` trong `PlayerCard`, `PlayersInfoBar`,
-  `FantasyGameLayout`, `GameOverModal`, `WebGameLayout`; AI không hiện "(offline)"; timer đọc `turnTimeout` từ server.
+- Bàn chơi (style upstream): **một** badge độ khó `DifficultyBadge.jsx` dưới nút ✨ (góc trái; 2026-11-15 thay cho badge
+  trong từng ô người chơi — người dùng thấy thừa và che tên); `AiThinkingIndicator.jsx` ở thanh bài (desktop) / thanh người
+  chơi (mobile); ô người chơi desktop: avatar cao bằng 2 hàng (tên + crystal); AI không hiện "(offline)"; timer đọc
+  `turnTimeout` từ server.
 - `gameStore.js`: xử lý `aiThinking`, `aiIntent` (toast 🤖 4.5 s), `turnTimeout`. `Toast.jsx`: loại `ai`.
 - Giá market theo luật chính thức ("đặt k× crystal bất kỳ") ở `WebGameLayout`, `CompactGameBoard`, `FantasyMarketArea`,
   `CompactCard`; GameOver ghi chú thắng hoà do đi sau. `utils/aiLevel.js` (+ test), `utils/avatar.js` dùng `aiIndex`.

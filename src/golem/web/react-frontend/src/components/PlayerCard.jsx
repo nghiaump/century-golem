@@ -1,6 +1,5 @@
 import React from 'react'
 import PlayerAvatar from './PlayerAvatar'
-import AiLevelBadge from './AiLevelBadge'
 
 const PlayerCard = ({ player, isCurrentPlayer }) => {
   if (!player) return null
@@ -30,15 +29,13 @@ const PlayerCard = ({ player, isCurrentPlayer }) => {
         <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-pulse" />
       )}
 
-
-      {/* Row 1: Avatar + Name + Golems (top right) */}
-      <div className="flex items-center gap-2 mb-1">
-        {/* Avatar with online status indicator */}
+      {/* Avatar on the left, as tall as both rows (name row + crystal row) */}
+      <div className="flex items-center gap-2.5">
         <div className="relative flex-shrink-0">
           <PlayerAvatar
             player={player}
             className={`
-              w-8 h-8 rounded-full text-xs
+              w-12 h-12 rounded-full text-base
               border-2 ${isCurrentPlayer ? 'border-yellow-400' : 'border-white'} shadow
               ${isCurrentPlayer ? 'bg-yellow-500 text-black' : 'bg-purple-600 text-white'}
               ${player.online === false ? 'opacity-50' : ''}
@@ -46,43 +43,44 @@ const PlayerCard = ({ player, isCurrentPlayer }) => {
           />
           {/* Online/Offline status indicator (humans only; AIs are always there) */}
           {player.online !== undefined && !player.isAI && (
-            <div 
+            <div
               className={`
-                absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white shadow
+                absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white shadow
                 ${player.online ? 'bg-green-500' : 'bg-gray-500'}
               `}
               title={player.online ? 'Online' : 'Offline'}
             />
           )}
         </div>
-        
-        {/* Name */}
-        <div className={`text-white font-bold text-sm flex-1 min-w-0 flex items-center ${player.online === false ? 'opacity-60' : ''}`}>
-          <span className="truncate" title={player.name || 'Player'}>{player.name || 'Player'}</span>
-          {player.isAI && <AiLevelBadge level={player.aiLevel} className="flex-shrink-0" />}
-          {!player.isAI && player.online === false && (
-            <span className="text-gray-400 text-xs ml-1 flex-shrink-0">(offline)</span>
-          )}
-        </div>
-        
-        {/* Golems count (top right) */}
-        <div className={`flex items-center gap-1 bg-purple-600/50 rounded-lg px-2 py-0.5 ${golemsCount >= 4 ? 'animate-bounce ring-2 ring-red-500' : ''}`}>
-          <span className="text-base">🗿</span>
-          <span className="text-white font-bold text-sm">{golemsCount}</span>
-        </div>
-      </div>
 
-      {/* Row 2: Crystals */}
-      <div className="flex items-center gap-1.5 justify-center">
-        {['yellow', 'green', 'blue', 'pink'].map((color) => {
-          const count = player.caravan?.[color] || 0
-          return (
-            <div key={color} className="flex items-center">
-              <div className={`w-4 h-4 rounded-full ${crystalColors[color]}`} />
-              <span className="text-white text-sm font-bold">{count}</span>
+        <div className="flex-1 min-w-0">
+          {/* Row 1: Name + Golems */}
+          <div className="flex items-center gap-2 mb-1">
+            <div className={`text-white font-bold text-sm flex-1 min-w-0 flex items-center ${player.online === false ? 'opacity-60' : ''}`}>
+              <span className="truncate" title={player.name || 'Player'}>{player.name || 'Player'}</span>
+              {!player.isAI && player.online === false && (
+                <span className="text-gray-400 text-xs ml-1 flex-shrink-0">(offline)</span>
+              )}
             </div>
-          )
-        })}
+            <div className={`flex-shrink-0 flex items-center gap-1 bg-purple-600/50 rounded-lg px-2 py-0.5 ${golemsCount >= 4 ? 'animate-bounce ring-2 ring-red-500' : ''}`}>
+              <span className="text-base leading-5">🗿</span>
+              <span className="text-white font-bold text-sm">{golemsCount}</span>
+            </div>
+          </div>
+
+          {/* Row 2: Crystals */}
+          <div className="flex items-center gap-1.5">
+            {['yellow', 'green', 'blue', 'pink'].map((color) => {
+              const count = player.caravan?.[color] || 0
+              return (
+                <div key={color} className="flex items-center gap-0.5">
+                  <div className={`w-4 h-4 rounded-full ${crystalColors[color]}`} />
+                  <span className="text-white text-sm font-bold">{count}</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
       </div>
     </div>
   )

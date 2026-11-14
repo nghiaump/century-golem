@@ -15,6 +15,7 @@ import { avatarSrc } from './utils/avatar'
 import WebGameLayout from './components/desktop/WebGameLayout'
 import ThemeToggleButton from './components/ThemeToggleButton'
 import SoundToggleButton from './components/SoundToggleButton'
+import DifficultyBadge from './components/DifficultyBadge'
 import FantasyGameLayout from './components/desktop/FantasyGameLayout'
 import useGameStore from './store/gameStore'
 import useOrientation from './hooks/useOrientation'
@@ -46,6 +47,7 @@ function GameContentWithTheme({ useWebLayout, isMobile, isPortrait, sessionId, s
     return (
       <>
         <ThemeToggleButton />
+        <DifficultyBadge />
         <SoundToggleButton />
         <FantasyGameLayout 
           onNewGame={handleNewGame}
@@ -61,6 +63,9 @@ function GameContentWithTheme({ useWebLayout, isMobile, isPortrait, sessionId, s
     <>
       {/* Theme Toggle Button - Always visible */}
       <ThemeToggleButton />
+
+      {/* AI difficulty — one badge for the whole game, under the theme toggle */}
+      <DifficultyBadge />
       
       {/* Sound Toggle Button - Always visible */}
       <SoundToggleButton />

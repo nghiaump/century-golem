@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import useGameStore from '../store/gameStore'
 import PlayerAvatar from './PlayerAvatar'
-import AiLevelBadge from './AiLevelBadge'
 import AiThinkingIndicator from './AiThinkingIndicator'
 
 // Timer Ring around avatar
@@ -88,7 +87,6 @@ const PlayersInfoBar = () => {
                 <div className="flex items-center gap-1">
                   <span className={`text-white font-medium truncate max-w-[6.5rem] ${player.online === false ? 'opacity-60' : ''}`}>
                     {player.name}
-                    {player.isAI && <AiLevelBadge level={player.aiLevel} />}
                     {!player.isAI && player.online === false && <span className="text-gray-400 ml-1">(offline)</span>}
                   </span>
                   <span className="text-yellow-400 font-bold">★{player.points || 0}</span>

@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import useGameStore from '../store/gameStore'
 import PlayerAvatar from './PlayerAvatar'
-import AiLevelBadge from './AiLevelBadge'
 import useOrientation from '../hooks/useOrientation'
 import { getCardSpriteStyle, getCardImagePath } from '../utils/cardNames'
 
@@ -247,7 +246,6 @@ const GameOverModal = ({ onNewGame, onBackToMenu }) => {
                         <span className={`font-bold text-white ${isMobile ? 'text-sm' : 'text-base sm:text-lg'}`}>
                           {player.name}
                         </span>
-                        {player.isAI && <AiLevelBadge level={player.aiLevel} />}
                       </div>
                       <div className={`font-black text-yellow-300 ${isMobile ? 'text-lg' : 'text-xl sm:text-2xl'}`}>
                         {totalPoints} pts

@@ -2,7 +2,6 @@ import React from 'react'
 import XpWindow from './XpWindow'
 import PlayerAvatar from './PlayerAvatar'
 import { avatarSrc } from '../utils/avatar'
-import { aiLevelInfo } from '../utils/aiLevel'
 
 // Pre-game waiting room (XP dialog): who has joined + Start Game. Shared by desktop and mobile layouts.
 const XpWaitingRoom = ({ players = [], isSpectator, onStart, className = '', mode }) => (
@@ -24,12 +23,7 @@ const XpWaitingRoom = ({ players = [], isSpectator, onStart, className = '', mod
             <PlayerAvatar player={player} className="w-8 h-8 text-xs border-2 border-black bg-white" />
             <span className="font-bold truncate">{player.name || 'Player'}</span>
             {player.isAI && (
-              <span
-                className={`xp-badge xp-badge--${aiLevelInfo(player.aiLevel)?.badge || 'blue'} ml-auto`}
-                title="Computer opponent"
-              >
-                {aiLevelInfo(player.aiLevel)?.label || 'AI'}
-              </span>
+              <span className="xp-badge xp-badge--blue ml-auto" title="Computer opponent">AI</span>
             )}
           </div>
         ))}
