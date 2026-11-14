@@ -1,0 +1,17 @@
+vendor/
+
+# Environment files with sensitive information
+.env
+
+# Generated inventory (contains sensitive data from .env)
+ansible/inventory.yml
+
+.DS_Store
+bin/
+web/react
+
+node_modules/
+
+.vscode/
+*.log
+secrets/

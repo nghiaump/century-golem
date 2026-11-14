@@ -1,0 +1,16 @@
+# --- Không đưa lên git ---
+# Bản tải gốc 237 MB (vượt giới hạn 100 MB/file của GitHub). Giữ cục bộ — regen-patches.sh / sanitize-src.sh cần nó.
+/golem.zip
+# .env / inventory / ảnh người thật của máy khác — ⛔ không phát tán (xem CLAUDE.md)
+/removed-foreign-config/
+# mongodump (dữ liệu ván) + bản sao file trước khi sửa
+/backups/
+# log cloudflared (mỗi máy một bản)
+/deploy/tunnel.log
+# thư mục tạm khi nhận source mới (runbook §5)
+/src/golem.prev/
+/src-new/
+node_modules/
+__pycache__/
+*.pyc
+.DS_Store

@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="320" viewBox="0 0 1200 320" role="img" aria-label="Century: Golem Edition — collect crystals, trade with merchants, summon golems">
+  <title>Century: Golem Edition</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#120a26"/>
+      <stop offset="0.5" stop-color="#271650"/>
+      <stop offset="1" stop-color="#0a1122"/>
+    </linearGradient>
+    <radialGradient id="halo" cx="50%" cy="48%" r="48%">
+      <stop offset="0" stop-color="#8b5cf6" stop-opacity="0.5"/>
+      <stop offset="0.55" stop-color="#7c3aed" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#7c3aed" stop-opacity="0"/>
+    </radialGradient>
+    <!-- gold title with a light band sweeping across -->
+    <linearGradient id="gold" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="320" y2="0">
+      <stop offset="0" stop-color="#fbbf24"/>
+      <stop offset="0.42" stop-color="#fde68a"/>
+      <stop offset="0.5" stop-color="#fffbeb"/>
+      <stop offset="0.58" stop-color="#fde68a"/>
+      <stop offset="1" stop-color="#fbbf24"/>
+      <animateTransform attributeName="gradientTransform" type="translate" values="-360 0;1240 0" dur="5s" repeatCount="indefinite"/>
+    </linearGradient>
+    <linearGradient id="bar" x1="0" x2="1">
+      <stop offset="0" stop-color="#facc15"/>
+      <stop offset="0.33" stop-color="#22c55e"/>
+      <stop offset="0.66" stop-color="#3b82f6"/>
+      <stop offset="1" stop-color="#ec4899"/>
+    </linearGradient>
+    <linearGradient id="sheen" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="220" y2="0">
+      <stop offset="0" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+      <animateTransform attributeName="gradientTransform" type="translate" values="-240 0;1240 0" dur="3.6s" repeatCount="indefinite"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-30%" width="120%" height="160%">
+      <feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#000" flood-opacity="0.6"/>
+    </filter>
+    <filter id="blur" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="14"/>
+    </filter>
+    <!-- faceted crystal, tinted with currentColor -->
+    <symbol id="gem" viewBox="-24 -28 48 56" overflow="visible">
+      <path d="M0-26 20-8 12 24-12 24-20-8Z" fill="currentColor"/>
+      <path d="M0-26 20-8 0-2Z" fill="#fff" fill-opacity="0.5"/>
+      <path d="M0-26-20-8 0-2Z" fill="#fff" fill-opacity="0.25"/>
+      <path d="M20-8 12 24 0-2Z" fill="#000" fill-opacity="0.18"/>
+      <path d="M-20-8-12 24 0-2Z" fill="#fff" fill-opacity="0.08"/>
+      <path d="M-12 24 12 24 0-2Z" fill="#000" fill-opacity="0.32"/>
+      <path d="M0-26 20-8 12 24-12 24-20-8Z" fill="none" stroke="#fff" stroke-opacity="0.55" stroke-width="1.2" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="spark" viewBox="-8 -8 16 16" overflow="visible">
+      <path d="M0-7 1.6-1.6 7 0 1.6 1.6 0 7-1.6 1.6-7 0-1.6-1.6Z" fill="#fff"/>
+    </symbol>
+  </defs>
+
+  <style>
+    .g { transform-box: fill-box; transform-origin: center; animation: float 6s ease-in-out infinite; }
+    .g2 { animation-duration: 7s; animation-delay: -2s; }
+    .g3 { animation-duration: 5.5s; animation-delay: -1s; }
+    .g4 { animation-duration: 6.5s; animation-delay: -3.2s; }
+    .g5 { animation-duration: 8s; animation-delay: -4.4s; }
+    @keyframes float {
+      0%, 100% { transform: translateY(0) rotate(-5deg); }
+      50% { transform: translateY(-11px) rotate(5deg); }
+    }
+    .s { transform-box: fill-box; transform-origin: center; animation: twinkle 2.8s ease-in-out infinite; }
+    .s1 { animation-delay: -0.5s; } .s2 { animation-delay: -1.1s; } .s3 { animation-delay: -1.7s; }
+    .s4 { animation-delay: -2.3s; } .s5 { animation-delay: -0.8s; } .s6 { animation-delay: -2s; }
+    @keyframes twinkle {
+      0%, 100% { opacity: 0.1; transform: scale(0.5) rotate(0deg); }
+      50% { opacity: 1; transform: scale(1) rotate(45deg); }
+    }
+    .glow { animation: pulse 4s ease-in-out infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 0.55; } 50% { opacity: 0.9; } }
+    @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+  </style>
+
+  <rect width="1200" height="320" fill="url(#bg)"/>
+  <rect width="1200" height="320" fill="url(#halo)"/>
+
+  <!-- distant stars -->
+  <g fill="#fff">
+    <circle cx="62" cy="40" r="1.2" opacity=".5"/><circle cx="210" cy="28" r="1" opacity=".35"/>
+    <circle cx="352" cy="58" r="1.3" opacity=".45"/><circle cx="470" cy="22" r="1" opacity=".3"/>
+    <circle cx="745" cy="30" r="1.2" opacity=".4"/><circle cx="860" cy="62" r="1" opacity=".35"/>
+    <circle cx="1010" cy="24" r="1.3" opacity=".5"/><circle cx="1150" cy="54" r="1" opacity=".4"/>
+    <circle cx="40" cy="170" r="1" opacity=".3"/><circle cx="1170" cy="160" r="1.1" opacity=".35"/>
+    <circle cx="330" cy="280" r="1" opacity=".3"/><circle cx="880" cy="285" r="1.2" opacity=".35"/>
+  </g>
+
+  <!-- crystal glows -->
+  <g filter="url(#blur)" class="glow">
+    <ellipse cx="160" cy="130" rx="46" ry="30" fill="#facc15" opacity=".45"/>
+    <ellipse cx="262" cy="228" rx="34" ry="22" fill="#22c55e" opacity=".45"/>
+    <ellipse cx="1040" cy="122" rx="48" ry="32" fill="#3b82f6" opacity=".5"/>
+    <ellipse cx="944" cy="232" rx="36" ry="24" fill="#ec4899" opacity=".45"/>
+  </g>
+
+  <!-- crystals: yellow < green < blue < pink -->
+  <g transform="translate(160 118) scale(1.55)"><g class="g"><use href="#gem" x="-24" y="-28" width="48" height="56" color="#facc15"/></g></g>
+  <g transform="translate(262 222) scale(1.05)"><g class="g g2"><use href="#gem" x="-24" y="-28" width="48" height="56" color="#22c55e"/></g></g>
+  <g transform="translate(1040 112) scale(1.6)"><g class="g g3"><use href="#gem" x="-24" y="-28" width="48" height="56" color="#3b82f6"/></g></g>
+  <g transform="translate(944 226) scale(1.15)"><g class="g g4"><use href="#gem" x="-24" y="-28" width="48" height="56" color="#ec4899"/></g></g>
+  <g transform="translate(78 246) scale(.62)"><g class="g g5"><use href="#gem" x="-24" y="-28" width="48" height="56" color="#ec4899"/></g></g>
+  <g transform="translate(318 84) scale(.55)"><g class="g g4"><use href="#gem" x="-24" y="-28" width="48" height="56" color="#3b82f6"/></g></g>
+  <g transform="translate(1128 244) scale(.6)"><g class="g g2"><use href="#gem" x="-24" y="-28" width="48" height="56" color="#facc15"/></g></g>
+  <g transform="translate(878 76) scale(.5)"><g class="g g5"><use href="#gem" x="-24" y="-28" width="48" height="56" color="#22c55e"/></g></g>
+
+  <!-- sparkles -->
+  <use href="#spark" class="s s1" x="198" y="66" width="16" height="16"/>
+  <use href="#spark" class="s s2" x="112" y="192" width="12" height="12"/>
+  <use href="#spark" class="s s3" x="1084" y="64" width="16" height="16"/>
+  <use href="#spark" class="s s4" x="990" y="186" width="12" height="12"/>
+  <use href="#spark" class="s s5" x="420" y="250" width="10" height="10"/>
+  <use href="#spark" class="s s6" x="770" y="246" width="10" height="10"/>
+
+  <!-- title -->
+  <g font-family="'Segoe UI', Ubuntu, Roboto, 'Helvetica Neue', Arial, sans-serif" text-anchor="middle">
+    <text x="600" y="152" font-size="82" font-weight="900" letter-spacing="12" fill="url(#gold)" filter="url(#shadow)">CENTURY</text>
+    <g stroke="#c4b5fd" stroke-width="1.5" stroke-linecap="round" opacity=".8">
+      <line x1="330" y1="186" x2="424" y2="186"/>
+      <line x1="776" y1="186" x2="870" y2="186"/>
+    </g>
+    <path d="M318 186l6-6 6 6-6 6zM870 186l6-6 6 6-6 6z" fill="#c4b5fd"/>
+    <text x="600" y="195" font-size="26" font-weight="700" letter-spacing="9" fill="#ede9fe">GOLEM EDITION</text>
+    <text x="600" y="242" font-size="18" font-weight="500" letter-spacing="1.5" fill="#c4b5fd" opacity=".95">Collect crystals  ·  Trade with merchants  ·  Summon golems</text>
+  </g>
+
+  <!-- crystal bar -->
+  <rect x="0" y="312" width="1200" height="8" fill="url(#bar)"/>
+  <rect x="0" y="312" width="1200" height="8" fill="url(#sheen)"/>
+</svg>

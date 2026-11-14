@@ -1,0 +1,19 @@
+# Frontend cho century.pentium.ink: build React (Vite) rồi phục vụ bằng nginx ở gốc "/".
+# Build context = ../src/golem (mã gốc, không sửa).
+FROM node:18-alpine AS builder
+WORKDIR /app
+COPY web/react-frontend/package*.json ./
+RUN npm ci --no-audit --no-fund
+COPY web/react-frontend/ ./
+# Bỏ .env.local/.env.production gốc (trỏ về game.anhtran.dev, base /apps/golem/).
+# VITE_API_HOST để trống => API/WS gọi cùng origin (https://century.pentium.ink).
+RUN rm -f .env .env.local .env.production .env.production.local \
+ && printf 'VITE_LOG_LEVEL=INFO\nVITE_USE_SPRITE_IMAGES=false\nVITE_BASE_PATH=/\nSOURCE_MAPS=false\n' > .env.production \
+ && npm run release
+
+FROM nginx:1.27-alpine
+COPY --from=builder /app/dist /usr/share/nginx/html
+# Ảnh + âm thanh game (frontend gọi /assets/images/*, /assets/sounds/*)
+COPY web/static/images /usr/share/nginx/html/assets/images
+COPY web/static/sounds /usr/share/nginx/html/assets/sounds
+EXPOSE 80

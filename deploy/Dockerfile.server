@@ -1,0 +1,21 @@
+# Backend cho century.pentium.ink — thay cho src/golem/Dockerfile của upstream.
+# Lý do: upstream ép `GOARCH=amd64` ⇒ build trên máy arm64 (pixel3xl) ra binary sai kiến trúc
+# ("exec format error"). Bản này build theo kiến trúc của máy đang build (amd64 trên rtx, arm64 trên pixel3xl).
+# Build context = ../src/golem (mã gốc, không sửa) — giống Dockerfile.web.
+FROM golang:1.24-alpine AS go-builder
+WORKDIR /app
+RUN apk add --no-cache git
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -buildvcs=false -o server ./cmd/server
+
+FROM alpine:latest
+RUN apk --no-cache add ca-certificates wget
+WORKDIR /root/
+COPY --from=go-builder /app/server .
+COPY --from=go-builder /app/web/static ./web/static
+EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD wget --quiet --tries=1 --spider http://localhost:8080/ || exit 1
+CMD ["./server", "-port", "8080"]

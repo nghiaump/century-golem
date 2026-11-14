@@ -1,0 +1,238 @@
+---
+- name: Deploy Golem Century Backend to k3s
+  hosts: k3s_cluster
+  become: yes
+  vars:
+    app_name: golem-century
+    deployment_dir: /tmp/golem-deployment
+    build_dir: /tmp/golem-build
+    docker_registry: "localhost:5000"
+    app_version: "{{ lookup('env', 'APP_VERSION') | default('latest', true) }}"
+    full_image_name: "{{ docker_registry }}/{{ app_name }}:{{ app_version }}"
+    deploy_env: "{{ lookup('env', 'DEPLOY_ENV') | default('production', true) }}"
+    deploy_branch: "{{ lookup('env', 'DEPLOY_BRANCH') | default('main', true) }}"
+    git_repo_path: "/opt/jenkins/repos/golem"
+    
+    # Environment-specific configurations
+    env_config:
+      staging:
+        namespace: staging
+        replicas: 1
+        redis_storage: 2Gi
+        kustomize_path: overlays/staging
+      production:
+        namespace: default
+        replicas: 1
+        redis_storage: 5Gi
+        kustomize_path: overlays/production
+
+  pre_tasks:
+    - name: Validate deploy environment
+      fail:
+        msg: "Invalid DEPLOY_ENV. Must be 'staging' or 'production'"
+      when: deploy_env not in ['staging', 'production']
+
+    - name: Display deployment environment
+      debug:
+        msg:
+          - "Deploying to environment: {{ deploy_env }}"
+          - "Namespace: {{ env_config[deploy_env].namespace }}"
+          - "Replicas: {{ env_config[deploy_env].replicas }}"
+          - "Branch: {{ deploy_branch }}"
+
+  tasks:
+    - name: Install required packages
+      apt:
+        name:
+          - curl
+          - git
+        state: present
+        update_cache: no
+      ignore_errors: yes
+
+    - name: Check if k3s is installed
+      stat:
+        path: /usr/local/bin/k3s
+      register: k3s_installed
+
+    - name: Fail if k3s is not installed
+      fail:
+        msg: "k3s is not installed on this server. Please install k3s first."
+      when: not k3s_installed.stat.exists
+
+    - name: Create deployment directory
+      file:
+        path: "{{ deployment_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Copy Kubernetes manifests to server
+      copy:
+        src: "{{ playbook_dir }}/../deployment/"
+        dest: "{{ deployment_dir }}/"
+        mode: '0644'
+    - name: Check if git repository exists on server
+      stat:
+        path: "{{ git_repo_path }}/.git"
+      register: git_repo_stat
+
+    - name: Display git repository status
+      debug:
+        msg: |
+          Git repository exists: {{ git_repo_stat.stat.exists }}
+          Please ensure git repository is set up at {{ git_repo_path }} on the server.
+          Run: git clone <your-repo-url> {{ git_repo_path }}
+
+    - name: Fail if git repository doesn't exist
+      fail:
+        msg: |
+          Git repository not found at {{ git_repo_path }}
+          Please set up the repository first:
+          1. SSH to server: ssh root@{{ inventory_hostname }}
+          2. Create directory: mkdir -p /opt/jenkins/repos
+          3. Clone repository: git clone <your-repo-url> {{ git_repo_path }}
+      when: not git_repo_stat.stat.exists
+
+    - name: Fetch latest code from origin
+      shell: |
+        cd {{ git_repo_path }}
+        git fetch origin {{ deploy_branch }}
+      register: git_fetch_result
+
+    - name: Checkout to branch {{ deploy_branch }}
+      shell: |
+        cd {{ git_repo_path }}
+        git checkout {{ deploy_branch }}
+      register: git_checkout_result
+
+    - name: Reset to origin/{{ deploy_branch }}
+      shell: |
+        cd {{ git_repo_path }}
+        git reset --hard origin/{{ deploy_branch }}
+      register: git_reset_result
+
+    - name: Display git operations result
+      debug:
+        msg:
+          - "Fetch: {{ git_fetch_result.stdout }}"
+          - "Checkout: {{ git_checkout_result.stdout }}"
+          - "Reset: {{ git_reset_result.stdout }}"
+
+    - name: Check if local Docker registry is running
+      uri:
+        url: "http://localhost:5000/v2/"
+        status_code: 200
+      register: registry_check
+      failed_when: false
+
+    - name: Fail if registry is not running
+      fail:
+        msg: "Docker registry is not running. Please run 'make k3s-setup-registry' first."
+      when: registry_check.status != 200
+
+    - name: Build Docker image from git repository
+      command: >
+        docker build
+        -t {{ full_image_name }}
+        -f {{ git_repo_path }}/Dockerfile
+        {{ git_repo_path }}
+      args:
+        chdir: "{{ git_repo_path }}"
+      register: docker_build_result
+
+    - name: Display Docker build result
+      debug:
+        msg: "Docker image built successfully: {{ full_image_name }}"
+
+    - name: Push image to local registry
+      command: docker push {{ full_image_name }}
+      register: docker_push_result
+
+    - name: Display Docker push result
+      debug:
+        msg: "Docker image pushed to registry successfully"
+
+    - name: Create namespace for staging environment
+      shell: kubectl create namespace staging --dry-run=client -o yaml | kubectl apply -f -
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      when: deploy_env == 'staging'
+
+    - name: Apply Kubernetes manifests using kustomize
+      shell: |
+        cd {{ deployment_dir }}
+        kubectl kustomize overlays/{{ deploy_env }} --load-restrictor=LoadRestrictionsNone | kubectl apply -f -
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+    - name: Restart deployment to load new ConfigMap
+      command: >
+        kubectl rollout restart deployment/golem-century{% if deploy_env == 'staging' %}-staging{% endif %}
+        -n {{ env_config[deploy_env].namespace }}
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+    - name: Update deployment image for {{ deploy_env }} environment
+      command: >
+        kubectl set image 
+        deployment/golem-century{% if deploy_env == 'staging' %}-staging{% endif %} 
+        golem-century={{ full_image_name }} 
+        -n {{ env_config[deploy_env].namespace }}
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      ignore_errors: yes
+
+    - name: Wait for Redis to be ready
+      command: >
+        kubectl wait --for=condition=ready pod 
+        -l app=golem,tier=cache 
+        -n {{ env_config[deploy_env].namespace }} 
+        --timeout=300s
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      retries: 3
+      delay: 10
+
+    - name: Wait for Golem app to be ready
+      command: >
+        kubectl wait --for=condition=ready pod 
+        -l app=golem,tier=backend 
+        -n {{ env_config[deploy_env].namespace }} 
+        --timeout=300s
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      retries: 3
+      delay: 10
+
+    - name: Get deployment status
+      command: kubectl get all -n {{ env_config[deploy_env].namespace }} -l app=golem
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: deployment_status
+
+    - name: Display deployment status
+      debug:
+        var: deployment_status.stdout_lines
+
+    - name: Display backend deployment status
+      debug:
+        msg: 
+          - "Backend deployment completed successfully!"
+          - "Environment: {{ deploy_env }}"
+          - "Namespace: {{ env_config[deploy_env].namespace }}"
+          - "All components (Redis, Application) are running"
+          - "Replicas: {{ env_config[deploy_env].replicas }}"
+          - ""
+          - "Access URLs (HTTPRoute configured on k3s server):"
+          - "  Backend API: https://game.anhtran.dev/apps/golem/api"
+          - "  WebSocket: wss://game.anhtran.dev/apps/golem/ws"
+          - ""
+          - "NOTE: Gateway API resources (HTTPRoute, Gateway) are managed separately on k3s server"
+          - "NOTE: To apply or update secrets, use the separate playbook:"
+          - "  ansible-playbook -i inventory.ini apply-secrets.yml"
+
+  post_tasks:
+    - name: Clean up deployment directory
+      file:
+        path: "{{ deployment_dir }}"
+        state: absent

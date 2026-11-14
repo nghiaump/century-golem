@@ -1,0 +1,116 @@
+---
+- name: Deploy Golem Frontend to K3s
+  hosts: k3s_cluster
+  become: yes
+  vars:
+    deploy_env: "{{ lookup('env', 'DEPLOY_ENV') | default('prod', true) }}"
+    git_repo_path: "/opt/jenkins/repos/golem"
+    registry_host: "localhost:5000"
+    
+    env_config:
+      staging:
+        namespace: "staging"
+        image_tag: "staging"
+        deployment_name: "golem-nginx-staging"
+        # Set environment variables for frontend build
+        vite_api_host: "https://game.anhtran.dev/apps/golem-staging"
+        vite_nginx_host: "https://game.anhtran.dev/assets"
+        vite_base_path: "/apps/golem-staging/"
+      test:
+        namespace: "staging"
+        image_tag: "staging"
+        deployment_name: "golem-nginx-staging"
+        # Set environment variables for frontend build
+        vite_api_host: "https://game.anhtran.dev/apps/golem"
+        vite_nginx_host: "https://game.anhtran.dev/assets"
+        vite_base_path: "/apps/golem/"
+      prod:
+        namespace: "default"
+        image_tag: "latest"
+        deployment_name: "golem-nginx"
+        # Set environment variables for frontend build
+        vite_api_host: "https://game.anhtran.dev/apps/golem"
+        vite_nginx_host: "https://game.anhtran.dev/assets"
+        vite_base_path: "/apps/golem/"
+        vite_nginx_host: "https://game.anhtran.dev/assets"
+  pre_tasks:
+    - name: Validate deploy environment
+      fail:
+        msg: "DEPLOY_ENV must be either 'staging', 'test', or 'prod'"
+      when: deploy_env not in ['staging', 'test', 'prod']
+
+    - name: Display deployment info
+      debug:
+        msg:
+          - "Environment: {{ deploy_env | upper }}"
+          - "Namespace: {{ env_config[deploy_env].namespace }}"
+          - "Image tag: {{ env_config[deploy_env].image_tag }}"
+          - "Deployment name: {{ env_config[deploy_env].deployment_name }}"
+          - "VITE_API_HOST: {{ env_config[deploy_env].vite_api_host }}"
+          - "VITE_NGINX_HOST: {{ env_config[deploy_env].vite_nginx_host }}"
+
+  tasks:
+    - name: Verify git repository exists
+      stat:
+        path: "{{ git_repo_path }}"
+      register: git_repo
+      failed_when: not git_repo.stat.exists
+
+    - name: Pull latest code
+      shell: |
+        cd {{ git_repo_path }}
+        git fetch origin main
+        git checkout main
+        git reset --hard origin/main
+      register: git_pull
+
+    - name: Copy staging-specific nginx config
+      copy:
+        src: "{{ playbook_dir }}/../deployment/overlays/staging/nginx-frontend.conf"
+        dest: "{{ git_repo_path }}/deployment/base/golem-app/nginx-frontend.conf"
+      when: deploy_env == 'staging'
+
+    - name: Build frontend Docker image
+      shell: |
+        cd {{ git_repo_path }}
+        docker buildx build \
+          --build-arg VITE_API_HOST={{ env_config[deploy_env].vite_api_host }} \
+          --build-arg VITE_NGINX_HOST={{ env_config[deploy_env].vite_nginx_host }} \
+          --build-arg VITE_BASE_PATH={{ env_config[deploy_env].vite_base_path }} \
+          --platform linux/amd64 \
+          -f Dockerfile.frontend \
+          -t golem-frontend:{{ env_config[deploy_env].image_tag }} \
+          .
+      register: docker_build
+
+    - name: Tag image for local registry
+      shell: |
+        docker tag golem-frontend:{{ env_config[deploy_env].image_tag }} \
+          {{ registry_host }}/golem-frontend:{{ env_config[deploy_env].image_tag }}
+
+    - name: Push to local registry
+      shell: |
+        docker push {{ registry_host }}/golem-frontend:{{ env_config[deploy_env].image_tag }}
+      register: docker_push
+
+    - name: Restart nginx deployment
+      shell: |
+        kubectl rollout restart -n {{ env_config[deploy_env].namespace }} \
+          deployment/{{ env_config[deploy_env].deployment_name }}
+      register: rollout
+
+    - name: Wait for rollout to complete
+      shell: |
+        kubectl rollout status -n {{ env_config[deploy_env].namespace }} \
+          deployment/{{ env_config[deploy_env].deployment_name }} \
+          --timeout=120s
+      register: rollout_status
+
+    - name: Display deployment success
+      debug:
+        msg:
+          - "Frontend deployed successfully!"
+          - "Environment: {{ deploy_env }}"
+          - "Namespace: {{ env_config[deploy_env].namespace }}"
+          - "Access: https://game.anhtran.dev/"
+          - "Status: {{ rollout_status.stdout }}"

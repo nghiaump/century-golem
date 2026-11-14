@@ -1,0 +1,403 @@
+--- a/internal/config/config.go
++++ b/internal/config/config.go
+@@ -25,6 +25,12 @@
+ 	WebSocketReadTimeout        int // Timeout in seconds for WebSocket read operations (default 60s)
+ 	WebSocketWriteTimeout       int // Timeout in seconds for WebSocket write operations (default 10s)
+ 
++	// Room cleanup: a room is deleted once nobody has had an open connection to it for this long.
++	SessionIdleWaitingSeconds int // waiting room, not started (default 300)
++	SessionIdlePlayingSeconds int // started game; disconnected players keep their seat until then (default 600)
++	SessionIdleEndedSeconds   int // finished game (default 120)
++	MaxSessions               int // cap on rooms in memory; creating more returns 503 (default 100, 0 = unlimited)
++
+ 	// Firebase authentication
+ 	FirebaseCredentialsFile string // Path to Firebase service account JSON
+ 	GoogleOAuthClientID     string // Google OAuth client ID
+@@ -54,6 +60,11 @@
+ 		WebSocketReadTimeout:        getEnvInt("WEBSOCKET_READ_TIMEOUT", 60),
+ 		WebSocketWriteTimeout:       getEnvInt("WEBSOCKET_WRITE_TIMEOUT", 10),
+ 
++		SessionIdleWaitingSeconds: getEnvInt("SESSION_IDLE_WAITING_SECONDS", 300),
++		SessionIdlePlayingSeconds: getEnvInt("SESSION_IDLE_PLAYING_SECONDS", 600),
++		SessionIdleEndedSeconds:   getEnvInt("SESSION_IDLE_ENDED_SECONDS", 120),
++		MaxSessions:               getEnvInt("MAX_SESSIONS", 100),
++
+ 		// Firebase authentication
+ 		FirebaseCredentialsFile: getEnv("FIREBASE_CREDENTIALS_FILE", ""),
+ 		GoogleOAuthClientID:     getEnv("GOOGLE_OAUTH_CLIENT_ID", ""),
+--- a/internal/server/cleanup_test.go
++++ b/internal/server/cleanup_test.go
+@@ -0,0 +1,153 @@
++package server
++
++import (
++	"encoding/json"
++	"net/http"
++	"net/http/httptest"
++	"strings"
++	"testing"
++	"time"
++
++	"golem_century/internal/config"
++	"golem_century/internal/logger"
++	"golem_century/internal/session"
++
++	"github.com/gorilla/websocket"
++)
++
++func newCleanupTestServer(cfg config.Config) *GameServer {
++	if cfg.DefaultTurnTimeoutInSeconds == 0 {
++		cfg.DefaultTurnTimeoutInSeconds = 60
++	}
++	gs := NewGameServer(NewGameServerRequest{Logger: logger.NewNopLogger(), Config: &cfg})
++	gs.cleanupInterval = 50 * time.Millisecond
++	return gs
++}
++
++func waitUntil(t *testing.T, timeout time.Duration, cond func() bool, msg string) {
++	t.Helper()
++	deadline := time.Now().Add(timeout)
++	for time.Now().Before(deadline) {
++		if cond() {
++			return
++		}
++		time.Sleep(20 * time.Millisecond)
++	}
++	t.Fatal(msg)
++}
++
++func TestIdleLimitDefaultsAndOverrides(t *testing.T) {
++	gs := newCleanupTestServer(config.Config{})
++	if got := gs.idleLimit(session.GameStatusWaiting); got != 5*time.Minute {
++		t.Errorf("waiting default = %v, want 5m", got)
++	}
++	if got := gs.idleLimit(session.GameStatusPlaying); got != 10*time.Minute {
++		t.Errorf("playing default = %v, want 10m", got)
++	}
++	if got := gs.idleLimit(session.GameStatusEnded); got != 2*time.Minute {
++		t.Errorf("ended default = %v, want 2m", got)
++	}
++
++	gs = newCleanupTestServer(config.Config{SessionIdleWaitingSeconds: 7, SessionIdlePlayingSeconds: 8, SessionIdleEndedSeconds: 9})
++	if gs.idleLimit(session.GameStatusWaiting) != 7*time.Second ||
++		gs.idleLimit(session.GameStatusPlaying) != 8*time.Second ||
++		gs.idleLimit(session.GameStatusEnded) != 9*time.Second {
++		t.Error("configured idle limits not applied")
++	}
++}
++
++func TestEmptyWaitingRoomIsRemoved(t *testing.T) {
++	gs := newCleanupTestServer(config.Config{SessionIdleWaitingSeconds: 1})
++	gs.CreateSessionV2("room_empty", 2, 60)
++
++	waitUntil(t, 3*time.Second, func() bool { return !gs.checkSessionExists("room_empty") },
++		"empty waiting room was not removed")
++}
++
++func TestConnectedRoomIsKept(t *testing.T) {
++	gs := newCleanupTestServer(config.Config{SessionIdleWaitingSeconds: 1})
++	mux := http.NewServeMux()
++	mux.HandleFunc("/ws", gs.HandleWebSocket)
++	srv := httptest.NewServer(mux)
++	defer srv.Close()
++
++	gs.CreateSessionV2("room_busy", 2, 60)
++	conn, _, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(srv.URL, "http")+"/ws?session=room_busy&name=P1&avatar=1", nil)
++	if err != nil {
++		t.Fatalf("dial: %v", err)
++	}
++	defer conn.Close()
++
++	time.Sleep(1500 * time.Millisecond) // longer than the idle limit
++	if !gs.checkSessionExists("room_busy") {
++		t.Fatal("room with a connected player was removed")
++	}
++}
++
++// A started game whose players all disconnect keeps their seats (Conn == nil) and is auto-played by the AI;
++// it must still be removed once nobody has been connected for the playing idle limit.
++func TestAbandonedStartedGameIsRemoved(t *testing.T) {
++	gs := newCleanupTestServer(config.Config{SessionIdlePlayingSeconds: 1})
++	mux := http.NewServeMux()
++	mux.HandleFunc("/ws", gs.HandleWebSocket)
++	srv := httptest.NewServer(mux)
++	defer srv.Close()
++
++	s := gs.CreateSessionV2("single_abandoned", 2, 60)
++	conn, _, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(srv.URL, "http")+"/ws?session=single_abandoned&name=P1&avatar=1", nil)
++	if err != nil {
++		t.Fatalf("dial: %v", err)
++	}
++	waitUntil(t, 2*time.Second, func() bool { return s.GetActivelyConnectedPlayersCount() == 1 }, "player never connected")
++	if err := s.StartGame(); err != nil {
++		t.Fatalf("start game: %v", err)
++	}
++	conn.Close()
++
++	waitUntil(t, 5*time.Second, func() bool { return !gs.checkSessionExists("single_abandoned") },
++		"abandoned started game was not removed")
++	if err := s.Close(); err != nil { // already closed by the reaper: must be a no-op
++		t.Fatalf("second Close: %v", err)
++	}
++}
++
++func TestSessionLimit(t *testing.T) {
++	gs := newCleanupTestServer(config.Config{MaxSessions: 2})
++	gs.CreateSessionV2("a", 2, 60)
++	if gs.atSessionLimit() {
++		t.Fatal("limit reached too early")
++	}
++	gs.CreateSessionV2("b", 2, 60)
++	if !gs.atSessionLimit() {
++		t.Fatal("limit not reached at MaxSessions")
++	}
++
++	req := httptest.NewRequest(http.MethodPost, "/api/create", strings.NewReader(`{"numPlayers":2}`))
++	rec := httptest.NewRecorder()
++	gs.HandleCreateSession(rec, req)
++	if rec.Code != http.StatusServiceUnavailable {
++		t.Fatalf("create at limit: status %d, want 503", rec.Code)
++	}
++
++	if newCleanupTestServer(config.Config{}).atSessionLimit() {
++		t.Fatal("MaxSessions 0 must mean unlimited")
++	}
++}
++
++func TestListHidesSinglePlayerGames(t *testing.T) {
++	gs := newCleanupTestServer(config.Config{})
++	gs.CreateSessionV2("single_123", 2, 60)
++	gs.CreateSessionV2("room_123", 2, 60)
++
++	rec := httptest.NewRecorder()
++	gs.HandleListSessions(rec, httptest.NewRequest(http.MethodGet, "/api/list", nil))
++	var body struct {
++		Sessions []map[string]any `json:"sessions"`
++	}
++	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
++		t.Fatal(err)
++	}
++	if len(body.Sessions) != 1 || body.Sessions[0]["sessionID"] != "room_123" {
++		t.Fatalf("listed sessions = %v, want only room_123", body.Sessions)
++	}
++}
+--- a/internal/server/handlers.go
++++ b/internal/server/handlers.go
+@@ -5,6 +5,7 @@
+ 	"fmt"
+ 	"net/http"
+ 	"slices"
++	"strings"
+ 	"time"
+ 
+ 	"golem_century/internal/auth"
+@@ -190,6 +191,11 @@
+ 		return
+ 	}
+ 
++	if gs.atSessionLimit() {
++		sendJSONError(w, http.StatusServiceUnavailable, "Too many open rooms, please try again in a few minutes")
++		return
++	}
++
+ 	if req.Seed == 0 {
+ 		req.Seed = time.Now().UnixNano()
+ 	}
+@@ -321,6 +327,10 @@
+ 
+ 	// Process v2 sessions (all sessions are now V2)
+ 	for sessionID, ss := range gs.SessionsV2 {
++		// Single-player games (vs AI) are private: never list them as joinable multiplayer rooms.
++		if strings.HasPrefix(sessionID, "single_") {
++			continue
++		}
+ 		connectedPlayers := ss.GetActivelyConnectedPlayersCount()
+ 		spectatorCount := ss.GetConnectedSpectatorsCount()
+ 		maxPlayers := ss.GetMaxPlayers()
+@@ -394,6 +404,11 @@
+ 		return
+ 	}
+ 
++	if gs.atSessionLimit() {
++		sendJSONError(w, http.StatusServiceUnavailable, "Too many open rooms, please try again in a few minutes")
++		return
++	}
++
+ 	// Default turn timeout to 60 seconds if not specified or invalid
+ 	gs.Logger.Info("Default turn timeout:", zap.Int("turnTimeout", gs.config.DefaultTurnTimeoutInSeconds))
+ 	if req.TurnTimeout <= 0 {
+--- a/internal/server/server.go
++++ b/internal/server/server.go
+@@ -31,6 +31,7 @@
+ 	FirebaseAuth     *auth.FirebaseAuth
+ 	mu               sync.RWMutex
+ 	config           *config.Config
++	cleanupInterval  time.Duration // how often each room checks whether it is idle (30s; tests shorten it)
+ }
+ 
+ // NewGameServerRequest represents request to create a new game server
+@@ -59,6 +60,7 @@
+ 		TelegramNotifier: telegramNotifier,
+ 		FirebaseAuth:     req.FirebaseAuth,
+ 		config:           req.Config,
++		cleanupInterval:  30 * time.Second,
+ 	}
+ }
+ 
+@@ -81,24 +83,78 @@
+ 	return session
+ }
+ 
+-// startCleanupTimerV2 starts a timer to clean up empty rooms after 5 minutes
++// startCleanupTimerV2 deletes a room once nobody has had an open connection to it for the idle limit of its
++// status (see idleLimit). "Connected" means an open WebSocket: players who drop out of a started game keep their
++// seat (Conn == nil) for reconnection, which used to keep abandoned games — still being auto-played by the AI on
++// turn timeouts — in memory forever.
+ func (gs *GameServer) startCleanupTimerV2(sessionID string) {
+-	ticker := time.NewTicker(30 * time.Second) // Check every 30 seconds
++	ticker := time.NewTicker(gs.cleanupInterval)
+ 	defer ticker.Stop()
+ 
++	lastConnected := time.Now()
+ 	for range ticker.C {
+-		session, exists := gs.GetSessionV2(sessionID)
++		s, exists := gs.GetSessionV2(sessionID)
+ 		if !exists {
+ 			return // Session already deleted
+ 		}
+ 
+-		if session.CanBeDeleted() {
+-			gs.mu.Lock()
+-			delete(gs.SessionsV2, sessionID)
+-			gs.mu.Unlock()
+-			return
++		if s.GetActivelyConnectedPlayersCount()+s.GetConnectedSpectatorsCount() > 0 {
++			lastConnected = time.Now()
++			continue
+ 		}
++		status := s.GetStatus()
++		idle := time.Since(lastConnected)
++		if idle < gs.idleLimit(status) {
++			continue
++		}
++
++		gs.mu.Lock()
++		delete(gs.SessionsV2, sessionID)
++		remaining := len(gs.SessionsV2)
++		gs.mu.Unlock()
++		if err := s.Close(); err != nil {
++			gs.Logger.Error("Error closing idle session", zap.String("sessionID", sessionID), zap.Error(err))
++		}
++		gs.Logger.Info("Removed idle session",
++			zap.String("sessionID", sessionID),
++			zap.String("status", string(status)),
++			zap.Duration("idle", idle.Round(time.Second)),
++			zap.Int("remainingSessions", remaining),
++		)
++		return
++	}
++}
++
++// idleLimit is how long a room may have no open connections before it is deleted.
++func (gs *GameServer) idleLimit(status session.GameStatus) time.Duration {
++	seconds := func(v, def int) time.Duration {
++		if v <= 0 {
++			v = def
++		}
++		return time.Duration(v) * time.Second
++	}
++	cfg := gs.config
++	if cfg == nil {
++		cfg = &config.Config{}
++	}
++	switch status {
++	case session.GameStatusPlaying:
++		return seconds(cfg.SessionIdlePlayingSeconds, 600)
++	case session.GameStatusEnded:
++		return seconds(cfg.SessionIdleEndedSeconds, 120)
++	default:
++		return seconds(cfg.SessionIdleWaitingSeconds, 300)
++	}
++}
++
++// atSessionLimit reports whether creating another room would exceed MaxSessions (0 = unlimited).
++func (gs *GameServer) atSessionLimit() bool {
++	if gs.config == nil || gs.config.MaxSessions <= 0 {
++		return false
+ 	}
++	gs.mu.RLock()
++	defer gs.mu.RUnlock()
++	return len(gs.SessionsV2) >= gs.config.MaxSessions
+ }
+ 
+ func (gs *GameServer) GetSessionV2(sessionID string) (*session.GameSession, bool) {
+--- a/internal/session/session.go
++++ b/internal/session/session.go
+@@ -76,6 +76,10 @@
+ 	pingInterval time.Duration // Interval for sending ping messages (default 15s)
+ 	readTimeout  time.Duration // Timeout for read operations (default 60s)
+ 	writeTimeout time.Duration // Timeout for write operations (default 10s)
++
++	// stop is closed by Close to end the game loop; ActionChan is never closed (senders could panic).
++	stop      chan struct{}
++	closeOnce sync.Once
+ }
+ 
+ // PlayerAction represents an action from a player
+@@ -96,6 +100,7 @@
+ 		TurnTimeout:   time.Duration(turnTimeoutInSecond) * time.Second, // Default 60s timeout
+ 		TurnStartTime: now,
+ 		ActionChan:    make(chan PlayerAction, 10),
++		stop:          make(chan struct{}),
+ 		logger:        logger,
+ 		maxChatMsgs:   10, // Default, will be set from config
+ 
+@@ -865,10 +870,13 @@
+ 	default:
+ 		return
+ 	}
+-	gs.ActionChan <- PlayerAction{
++	select {
++	case gs.ActionChan <- PlayerAction{
+ 		PlayerID: playerID,
+ 		ClientID: clientID,
+ 		Action:   gameAction,
++	}:
++	case <-gs.stop: // session closed: drop the action instead of blocking forever
+ 	}
+ }
+ 
+@@ -1273,6 +1281,8 @@
+ 
+ 	for !gs.GameState.GameOver {
+ 		select {
++		case <-gs.stop:
++			return // session closed (idle reaper or shutdown)
+ 		case action := <-gs.ActionChan:
+ 			// Process player action
+ 			currentPlayer := gs.GameState.GetCurrentPlayer()
+@@ -1589,6 +1599,12 @@
+ 
+ // Close gracefully closes the game session, disconnecting all players and spectators
+ func (gs *GameSession) Close() error {
++	alreadyClosed := true
++	gs.closeOnce.Do(func() { alreadyClosed = false })
++	if alreadyClosed {
++		return nil
++	}
++
+ 	gs.mu.Lock()
+ 	defer gs.mu.Unlock()
+ 
+@@ -1645,8 +1661,9 @@
+ 	gs.assignedPlayers = make(map[int]string)
+ 	gs.spectators = make(map[string]*Spectator)
+ 
+-	// Close action channel
+-	close(gs.ActionChan)
++	// Stop the game loop. ActionChan stays open: closing it would make the loop spin on zero values
++	// and make any in-flight sender panic.
++	close(gs.stop)
+ 
+ 	gs.logger.Info("Game session closed successfully", zap.String("sessionID", gs.ID))
+ 	return nil

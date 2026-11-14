@@ -1,0 +1,2040 @@
+--- a/web/react-frontend/src/components/desktop/FantasyGameLayout.jsx
++++ b/web/react-frontend/src/components/desktop/FantasyGameLayout.jsx
+@@ -5,6 +5,7 @@
+ import AcquiredCardOverlay from '../AcquiredCardOverlay'
+ import GameOverModal from '../GameOverModal'
+ import useGameStore from '../../store/gameStore'
++import PlayerAvatar from '../PlayerAvatar'
+ import { getCardSpriteStyle, getCardImagePath } from '../../utils/cardNames'
+ 
+ // ============================================
+@@ -116,7 +117,7 @@
+           {/* Top row: Name & Golem count */}
+           <div className="flex items-start justify-between mb-1">
+             <div className="flex items-center gap-1 flex-wrap">
+-              {player.isAI && <span className="text-sm">🤖</span>}
++              <PlayerAvatar player={player} className="w-6 h-6 rounded-full text-xs bg-purple-600 text-white border border-white/70" />
+               <span className="text-white font-bold text-sm" style={{ textShadow: '0 0 4px #000, 0 0 8px #000, 1px 1px 2px #000' }}>
+                 {player.name || 'Player'}
+               </span>
+--- a/web/react-frontend/src/components/desktop/WebGameLayout.jsx
++++ b/web/react-frontend/src/components/desktop/WebGameLayout.jsx
+@@ -2,6 +2,8 @@
+ import useGameStore from '../../store/gameStore'
+ import CompactCard from '../CompactCard'
+ import PlayerCard from '../PlayerCard'
++import PlayerAvatar from '../PlayerAvatar'
++import XpWaitingRoom from '../XpWaitingRoom'
+ import GraveyardPanel from '../GraveyardPanel'
+ import MyGolemsPanel from '../MyGolemsPanel'
+ import HistorySection from '../HistorySection'
+@@ -267,43 +269,8 @@
+ 
+         {/* Waiting Mode UI - spans rows 2-4 */}
+         {isWaiting && (
+-          <div className="row-span-3 flex flex-col items-center justify-center gap-6 bg-gradient-to-b from-purple-900/40 to-blue-900/40 backdrop-blur-md rounded-xl border-2 border-purple-400/50 p-6 relative shadow-2xl" style={{ minHeight: '400px' }}>
+-            {/* Waiting message with high visibility */}
+-            <div className="text-white text-lg sm:text-2xl font-bold text-center px-4 py-3 bg-black/50 rounded-lg border border-white/30 shadow-xl">
+-              ⏳ Waiting for other players to join
+-            </div>
+-            
+-            {/* Player count indicator */}
+-            <div className="text-green-300 text-base font-semibold bg-black/40 px-4 py-2 rounded-lg">
+-              {otherPlayers.length} player(s) in lobby
+-            </div>
+-            
+-            {!isSpectator && (
+-              <>
+-                {/* Desktop button */}
+-                <button
+-                  onClick={handleStartGame}
+-                  className="hidden sm:flex px-8 py-4 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-400 hover:to-green-500 active:from-green-700 active:to-green-800 text-white font-bold rounded-xl border-2 border-green-300 transition-all shadow-2xl text-lg whitespace-nowrap min-w-[200px] items-center justify-center gap-2"
+-                >
+-                  <span>🎮</span>
+-                  <span>Start Game</span>
+-                </button>
+-                
+-                {/* Mobile button - visible and prominent */}
+-                <button
+-                  onClick={handleStartGame}
+-                  className="sm:hidden flex px-12 py-5 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-400 hover:to-green-500 active:from-green-700 active:to-green-800 text-white font-extrabold rounded-xl border-4 border-green-300 transition-all shadow-2xl text-xl whitespace-nowrap items-center justify-center gap-3 touch-manipulation"
+-                  style={{ 
+-                    WebkitTapHighlightColor: 'transparent',
+-                    minWidth: '280px',
+-                    minHeight: '70px'
+-                  }}
+-                >
+-                  <span className="text-2xl">🎮</span>
+-                  <span>Start Game</span>
+-                </button>
+-              </>
+-            )}
++          <div className="row-span-3 flex items-center justify-center p-6" style={{ minHeight: '400px' }}>
++            <XpWaitingRoom players={otherPlayers} isSpectator={isSpectator} onStart={handleStartGame} />
+           </div>
+         )}
+ 
+@@ -476,9 +443,10 @@
+                   <div className="flex items-center gap-3">
+                     {/* Avatar & Name */}
+                     <div className="flex items-center gap-2">
+-                      <div className="w-8 h-8 rounded-full bg-yellow-500 text-black flex items-center justify-center font-bold text-sm border-2 border-white">
+-                        {myPlayer?.name?.charAt(0)?.toUpperCase() || '?'}
+-                      </div>
++                      <PlayerAvatar
++                        player={myPlayer}
++                        className="w-8 h-8 rounded-full bg-yellow-500 text-black text-sm border-2 border-white"
++                      />
+                       <div className="text-white font-bold text-sm">{myPlayer?.name || 'You'}</div>
+                     </div>
+ 
+--- a/web/react-frontend/src/components/GameOverModal.jsx
++++ b/web/react-frontend/src/components/GameOverModal.jsx
+@@ -2,6 +2,7 @@
+ import { createPortal } from 'react-dom'
+ import { motion, AnimatePresence } from 'framer-motion'
+ import useGameStore from '../store/gameStore'
++import PlayerAvatar from './PlayerAvatar'
+ import useOrientation from '../hooks/useOrientation'
+ import { getCardSpriteStyle, getCardImagePath } from '../utils/cardNames'
+ 
+@@ -143,6 +144,12 @@
+             >
+               <div className="flex items-center justify-center gap-3">
+                 <span className={`${isMobile ? 'text-2xl' : 'text-3xl'}`}>👑</span>
++                {winner && (
++                  <PlayerAvatar
++                    player={winner}
++                    className={`rounded-full bg-purple-600 text-white border-2 border-yellow-400 ${isMobile ? 'w-10 h-10 text-base' : 'w-14 h-14 text-xl'}`}
++                  />
++                )}
+                 <div className="text-center">
+                   <div className={`text-yellow-300 font-bold ${isMobile ? 'text-lg' : 'text-xl sm:text-2xl'}`}>
+                     {winner?.name || 'Unknown'}
+@@ -227,6 +234,10 @@
+                           {rankEmojis[index] || `#${index + 1}`}
+                         </span>
+                         {isWinner && <span className="text-lg">👑</span>}
++                        <PlayerAvatar
++                          player={player}
++                          className={`rounded-full bg-purple-600 text-white border-2 border-white/60 ${isMobile ? 'w-7 h-7 text-xs' : 'w-9 h-9 text-sm'}`}
++                        />
+                         <span className={`font-bold text-white ${isMobile ? 'text-sm' : 'text-base sm:text-lg'}`}>
+                           {player.name}
+                         </span>
+--- a/web/react-frontend/src/components/Lobby.jsx
++++ b/web/react-frontend/src/components/Lobby.jsx
+@@ -1,12 +1,13 @@
+ import React, { useState, useEffect } from "react";
+ import { useNavigate } from "react-router-dom";
+-import { motion, AnimatePresence } from "framer-motion";
+ import { createLogger } from '../utils/logger';
+ import { useAuth } from '../contexts/AuthContext';
+ import LoginButton from './LoginButton';
+ import useGameStore from "../store/gameStore";
+ import useOrientation from "../hooks/useOrientation";
+ import { apiFetch } from "../utils/api";
++import { AVATAR_IDS, avatarSrc } from "../utils/avatar";
++import XpWindow from "./XpWindow";
+ 
+ const logger = createLogger('Lobby');
+ 
+@@ -31,7 +32,7 @@
+   return newName;
+ };
+ 
+-const Lobby = ({ onJoinGame }) => {
++const Lobby = ({ onJoinGame, onBack, initialRoomId = null }) => {
+   const { user, isAuthenticated, loading: authLoading, authAvailable } = useAuth();
+   const [playerName, setPlayerName] = useState(getInitialPlayerName);
+   const [numPlayers, setNumPlayers] = useState(2);
+@@ -40,7 +41,20 @@
+   const [sessionInfo, setSessionInfo] = useState(null);
+   const [rooms, setRooms] = useState([]);
+   const [loading, setLoading] = useState(false);
+-  const [activeTab, setActiveTab] = useState("create");
++  const [activeTab, setActiveTab] = useState(initialRoomId ? "join" : "create");
++  // Status of the room from a /room/:id link: null | "checking" | "open" | "gone"
++  const [linkedRoomStatus, setLinkedRoomStatus] = useState(initialRoomId ? "checking" : null);
++
++  useEffect(() => {
++    if (!initialRoomId) return;
++    let cancelled = false;
++    apiFetch(`/admin/sessions/state?sessionId=${encodeURIComponent(initialRoomId)}`)
++      .then((res) => !cancelled && setLinkedRoomStatus(res.ok ? "open" : "gone"))
++      .catch(() => !cancelled && setLinkedRoomStatus("gone"));
++    return () => {
++      cancelled = true;
++    };
++  }, [initialRoomId]);
+   const [authError, setAuthError] = useState(null);
+   const { isMobile, isTablet, isPortrait, isLandscape } = useOrientation();
+ 
+@@ -158,153 +172,98 @@
+   // Responsive layout helpers
+   const isMobileLayout = isMobile && isPortrait;
+   const isCompactLayout = isMobile || (isTablet && isPortrait);
++  // Two columns only where there is a second column to show (the room list on the Join tab).
++  const twoColumns = activeTab === "join" && !isCompactLayout;
+ 
+   // Debug: log layout mode
+   logger.debug("Layout:", { isMobile, isTablet, isPortrait, isMobileLayout, isCompactLayout });
+ 
+   return (
+-    <div
+-      className={`
+-        min-h-screen min-h-[100dvh] flex items-center justify-center safe-top safe-bottom
+-        ${isMobileLayout ? "p-2" : isCompactLayout ? "p-3" : "p-4 md:p-6"}
+-      `}
+-      style={{
+-        backgroundImage: "url(/assets/images/background.jpg)",
+-        backgroundSize: "cover",
+-        backgroundPosition: "center center",
+-        backgroundRepeat: "no-repeat",
+-        backgroundAttachment: isMobile ? "scroll" : "fixed",
+-      }}
+-    >
+-      <motion.div
+-        className={`
+-          backdrop-blur-md w-full overflow-hidden
+-          ${
+-            isMobileLayout
+-              ? "bg-black/40 rounded-xl p-3 max-w-[340px] border border-white/10"
+-              : isCompactLayout
+-              ? "bg-white/10 rounded-xl p-4 max-w-md border border-white/20"
+-              : "bg-white/10 rounded-2xl p-6 sm:p-8 max-w-4xl border border-white/20"
+-          }
+-        `}
+-        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+-        animate={{ opacity: 1, scale: 1, y: 0 }}
+-        transition={{ duration: 0.2 }}
++    <div className="xp-desktop safe-top safe-bottom">
++      <XpWindow
++        title="Multiplayer — Century: Golem Edition"
++        icon={avatarSrc(selectedAvatar)}
++        onClose={onBack}
++        className={twoColumns ? "max-w-4xl" : "max-w-xl"}
++        status={
++          <>
++            <span>{activeTab === "create" ? "Create a room and share its ID" : "Pick a room or paste an ID"}</span>
++            <span>{rooms.length} room(s) open</span>
++          </>
++        }
+       >
+-        {/* Title */}
+-        <h1
+-          className={`
+-          font-bold text-white text-center
+-          ${isMobileLayout ? "text-lg mb-3" : isCompactLayout ? "text-xl mb-4" : "text-2xl sm:text-3xl md:text-4xl mb-6 md:mb-8"}
+-        `}
+-        >
+-          {isMobileLayout ? "Golem Edition" : "Century: Golem Edition"}
+-        </h1>
+-
+         {/* Tabs */}
+-        <div className="flex gap-2 sm:gap-4 mb-4 sm:mb-6 border-b border-white/20">
+-          <button
+-            onClick={() => setActiveTab("create")}
+-            className={`
+-              px-3 sm:px-6 py-2 font-bold transition-all
+-              ${isMobileLayout ? "text-sm flex-1" : ""}
+-              ${activeTab === "create" ? "text-white border-b-2 border-purple-400" : "text-white/60 hover:text-white"}
+-            `}
+-          >
++        <div className="xp-tabs" role="tablist">
++          <button type="button" role="tab" aria-selected={activeTab === "create"} className="xp-tab" onClick={() => setActiveTab("create")}>
+             Create Room
+           </button>
+           <button
++            type="button"
++            role="tab"
++            aria-selected={activeTab === "join"}
++            className="xp-tab"
+             onClick={() => {
+               setActiveTab("join");
+               fetchRooms();
+             }}
+-            className={`
+-              px-3 sm:px-6 py-2 font-bold transition-all
+-              ${isMobileLayout ? "text-sm flex-1" : ""}
+-              ${activeTab === "join" ? "text-white border-b-2 border-blue-400" : "text-white/60 hover:text-white"}
+-            `}
+           >
+             Join ({rooms.length})
+           </button>
+         </div>
+ 
+         {/* Content - Single column on mobile, two columns on desktop */}
+-        <div
+-          className={`
+-          ${isMobileLayout || isCompactLayout ? "space-y-4" : "grid grid-cols-1 md:grid-cols-2 gap-6"}
+-        `}
+-        >
++        <div className={twoColumns ? "grid grid-cols-2 gap-6" : "xp-stack"}>
+           {/* Auth Status Section */}
+           {authLoading ? (
+-            <div className="col-span-full text-center text-white">
+-              <p>Loading authentication...</p>
+-            </div>
++            <div className="col-span-full xp-muted">Loading authentication...</div>
+           ) : (
+-            <div className="col-span-full space-y-3">
+-              {authAvailable && <LoginButton />}
+-              
+-              {authError && (
+-                <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-3 text-white text-sm">
+-                  {authError}
+-                </div>
+-              )}
+-              
+-              {authAvailable && !isAuthenticated && (
+-                <div className="bg-yellow-500/20 border border-yellow-500/50 rounded-lg p-3 text-white text-sm">
+-                  <p className="font-semibold mb-1">Login Required</p>
+-                  <p>You need to login to create or join a game as a player. Spectators can view games without logging in.</p>
+-                </div>
+-              )}
+-            </div>
++            (authAvailable || authError) && (
++              <div className="col-span-full xp-stack">
++                {authAvailable && <LoginButton />}
++                {authError && <div className="xp-note xp-note--err">{authError}</div>}
++                {authAvailable && !isAuthenticated && (
++                  <div className="xp-note">
++                    <p className="font-bold mb-1">Login Required</p>
++                    <p>You need to login to create or join a game as a player. Spectators can view games without logging in.</p>
++                  </div>
++                )}
++              </div>
++            )
+           )}
+ 
+           {/* Left Column - Player Info (Always visible) */}
+-          <div className="space-y-4">
++          <div className="xp-stack">
+             {/* Player Name */}
+             <div>
+-              <label className="block text-white mb-1.5 sm:mb-2 text-sm sm:text-base">Your Name</label>
++              <label className="xp-field-label" htmlFor="mp-name">Your Name</label>
+               <input
++                id="mp-name"
+                 type="text"
+                 value={playerName}
+                 onChange={(e) => setPlayerName(e.target.value)}
+-                className={`
+-                  w-full rounded-lg bg-white/20 border border-white/30 
+-                  text-white placeholder-white/50
+-                  ${isMobileLayout ? "px-3 py-2 text-sm" : "px-4 py-2.5"}
+-                `}
++                className="xp-input"
+                 placeholder="Enter your name"
+               />
+             </div>
+ 
+             {/* Avatar Selection */}
+             <div>
+-              <label className="block text-white mb-1.5 sm:mb-2 text-sm sm:text-base">Choose Your Character</label>
+-              <div
+-                className={`
+-                flex gap-2 sm:gap-4 justify-center
+-                ${isMobileLayout ? "flex-wrap" : ""}
+-              `}
+-              >
+-                {[1, 2, 3, 4].map((num) => (
++              <span className="xp-field-label">Choose Your Character</span>
++              <div className="xp-avatar-grid">
++                {AVATAR_IDS.map((num) => (
+                   <button
++                    type="button"
+                     key={num}
+                     onClick={() => setSelectedAvatar(num.toString())}
+-                    className={`
+-                      rounded-full border-2 overflow-hidden transition-all touch-target
+-                      ${isMobileLayout ? "w-12 h-12" : "w-14 h-14 sm:w-16 sm:h-16"}
+-                      ${
+-                        selectedAvatar === num.toString()
+-                          ? "border-yellow-400 ring-2 ring-yellow-400 scale-110"
+-                          : "border-white/30 hover:border-white/50"
+-                      }
+-                    `}
++                    className="xp-avatar touch-target"
++                    aria-pressed={selectedAvatar === num.toString()}
++                    aria-label={`Avatar ${num}`}
+                   >
+                     <img
+-                      src={`/assets/images/avatar/${num}.webp`}
+-                      alt={`Avatar ${num}`}
+-                      className="w-full h-full object-cover"
++                      src={avatarSrc(num)}
++                      alt=""
+                       onError={(e) => {
+-                        e.target.src = "/assets/images/avatar/1.webp";
++                        e.target.src = avatarSrc(1);
+                       }}
+                     />
+                   </button>
+@@ -317,14 +276,12 @@
+               <>
+                 {/* Number of Players */}
+                 <div>
+-                  <label className="block text-white mb-1.5 sm:mb-2 text-sm sm:text-base">Number of Players</label>
++                  <label className="xp-field-label" htmlFor="mp-players">Number of Players</label>
+                   <select
++                    id="mp-players"
+                     value={numPlayers}
+                     onChange={(e) => setNumPlayers(parseInt(e.target.value))}
+-                    className={`
+-                      w-full rounded-lg bg-white/20 border border-white/30 text-white
+-                      ${isMobileLayout ? "px-3 py-2 text-sm" : "px-4 py-2.5"}
+-                    `}
++                    className="xp-select"
+                   >
+                     <option value={2}>2 Players</option>
+                     <option value={3}>3 Players</option>
+@@ -335,60 +292,39 @@
+ 
+                 {/* Custom Session ID */}
+                 <div>
+-                  <label className="block text-white mb-1.5 sm:mb-2 text-sm sm:text-base">Custom Room ID (optional)</label>
++                  <label className="xp-field-label" htmlFor="mp-room-id">Custom Room ID (optional)</label>
+                   <input
++                    id="mp-room-id"
+                     type="text"
+                     value={customSessionId}
+                     onChange={(e) => setCustomSessionId(e.target.value)}
+-                    className={`
+-                      w-full rounded-lg bg-white/20 border border-white/30 
+-                      text-white placeholder-white/50
+-                      ${isMobileLayout ? "px-3 py-2 text-sm" : "px-4 py-2.5"}
+-                    `}
++                    className="xp-input"
+                     placeholder="Leave empty for auto-generated"
+                   />
+                 </div>
+ 
+                 {/* Create Button */}
+-                <button
+-                  onClick={createGame}
+-                  disabled={loading}
+-                  className={`
+-                    w-full bg-gradient-to-r from-purple-500 to-pink-500 
+-                    text-white font-bold rounded-lg 
+-                    hover:from-purple-600 hover:to-pink-600 
+-                    transition-all disabled:opacity-50 disabled:cursor-not-allowed
+-                    touch-target
+-                    ${isMobileLayout ? "py-2.5 text-sm" : "py-3 px-6"}
+-                  `}
+-                >
+-                  {loading ? "Creating..." : "Create Game"}
+-                </button>
++                <div className="xp-actions justify-end">
++                  <button type="button" className="xp-btn" onClick={onBack}>
++                    Back
++                  </button>
++                  <button type="button" onClick={createGame} disabled={loading} className="xp-btn xp-btn--go xp-btn--lg touch-target">
++                    {loading ? "Creating..." : "Create Game ›"}
++                  </button>
++                </div>
+ 
+                 {/* Session Info */}
+                 {sessionInfo && (
+-                  <motion.div
+-                    initial={{ opacity: 0, y: -10 }}
+-                    animate={{ opacity: 1, y: 0 }}
+-                    className="bg-green-500/20 border border-green-500 rounded-lg p-3 sm:p-4"
+-                  >
+-                    <p className="text-white text-sm font-bold mb-1.5 sm:mb-2">Game Created!</p>
+-                    <p className="text-white/80 text-xs mb-2">Share this Room ID:</p>
++                  <div className="xp-note xp-note--ok">
++                    <p className="font-bold mb-1">Game Created!</p>
++                    <p className="mb-2">Share this Room ID:</p>
+                     <div className="flex gap-2">
+-                      <input
+-                        type="text"
+-                        value={sessionInfo}
+-                        readOnly
+-                        className="flex-1 px-2 sm:px-3 py-1.5 sm:py-2 rounded bg-white/20 text-white text-xs sm:text-sm font-mono"
+-                      />
+-                      <button
+-                        onClick={() => copySessionId(sessionInfo)}
+-                        className="px-3 sm:px-4 py-1.5 sm:py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-all text-sm"
+-                      >
++                      <input type="text" value={sessionInfo} readOnly className="xp-input xp-input--mono flex-1" />
++                      <button type="button" onClick={() => copySessionId(sessionInfo)} className="xp-btn">
+                         Copy
+                       </button>
+                     </div>
+-                  </motion.div>
++                  </div>
+                 )}
+               </>
+             )}
+@@ -396,183 +332,115 @@
+ 
+           {/* Right Column - Available Rooms (Join tab) */}
+           {activeTab === "join" && (
+-            <div className="space-y-3 sm:space-y-4">
++            <div className="xp-stack">
+               <div className="flex items-center justify-between">
+-                <h2 className={`font-bold text-white ${isMobileLayout ? "text-base" : "text-lg sm:text-xl"}`}>
+-                  Available Rooms
+-                </h2>
+-                <button
+-                  onClick={fetchRooms}
+-                  className="px-2 sm:px-3 py-1 bg-white/20 text-white rounded hover:bg-white/30 transition-all text-xs sm:text-sm"
+-                >
+-                  🔄 Refresh
++                <span className="xp-field-label" style={{ marginBottom: 0 }}>Available Rooms</span>
++                <button type="button" onClick={fetchRooms} className="xp-btn xp-btn--sm">
++                  ↻ Refresh
+                 </button>
+               </div>
+ 
+               {rooms.length === 0 ? (
+-                <div className="bg-white/10 rounded-lg p-6 sm:p-8 text-center">
+-                  <p className="text-white/60 text-sm sm:text-base">No rooms available</p>
+-                  <p className="text-white/40 text-xs sm:text-sm mt-2">Create a new room to get started!</p>
++                <div className="xp-listview xp-empty">
++                  <p>No rooms available.</p>
++                  <p className="xp-muted mt-1">Create a new room to get started!</p>
+                 </div>
+               ) : (
+-                <div
+-                  className={`
+-                  space-y-2 sm:space-y-3 overflow-y-auto
+-                  ${isMobileLayout ? "max-h-[40vh]" : "max-h-[50vh] sm:max-h-96"}
+-                `}
+-                >
+-                  <AnimatePresence>
+-                    {rooms.map((room) => {
+-                      const timeUntilDelete = room.timeUntilDelete || 0;
+-                      const minutes = Math.floor(timeUntilDelete / 60);
+-                      const seconds = timeUntilDelete % 60;
+-                      const isExpiringSoon = timeUntilDelete > 0 && timeUntilDelete < 60;
+-
+-                      return (
+-                        <motion.div
+-                          key={room.sessionID}
+-                          initial={{ opacity: 0, x: 20 }}
+-                          animate={{ opacity: 1, x: 0 }}
+-                          exit={{ opacity: 0, x: -20, scale: 0.8 }}
+-                          className={`
+-                            bg-white/10 border rounded-lg p-3 sm:p-4 
+-                            hover:bg-white/15 transition-all
+-                            ${isExpiringSoon ? "border-red-500/50 bg-red-500/10" : "border-white/20"}
+-                          `}
+-                        >
+-                          <div className="flex items-center justify-between gap-2">
+-                            <div className="flex-1 min-w-0">
+-                              <div className="flex items-center gap-1.5 sm:gap-2 mb-1 flex-wrap">
+-                                <span
+-                                  className={`
+-                                  text-white font-bold truncate
+-                                  ${isMobileLayout ? "text-xs max-w-[120px]" : "text-sm"}
+-                                `}
+-                                >
+-                                  {room.sessionID.length > (isMobileLayout ? 15 : 20)
+-                                    ? room.sessionID.substring(0, isMobileLayout ? 15 : 20) + "..."
+-                                    : room.sessionID}
+-                                </span>
+-                                <span className="bg-green-500/30 text-green-300 text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded flex-shrink-0">
+-                                  {room.connectedPlayers}/{room.numPlayers}
+-                                </span>
+-                                {room.spectatorCount > 0 && (
+-                                  <span className="bg-blue-500/30 text-blue-300 text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded flex-shrink-0">
+-                                    👁️ {room.spectatorCount}
+-                                  </span>
+-                                )}
+-                              </div>
+-
+-                              {room.players && room.players.length > 0 && (
+-                                <p className="text-white/60 text-[10px] sm:text-xs truncate">
+-                                  Players: {room.players.join(", ")}
+-                                </p>
+-                              )}
+-
+-                              {timeUntilDelete > 0 && room.connectedPlayers === 0 && (
+-                                <div className="flex items-center gap-1 mt-1">
+-                                  <motion.span
+-                                    className={`
+-                                      text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded font-bold
+-                                      ${
+-                                        isExpiringSoon
+-                                          ? "bg-red-500/50 text-red-200 animate-pulse"
+-                                          : "bg-orange-500/30 text-orange-300"
+-                                      }
+-                                    `}
+-                                    animate={
+-                                      isExpiringSoon
+-                                        ? {
+-                                            scale: [1, 1.05, 1],
+-                                            opacity: [1, 0.7, 1],
+-                                          }
+-                                        : {}
+-                                    }
+-                                    transition={{ duration: 1, repeat: Infinity }}
+-                                  >
+-                                    ⏱️ {minutes}:{String(seconds).padStart(2, "0")}
+-                                  </motion.span>
+-                                </div>
+-                              )}
+-                            </div>
+-
+-                            <div className="flex gap-1.5 sm:gap-2 flex-shrink-0">
+-                              <button
+-                                onClick={() => copySessionId(room.sessionID)}
+-                                className="px-2 sm:px-3 py-1.5 sm:py-2 bg-white/20 text-white rounded hover:bg-white/30 transition-all text-xs"
+-                                title="Copy Session ID"
+-                              >
+-                                📋
+-                              </button>
+-                              <motion.button
+-                                onClick={() => joinGame(room.sessionID, true)}
+-                                className={`
+-                                  bg-gradient-to-r from-purple-500 to-indigo-500 
+-                                  text-white rounded hover:from-purple-600 hover:to-indigo-600 
+-                                  transition-all font-bold touch-target
+-                                  ${isMobileLayout ? "px-2 py-1.5 text-xs" : "px-3 py-2 text-sm"}
+-                                `}
+-                                whileHover={{ scale: 1.03 }}
+-                                whileTap={{ scale: 0.97 }}
+-                                title="Watch as spectator"
+-                              >
+-                                👁️
+-                              </motion.button>
+-                              <motion.button
+-                                onClick={() => joinGame(room.sessionID, false)}
+-                                disabled={room.connectedPlayers >= room.numPlayers}
+-                                className={`
+-                                  bg-gradient-to-r from-blue-500 to-cyan-500 
+-                                  text-white rounded hover:from-blue-600 hover:to-cyan-600 
+-                                  transition-all font-bold touch-target
+-                                  disabled:opacity-50 disabled:cursor-not-allowed
+-                                  ${isMobileLayout ? "px-3 py-1.5 text-xs" : "px-4 py-2 text-sm"}
+-                                `}
+-                                whileHover={{ scale: room.connectedPlayers >= room.numPlayers ? 1 : 1.03 }}
+-                                whileTap={{ scale: room.connectedPlayers >= room.numPlayers ? 1 : 0.97 }}
+-                              >
+-                                Join
+-                              </motion.button>
+-                            </div>
++                <div className="xp-listview" style={{ maxHeight: isMobileLayout ? "40vh" : undefined }}>
++                  {rooms.map((room) => {
++                    const timeUntilDelete = room.timeUntilDelete || 0;
++                    const minutes = Math.floor(timeUntilDelete / 60);
++                    const seconds = timeUntilDelete % 60;
++                    const isExpiringSoon = timeUntilDelete > 0 && timeUntilDelete < 60;
++                    const isFull = room.connectedPlayers >= room.numPlayers;
++
++                    return (
++                      <div key={room.sessionID} className={`xp-row ${isExpiringSoon ? "xp-row--expiring" : ""}`}>
++                        <div className="flex-1 min-w-0">
++                          <div className="flex items-center gap-1.5 flex-wrap mb-1">
++                            <span className="font-bold truncate text-xs sm:text-sm" style={{ maxWidth: isMobileLayout ? 120 : undefined }}>
++                              {room.sessionID.length > (isMobileLayout ? 15 : 20)
++                                ? room.sessionID.substring(0, isMobileLayout ? 15 : 20) + "..."
++                                : room.sessionID}
++                            </span>
++                            <span className="xp-badge xp-badge--green">
++                              {room.connectedPlayers}/{room.numPlayers}
++                            </span>
++                            {room.spectatorCount > 0 && <span className="xp-badge xp-badge--blue">👁 {room.spectatorCount}</span>}
++                            {timeUntilDelete > 0 && room.connectedPlayers === 0 && (
++                              <span className={`xp-badge ${isExpiringSoon ? "xp-badge--red" : "xp-badge--orange"}`}>
++                                ⏱ {minutes}:{String(seconds).padStart(2, "0")}
++                              </span>
++                            )}
+                           </div>
+-                        </motion.div>
+-                      );
+-                    })}
+-                  </AnimatePresence>
++                          {room.players && room.players.length > 0 && (
++                            <p className="xp-muted truncate">Players: {room.players.join(", ")}</p>
++                          )}
++                        </div>
++
++                        <div className="flex gap-1.5 flex-shrink-0">
++                          <button type="button" onClick={() => copySessionId(room.sessionID)} className="xp-btn xp-btn--sm" title="Copy Session ID">
++                            Copy
++                          </button>
++                          <button type="button" onClick={() => joinGame(room.sessionID, true)} className="xp-btn xp-btn--sm" title="Watch as spectator">
++                            Watch
++                          </button>
++                          <button
++                            type="button"
++                            onClick={() => joinGame(room.sessionID, false)}
++                            disabled={isFull}
++                            className="xp-btn xp-btn--sm xp-btn--go touch-target"
++                          >
++                            Join
++                          </button>
++                        </div>
++                      </div>
++                    );
++                  })}
+                 </div>
+               )}
+ 
+               {/* Manual Join by Session ID */}
+-              <div className="pt-4 sm:pt-6 border-t border-white/20">
+-                <label className="block text-white mb-1.5 sm:mb-2 text-sm sm:text-base">Or join by Room ID</label>
++              <div>
++                {linkedRoomStatus && (
++                  <div
++                    className={`xp-note mb-3 ${linkedRoomStatus === "open" ? "xp-note--ok" : linkedRoomStatus === "gone" ? "xp-note--err" : ""}`}
++                    role="status"
++                  >
++                    {linkedRoomStatus === "checking" && <>Checking room <b>{initialRoomId}</b>...</>}
++                    {linkedRoomStatus === "open" && <>Room <b>{initialRoomId}</b> is still open — press Join to enter (or re-enter) it.</>}
++                    {linkedRoomStatus === "gone" && (
++                      <>
++                        Room <b>{initialRoomId}</b> no longer exists. Rooms close automatically when nobody has been
++                        connected for a while — create a new room or pick an open one.
++                      </>
++                    )}
++                  </div>
++                )}
++                <label className="xp-field-label" htmlFor="mp-join-id">Or join by Room ID</label>
+                 <div className="flex gap-2">
+                   <input
++                    id="mp-join-id"
+                     type="text"
++                    defaultValue={linkedRoomStatus === "open" ? initialRoomId : ""}
++                    key={linkedRoomStatus || "none"}
+                     placeholder="Paste room ID here"
+                     onKeyPress={(e) => {
+                       if (e.key === "Enter" && e.target.value) {
+                         joinGame(e.target.value);
+                       }
+                     }}
+-                    className={`
+-                      flex-1 rounded-lg bg-white/20 border border-white/30 
+-                      text-white placeholder-white/50
+-                      ${isMobileLayout ? "px-3 py-2 text-sm" : "px-4 py-2.5"}
+-                    `}
++                    className="xp-input flex-1"
+                   />
+                   <button
++                    type="button"
+                     onClick={(e) => {
+-                      const input = e.target.previousElementSibling;
++                      const input = e.currentTarget.previousElementSibling;
+                       if (input.value) {
+                         joinGame(input.value);
+                       }
+                     }}
+-                    className={`
+-                      bg-gradient-to-r from-blue-500 to-cyan-500 
+-                      text-white rounded hover:from-blue-600 hover:to-cyan-600 
+-                      transition-all font-bold touch-target
+-                      ${isMobileLayout ? "px-4 py-2 text-sm" : "px-6 py-2.5"}
+-                    `}
++                    className="xp-btn xp-btn--go touch-target"
+                   >
+                     Join
+                   </button>
+@@ -581,7 +449,7 @@
+             </div>
+           )}
+         </div>
+-      </motion.div>
++      </XpWindow>
+     </div>
+   );
+ };
+--- a/web/react-frontend/src/components/mobile/CompactGameBoard.jsx
++++ b/web/react-frontend/src/components/mobile/CompactGameBoard.jsx
+@@ -5,6 +5,7 @@
+ import DepositModal from '../DepositModal'
+ import ConfirmGolemModal from '../ConfirmGolemModal'
+ import { showToast } from '../../utils/toast'
++import XpWaitingRoom from '../XpWaitingRoom'
+ 
+ const CompactGameBoard = () => {
+   const { gameState, myPlayer, currentPlayer, acquireCard, claimPointCard, startGame, isSpectator } = useGameStore()
+@@ -36,31 +37,7 @@
+           ${isMobile && isPortrait ? 'px-2 py-2' : isMobile ? 'px-2 py-3' : 'px-4 py-4'}
+         `}
+       >
+-        <div className="flex flex-col items-center justify-center gap-4 bg-gradient-to-b from-purple-900/40 to-blue-900/40 backdrop-blur-md rounded-xl border-2 border-purple-400/50 p-6 w-full max-w-md shadow-2xl min-h-[300px]">
+-          {/* Waiting message */}
+-          <div className="text-white text-base sm:text-xl font-bold text-center px-4 py-3 bg-black/50 rounded-lg border border-white/30 shadow-xl">
+-            ⏳ Waiting for other players to join
+-          </div>
+-          
+-          {/* Player count indicator */}
+-          <div className="text-green-300 text-sm font-semibold bg-black/40 px-4 py-2 rounded-lg">
+-            {otherPlayers.length} player(s) in lobby
+-          </div>
+-          
+-          {!isSpectator && (
+-            <button
+-              onClick={handleStartGame}
+-              className="flex px-10 py-4 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-400 hover:to-green-500 active:from-green-700 active:to-green-800 text-white font-extrabold rounded-xl border-4 border-green-300 transition-all shadow-2xl text-lg whitespace-nowrap items-center justify-center gap-2 touch-manipulation w-full max-w-xs"
+-              style={{ 
+-                WebkitTapHighlightColor: 'transparent',
+-                minHeight: '60px'
+-              }}
+-            >
+-              <span className="text-xl">🎮</span>
+-              <span>Start Game</span>
+-            </button>
+-          )}
+-        </div>
++        <XpWaitingRoom players={otherPlayers} isSpectator={isSpectator} onStart={handleStartGame} />
+       </div>
+     )
+   }
+--- a/web/react-frontend/src/components/mobile/CompactPlayerHand.jsx
++++ b/web/react-frontend/src/components/mobile/CompactPlayerHand.jsx
+@@ -1,5 +1,6 @@
+ import React, { useState, useEffect, useRef } from 'react'
+ import useGameStore from '../../store/gameStore'
++import PlayerAvatar from '../PlayerAvatar'
+ import useOrientation from '../../hooks/useOrientation'
+ import CompactCard from '../CompactCard'
+ import UpgradeModal from '../UpgradeModal'
+@@ -119,12 +120,13 @@
+           <div className="flex-shrink-0 bg-black/50 rounded-lg p-2 flex flex-col justify-center gap-1.5 min-w-[80px]">
+             {/* Row 1: Avatar + Name + Points */}
+             <div className="flex items-center gap-2">
+-              <div className={`
+-                w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm
+-                ${isMyTurn ? 'bg-yellow-500 text-black' : 'bg-gray-600 text-white'}
+-              `}>
+-                {myPlayer.name?.charAt(0)?.toUpperCase() || 'P'}
+-              </div>
++              <PlayerAvatar
++                player={myPlayer}
++                className={`
++                  w-8 h-8 rounded-lg text-sm border-2
++                  ${isMyTurn ? 'border-yellow-400 bg-yellow-500 text-black' : 'border-transparent bg-gray-600 text-white'}
++                `}
++              />
+               <div className="flex flex-col">
+                 <span className="text-white text-[11px] font-medium">{myPlayer.name || 'Player'}</span>
+                 <span className="text-yellow-400 text-[11px] font-bold">★ {myPlayer.points || 0}</span>
+@@ -185,9 +187,10 @@
+           `}>
+             {/* Avatar & Name */}
+             <div className="flex items-center gap-2">
+-              <div className={`rounded-lg bg-yellow-500 text-black flex items-center justify-center font-bold ${isMobile ? 'w-8 h-8 text-sm' : 'w-9 h-9 text-base'}`}>
+-                {myPlayer.name?.charAt(0)?.toUpperCase() || '?'}
+-              </div>
++              <PlayerAvatar
++                player={myPlayer}
++                className={`rounded-lg bg-yellow-500 text-black ${isMobile ? 'w-8 h-8 text-sm' : 'w-9 h-9 text-base'}`}
++              />
+               <div>
+                 <div className={`text-white font-medium ${isMobile ? 'text-xs' : 'text-sm'}`}>
+                   {myPlayer.name || 'You'}
+--- a/web/react-frontend/src/components/OpponentArea.jsx
++++ b/web/react-frontend/src/components/OpponentArea.jsx
+@@ -2,6 +2,7 @@
+ import CrystalStack from './CrystalStack'
+ import useGameStore from '../store/gameStore'
+ import useOrientation from '../hooks/useOrientation'
++import { avatarSrc } from '../utils/avatar'
+ 
+ const OpponentArea = () => {
+   const { opponents, currentPlayer, gameState } = useGameStore()
+@@ -81,7 +82,7 @@
+                 {/* Avatar */}
+                 <div className="relative flex-shrink-0">
+                   <img
+-                    src={`/assets/images/avatar/${opponent.avatar || opponent.id}.webp`}
++                    src={avatarSrc(opponent.avatar || opponent.id)}
+                     alt={opponent.name}
+                     className={`
+                       rounded-full border-2 border-white object-cover
+@@ -93,7 +94,7 @@
+                       }
+                     `}
+                     onError={(e) => {
+-                      e.target.src = '/assets/images/avatar/1.webp'
++                      e.target.src = avatarSrc(1)
+                     }}
+                   />
+                   {isCurrentTurn && (
+--- a/web/react-frontend/src/components/PlayerAvatar.jsx
++++ b/web/react-frontend/src/components/PlayerAvatar.jsx
+@@ -0,0 +1,31 @@
++import React, { useState } from 'react'
++import useGameStore from '../store/gameStore'
++import { avatarSrc, resolveAvatarId } from '../utils/avatar'
++
++// In-game player avatar image. Size, shape and border come from `className`; falls back to the name initial
++// if the image fails to load. Looks the player up in the game state so partial objects (e.g. `winner`) work.
++const PlayerAvatar = ({ player, className = '' }) => {
++  const players = useGameStore((state) => state.gameState?.players) || []
++  const [failedSrc, setFailedSrc] = useState(null)
++
++  const fullPlayer = players.find((p) => p.id === player?.id) || player
++  const src = avatarSrc(resolveAvatarId(fullPlayer, players))
++  const initial = fullPlayer?.name?.charAt(0)?.toUpperCase() || '?'
++
++  return (
++    <div className={`overflow-hidden flex items-center justify-center font-bold ${className}`}>
++      {failedSrc === src ? (
++        initial
++      ) : (
++        <img
++          src={src}
++          alt={fullPlayer?.name || 'Player'}
++          className="w-full h-full object-cover"
++          onError={() => setFailedSrc(src)}
++        />
++      )}
++    </div>
++  )
++}
++
++export default PlayerAvatar
+--- a/web/react-frontend/src/components/PlayerCard.jsx
++++ b/web/react-frontend/src/components/PlayerCard.jsx
+@@ -1,4 +1,5 @@
+ import React from 'react'
++import PlayerAvatar from './PlayerAvatar'
+ 
+ const PlayerCard = ({ player, isCurrentPlayer }) => {
+   if (!player) return null
+@@ -32,14 +33,15 @@
+       <div className="flex items-center gap-2 mb-1">
+         {/* Avatar with online status indicator */}
+         <div className="relative flex-shrink-0">
+-          <div className={`
+-            w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs
+-            border-2 border-white shadow
+-            ${isCurrentPlayer ? 'bg-yellow-500 text-black' : 'bg-purple-600 text-white'}
+-            ${player.online === false ? 'opacity-50' : ''}
+-          `}>
+-            {player.isAI ? '🤖' : player.name?.charAt(0)?.toUpperCase() || '?'}
+-          </div>
++          <PlayerAvatar
++            player={player}
++            className={`
++              w-8 h-8 rounded-full text-xs
++              border-2 ${isCurrentPlayer ? 'border-yellow-400' : 'border-white'} shadow
++              ${isCurrentPlayer ? 'bg-yellow-500 text-black' : 'bg-purple-600 text-white'}
++              ${player.online === false ? 'opacity-50' : ''}
++            `}
++          />
+           {/* Online/Offline status indicator */}
+           {player.online !== undefined && (
+             <div 
+--- a/web/react-frontend/src/components/PlayersInfoBar.jsx
++++ b/web/react-frontend/src/components/PlayersInfoBar.jsx
+@@ -1,5 +1,6 @@
+ import React, { useState, useEffect } from 'react'
+ import useGameStore from '../store/gameStore'
++import PlayerAvatar from './PlayerAvatar'
+ 
+ // Timer Ring around avatar
+ const TimerRing = ({ duration = 60 }) => {
+@@ -52,13 +53,14 @@
+               {/* Avatar with timer ring for current turn */}
+               <div className="relative">
+                 {isCurrentTurn && <TimerRing duration={60} />}
+-                <div className={`
+-                  relative w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold
+-                  ${isCurrentTurn ? 'bg-yellow-500 text-black' : 'bg-purple-600 text-white'}
+-                  ${player.online === false ? 'opacity-50' : ''}
+-                `}>
+-                  {player.isAI ? '🤖' : player.name?.charAt(0)?.toUpperCase() || '?'}
+-                </div>
++                <PlayerAvatar
++                  player={player}
++                  className={`
++                    relative w-7 h-7 rounded-full text-xs
++                    ${isCurrentTurn ? 'bg-yellow-500 text-black' : 'bg-purple-600 text-white'}
++                    ${player.online === false ? 'opacity-50' : ''}
++                  `}
++                />
+                 {/* Online/Offline status indicator */}
+                 {player.online !== undefined && (
+                   <div 
+--- a/web/react-frontend/src/components/SinglePlayerLobby.jsx
++++ b/web/react-frontend/src/components/SinglePlayerLobby.jsx
+@@ -1,19 +1,20 @@
+ import React, { useState } from 'react'
+-import { motion } from 'framer-motion'
+ import { createLogger } from '../utils/logger'
+ import { apiFetch } from '../utils/api'
+ import useOrientation from '../hooks/useOrientation'
++import { AVATAR_IDS, avatarSrc } from '../utils/avatar'
++import XpWindow from './XpWindow'
+ 
+ const logger = createLogger('SinglePlayerLobby');
+ 
+-const SinglePlayerLobby = ({ onStartGame }) => {
++const SinglePlayerLobby = ({ onStartGame, onBack }) => {
+   const [playerName, setPlayerName] = useState('Player 1')
+   const [numAI, setNumAI] = useState(1)
+   const [selectedAvatar, setSelectedAvatar] = useState('4')
+   const [loading, setLoading] = useState(false)
+-  const { isMobile, isTablet, isPortrait } = useOrientation()
++  const { isMobile } = useOrientation()
+ 
+-  const avatars = ['1', '2', '3', '4']
++  const avatars = AVATAR_IDS
+   const difficulties = [
+     { value: 1, label: isMobile ? '1 AI (2P)' : '1 AI Opponent (2 Players)' },
+     { value: 2, label: isMobile ? '2 AI (3P)' : '2 AI Opponents (3 Players)' },
+@@ -49,91 +50,42 @@
+   }
+ 
+   return (
+-    <div 
+-      className={`
+-        min-h-screen min-h-[100dvh] flex items-center justify-center
+-        ${isMobile ? 'p-2 pt-12' : 'p-6'}
+-      `}
+-      style={{
+-        backgroundImage: 'url(/assets/images/background.jpg)',
+-        backgroundSize: 'cover',
+-        backgroundPosition: 'center center',
+-        backgroundRepeat: 'no-repeat',
+-        backgroundAttachment: isMobile ? 'scroll' : 'fixed'
+-      }}
+-    >
+-      <motion.div
+-        className={`
+-          backdrop-blur-md border border-white/20 w-full
+-          ${isMobile 
+-            ? 'bg-black/40 rounded-xl p-3 max-w-[320px]' 
+-            : 'bg-white/10 rounded-2xl p-6 sm:p-8 max-w-2xl'
+-          }
+-        `}
+-        initial={{ opacity: 0, scale: 0.95 }}
+-        animate={{ opacity: 1, scale: 1 }}
+-        transition={{ duration: 0.2 }}
++    <div className="xp-desktop">
++      <XpWindow
++        title="Single Player — Century: Golem Edition"
++        icon={avatarSrc(selectedAvatar)}
++        onClose={onBack}
++        className="max-w-xl"
++        status={<><span>Play against AI opponents</span><span>{numAI + 1} players</span></>}
+       >
+-        <h1 className={`
+-          font-bold text-white text-center
+-          ${isMobile ? 'text-lg mb-1' : 'text-3xl sm:text-4xl mb-2'}
+-        `}>
+-          {isMobile ? 'Single Player' : 'Century: Golem Edition'}
+-        </h1>
+-        {!isMobile && (
+-          <h2 className="text-lg sm:text-xl text-white/80 text-center mb-6 sm:mb-8">
+-            Single Player Mode
+-          </h2>
+-        )}
+-
+-        <div className={`space-y-3 ${isMobile ? '' : 'space-y-6'}`}>
++        <div className="xp-stack">
+           {/* Player Name */}
+           <div>
+-            <label className={`block text-white font-semibold ${isMobile ? 'text-sm mb-1' : 'mb-2'}`}>
+-              Your Name
+-            </label>
++            <label className="xp-field-label" htmlFor="sp-name">Your Name</label>
+             <input
++              id="sp-name"
+               type="text"
+               value={playerName}
+               onChange={(e) => setPlayerName(e.target.value)}
+-              className={`
+-                w-full rounded-lg bg-white/20 border border-white/30 text-white 
+-                placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-400
+-                ${isMobile ? 'px-3 py-2 text-sm' : 'px-4 py-3'}
+-              `}
++              className="xp-input"
+               placeholder="Enter your name"
+             />
+           </div>
+ 
+           {/* Number of AI Opponents */}
+           <div>
+-            <label className={`block text-white font-semibold ${isMobile ? 'text-sm mb-1' : 'mb-2'}`}>
+-              AI Opponents
+-            </label>
+-            <div className={`${isMobile ? 'space-y-1' : 'space-y-2'}`}>
++            <span className="xp-field-label">AI Opponents</span>
++            <div className="xp-list" role="radiogroup">
+               {difficulties.map((diff) => (
+-                <label
+-                  key={diff.value}
+-                  className={`
+-                    flex items-center rounded-lg cursor-pointer transition-all
+-                    ${isMobile ? 'p-2' : 'p-3'}
+-                    ${numAI === diff.value
+-                      ? 'bg-purple-500/40 border-2 border-purple-400'
+-                      : 'bg-white/10 border-2 border-white/20 hover:bg-white/20'
+-                    }
+-                  `}
+-                >
++                <label key={diff.value} className="xp-list-item" data-selected={numAI === diff.value}>
+                   <input
+                     type="radio"
+                     name="numAI"
+                     value={diff.value}
+                     checked={numAI === diff.value}
+                     onChange={(e) => setNumAI(parseInt(e.target.value))}
+-                    className="mr-2 sm:mr-3"
+                   />
+-                  <span className={`text-white font-medium ${isMobile ? 'text-sm' : ''}`}>
+-                    {diff.label}
+-                  </span>
++                  <span>{diff.label}</span>
+                 </label>
+               ))}
+             </div>
+@@ -141,33 +93,22 @@
+ 
+           {/* Avatar Selection */}
+           <div>
+-            <label className={`block text-white font-semibold ${isMobile ? 'text-sm mb-1' : 'mb-2'}`}>
+-              Your Avatar
+-            </label>
+-            <div className={`
+-              grid gap-2
+-              ${isMobile ? 'grid-cols-4' : 'grid-cols-4 md:grid-cols-4 gap-3'}
+-            `}>
++            <span className="xp-field-label">Your Avatar</span>
++            <div className="xp-avatar-grid">
+               {avatars.map((avatar) => (
+                 <button
++                  type="button"
+                   key={avatar}
+                   onClick={() => setSelectedAvatar(avatar)}
+-                  className={`
+-                    relative aspect-square rounded-lg overflow-hidden transition-all 
+-                    transform hover:scale-105 touch-target
+-                    ${selectedAvatar === avatar
+-                      ? 'ring-4 ring-purple-400 scale-105'
+-                      : 'ring-2 ring-white/30'
+-                    }
+-                  `}
++                  className="xp-avatar touch-target"
++                  aria-pressed={selectedAvatar === avatar}
++                  aria-label={`Avatar ${avatar}`}
+                 >
+                   <img
+-                    src={`/assets/images/avatar/${avatar}.webp`}
+-                    alt={`Avatar ${avatar}`}
+-                    className="w-full h-full object-cover"
++                    src={avatarSrc(avatar)}
++                    alt=""
+                     onError={(e) => {
+                       e.target.style.display = 'none'
+-                      e.target.parentElement.innerHTML = `<div class="w-full h-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white font-bold text-xl">${avatar}</div>`
+                     }}
+                   />
+                 </button>
+@@ -175,38 +116,22 @@
+             </div>
+           </div>
+ 
+-          {/* Start Button */}
+-          <button
+-            onClick={startGame}
+-            disabled={loading || !playerName.trim()}
+-            className={`
+-              w-full rounded-lg font-bold transition-all text-white shadow-lg touch-target
+-              ${isMobile ? 'py-3 text-base' : 'py-4 text-lg'}
+-              ${loading || !playerName.trim()
+-                ? 'bg-gray-400 cursor-not-allowed'
+-                : 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 transform hover:scale-105'
+-              }
+-            `}
+-          >
+-            {loading ? (
+-              <div className="flex items-center justify-center">
+-                <div className={`animate-spin rounded-full border-b-2 border-white mr-2 ${isMobile ? 'h-4 w-4' : 'h-6 w-6 mr-3'}`}></div>
+-                {isMobile ? 'Creating...' : 'Creating Game...'}
+-              </div>
+-            ) : (
+-              isMobile ? 'Start Game' : 'Start Single Player Game'
+-            )}
+-          </button>
+-
+-          {/* Info Text - Hidden on mobile */}
+-          {!isMobile && (
+-            <div className="text-center text-white/70 text-sm mt-4">
+-              <p>Play against AI opponents in this classic spice trading game.</p>
+-              <p className="mt-1">Collect and upgrade crystals to claim point cards!</p>
+-            </div>
+-          )}
++          {/* Actions */}
++          <div className="xp-actions justify-end">
++            <button type="button" className="xp-btn" onClick={onBack}>
++              Back
++            </button>
++            <button
++              type="button"
++              onClick={startGame}
++              disabled={loading || !playerName.trim()}
++              className="xp-btn xp-btn--go xp-btn--lg touch-target"
++            >
++              {loading ? 'Creating game...' : 'Start Game ›'}
++            </button>
++          </div>
+         </div>
+-      </motion.div>
++      </XpWindow>
+     </div>
+   )
+ }
+--- a/web/react-frontend/src/components/XpWaitingRoom.jsx
++++ b/web/react-frontend/src/components/XpWaitingRoom.jsx
+@@ -0,0 +1,42 @@
++import React from 'react'
++import XpWindow from './XpWindow'
++import PlayerAvatar from './PlayerAvatar'
++import { avatarSrc } from '../utils/avatar'
++
++// Pre-game waiting room (XP dialog): who has joined + Start Game. Shared by desktop and mobile layouts.
++const XpWaitingRoom = ({ players = [], isSpectator, onStart, className = '' }) => (
++  <XpWindow
++    title="Waiting for players"
++    icon={avatarSrc('3')}
++    className={`max-w-md ${className}`}
++    status={<><span>{players.length} player(s) in lobby</span><span>Room open</span></>}
++  >
++    <div className="xp-stack">
++      <p>Waiting for other players to join. Start whenever everyone is in.</p>
++      <div className="xp-progress" role="progressbar" aria-label="Waiting for players" />
++
++      <div className="xp-listview">
++        {players.map((player) => (
++          <div key={player.id ?? player.name} className="xp-row">
++            <PlayerAvatar player={player} className="w-8 h-8 text-xs border-2 border-black bg-white" />
++            <span className="font-bold truncate">{player.name || 'Player'}</span>
++            {player.isAI && <span className="xp-badge xp-badge--blue ml-auto">AI</span>}
++          </div>
++        ))}
++      </div>
++
++      {!isSpectator && (
++        <button
++          type="button"
++          onClick={onStart}
++          className="xp-btn xp-btn--go xp-btn--lg xp-btn--block touch-target"
++          style={{ WebkitTapHighlightColor: 'transparent' }}
++        >
++          Start Game ›
++        </button>
++      )}
++    </div>
++  </XpWindow>
++)
++
++export default XpWaitingRoom
+--- a/web/react-frontend/src/components/XpWindow.jsx
++++ b/web/react-frontend/src/components/XpWindow.jsx
+@@ -0,0 +1,21 @@
++import React from 'react'
++
++// Windows XP-style window (theme-xp.css): blue title bar, beige face, brutalist border + hard shadow.
++// `onClose` renders a working close button; `status` renders an XP status bar under the body.
++const XpWindow = ({ title, icon, onClose, status, className = '', bodyClassName = '', children }) => (
++  <div className={`xp-window ${className}`} role="dialog" aria-label={title}>
++    <div className="xp-titlebar">
++      {icon && <img className="xp-titlebar-icon" src={icon} alt="" />}
++      <span className="xp-titlebar-title">{title}</span>
++      {onClose && (
++        <button type="button" className="xp-title-btn" onClick={onClose} aria-label="Close" title="Back to menu">
++          ✕
++        </button>
++      )}
++    </div>
++    <div className={`xp-body ${bodyClassName}`}>{children}</div>
++    {status && <div className="xp-statusbar">{status}</div>}
++  </div>
++)
++
++export default XpWindow
+--- a/web/react-frontend/src/main.jsx
++++ b/web/react-frontend/src/main.jsx
+@@ -4,6 +4,7 @@
+ import router from './router'
+ import { AuthProvider } from './contexts/AuthContext'
+ import './index.css'
++import './theme-xp.css'
+ 
+ ReactDOM.createRoot(document.getElementById('root')).render(
+   <React.StrictMode>
+--- a/web/react-frontend/src/SinglePlayerApp.jsx
++++ b/web/react-frontend/src/SinglePlayerApp.jsx
+@@ -10,6 +10,8 @@
+ import AcquiredCardOverlay from './components/AcquiredCardOverlay'
+ import GameOverModal from './components/GameOverModal'
+ import Toast from './components/Toast'
++import XpWindow from './components/XpWindow'
++import { avatarSrc } from './utils/avatar'
+ import WebGameLayout from './components/desktop/WebGameLayout'
+ import ThemeToggleButton from './components/ThemeToggleButton'
+ import SoundToggleButton from './components/SoundToggleButton'
+@@ -144,6 +146,7 @@
+   const navigate = useNavigate()
+   const [gameMode, setGameMode] = useState(null) // null, 'single', 'multi'
+   const [inGame, setInGame] = useState(false)
++  const [pendingRoomId, setPendingRoomId] = useState(null) // room from a /room/:id link opened without a live connection
+   const { 
+     connectWebSocket, 
+     gameState, 
+@@ -160,11 +163,14 @@
+   } = useGameStore()
+   const { isPortrait, isLandscape, isMobile, isTablet, isDesktop, width } = useOrientation()
+ 
+-  // Auto-join if roomId is in URL
++  // Opening /room/:roomId directly (page reload, invite link, old link) has no live connection yet. Upstream jumped
++  // straight to the in-game screen without ever connecting, so it hung on "Connecting..." forever. Instead, open the
++  // multiplayer lobby on the Join tab with the room prefilled; it checks whether the room still exists.
+   useEffect(() => {
+     if (roomId && !inGame && !isConnecting) {
++      setPendingRoomId(roomId)
+       setGameMode('multi')
+-      setInGame(true)
++      navigate('/', { replace: true })
+     }
+   }, [roomId, inGame, isConnecting])
+ 
+@@ -183,79 +189,52 @@
+   }
+ 
+   const handleBackToMenu = () => {
++    setPendingRoomId(null)
+     setGameMode(null)
+     setInGame(false)
+     navigate('/')
+   }
+ 
+-  // Mode selection screen - RESPONSIVE
++  // Mode selection screen
+   if (gameMode === null) {
+     return (
+       <>
+       <Toast />
+-      <div 
+-        className={`
+-          min-h-screen min-h-[100dvh] flex items-center justify-center 
+-          ${isMobile ? 'p-3' : 'p-6'}
+-        `}
+-        style={{
+-          backgroundImage: 'url(/assets/images/background.jpg)',
+-          backgroundSize: 'cover',
+-          backgroundPosition: 'center center',
+-          backgroundRepeat: 'no-repeat',
+-          backgroundAttachment: isMobile ? 'scroll' : 'fixed'
+-        }}
+-      >
+-        <div className={`
+-          backdrop-blur-md border border-white/20 w-full
+-          ${isMobile 
+-            ? 'bg-black/40 rounded-xl p-4 max-w-[320px]' 
+-            : 'bg-white/10 rounded-2xl p-8 max-w-md'
+-          }
+-        `}>
+-          <h1 className={`
+-            font-bold text-white text-center
+-            ${isMobile ? 'text-xl mb-4' : 'text-3xl sm:text-4xl mb-8'}
+-          `}>
+-            {'Century: Golem Edition'}
++      <div className="xp-desktop">
++        <XpWindow
++          title="Century: Golem Edition"
++          icon={avatarSrc('1')}
++          className="max-w-md"
++          status={<><span>A classic spice trading game</span><span>2–5 players</span></>}
++        >
++          <h1 className="xp-heading">
++            Choose a game mode
++            <small>Collect and upgrade crystals to claim golem cards.</small>
+           </h1>
+-          
+-          <div className={`space-y-3 ${isMobile ? '' : 'space-y-4'}`}>
+-            <button
+-              onClick={() => setGameMode('single')}
+-              className={`
+-                w-full rounded-lg font-bold bg-gradient-to-r from-purple-500 to-pink-500 
+-                hover:from-purple-600 hover:to-pink-600 text-white shadow-lg 
+-                transform hover:scale-105 transition-all
+-                ${isMobile ? 'py-4 text-base' : 'py-6 text-xl'}
+-              `}
+-            >
+-              🤖 Single Player
+-              <div className={`font-normal text-white/90 ${isMobile ? 'text-xs mt-0.5' : 'text-sm mt-1'}`}>
+-                Play against AI opponents
+-              </div>
++          <div className="xp-stack">
++            <button type="button" className="xp-tile" onClick={() => setGameMode('single')}>
++              <span className="xp-tile-icons">
++                <img src={avatarSrc('4')} alt="" />
++              </span>
++              <span>
++                <span className="xp-tile-title">Single Player</span>
++                <span className="xp-tile-sub">Play against 1–4 AI opponents</span>
++              </span>
++              <span className="xp-tile-arrow" aria-hidden="true">›</span>
+             </button>
+-            
+-            <button
+-              onClick={() => setGameMode('multi')}
+-              className={`
+-                w-full rounded-lg font-bold bg-gradient-to-r from-blue-500 to-cyan-500 
+-                hover:from-blue-600 hover:to-cyan-600 text-white shadow-lg 
+-                transform hover:scale-105 transition-all
+-                ${isMobile ? 'py-4 text-base' : 'py-6 text-xl'}
+-              `}
+-            >
+-              👥 Multiplayer
+-              <div className={`font-normal text-white/90 ${isMobile ? 'text-xs mt-0.5' : 'text-sm mt-1'}`}>
+-                Play with friends online
+-              </div>
++            <button type="button" className="xp-tile" onClick={() => setGameMode('multi')}>
++              <span className="xp-tile-icons">
++                <img src={avatarSrc('1')} alt="" />
++                <img src={avatarSrc('2')} alt="" />
++              </span>
++              <span>
++                <span className="xp-tile-title">Multiplayer</span>
++                <span className="xp-tile-sub">Create a room or join friends online</span>
++              </span>
++              <span className="xp-tile-arrow" aria-hidden="true">›</span>
+             </button>
+           </div>
+-
+-          <div className={`text-center text-white/70 ${isMobile ? 'text-xs mt-4' : 'text-sm mt-6'}`}>
+-            <p>A classic spice trading game</p>
+-          </div>
+-        </div>
++        </XpWindow>
+       </div>
+       </>
+     )
+@@ -263,151 +242,75 @@
+ 
+   // Show appropriate lobby based on mode
+   if (!inGame) {
+-    if (gameMode === 'single') {
+-      return (
+-        <>
+-          <Toast />
+-          <div>
+-            <button
+-              onClick={handleBackToMenu}
+-              className={`
+-                absolute z-50 bg-white/20 backdrop-blur-md rounded-lg text-white font-semibold 
+-                hover:bg-white/30 transition-all
+-                ${isMobile ? 'top-2 left-2 px-3 py-1.5 text-sm' : 'top-4 left-4 px-4 py-2'}
+-              `}
+-            >
+-              ← Back
+-            </button>
+-            <SinglePlayerLobby onStartGame={handleStartSinglePlayer} />
+-          </div>
+-        </>
+-      )
+-    } else {
+-      return (
+-        <>
+-          <Toast />
+-          <div>
+-            <button
+-              onClick={handleBackToMenu}
+-              className={`
+-                absolute z-50 bg-white/20 backdrop-blur-md rounded-lg text-white font-semibold 
+-                hover:bg-white/30 transition-all
+-                ${isMobile ? 'top-2 left-2 px-3 py-1.5 text-sm' : 'top-4 left-4 px-4 py-2'}
+-              `}
+-            >
+-              ← Back
+-            </button>
+-            <Lobby onJoinGame={handleJoinMultiplayer} />
+-          </div>
+-        </>
+-      )
+-    }
++    return (
++      <>
++        <Toast />
++        {gameMode === 'single'
++          ? <SinglePlayerLobby onStartGame={handleStartSinglePlayer} onBack={handleBackToMenu} />
++          : <Lobby onJoinGame={handleJoinMultiplayer} onBack={handleBackToMenu} initialRoomId={pendingRoomId} />}
++      </>
++    )
+   }
+ 
+   // Show loading screen while connecting or waiting for game state
+   if (!connected || !gameState) {
+     const showRetryButton = connectionError || (isReconnecting && reconnectAttempts >= 2);
+-    
++    // Not connecting, not reconnecting, no error: nothing will happen by itself — offer a way back.
++    const isIdle = !connected && !isConnecting && !isReconnecting && !connectionError;
++    const title = connectionError
++      ? 'Connection Failed'
++      : isReconnecting
++        ? `Reconnecting (${reconnectAttempts}/${10})`
++        : !connected
++          ? 'Connecting...'
++          : 'Loading...'
++
+     return (
+       <>
+         <Toast />
+-        <div 
+-          className={`
+-            min-h-screen min-h-[100dvh] flex items-center justify-center
+-            ${isMobile ? 'p-3' : 'p-6'}
+-          `}
+-          style={{
+-            backgroundImage: 'url(/assets/images/background.jpg)',
+-            backgroundSize: 'cover',
+-            backgroundPosition: 'center center',
+-            backgroundRepeat: 'no-repeat',
+-            backgroundAttachment: isMobile ? 'scroll' : 'fixed'
+-          }}
+-        >
+-          <div className={`
+-            bg-white/90 backdrop-blur-md rounded-2xl text-center
+-            ${isMobile ? 'p-4 max-w-[280px]' : 'p-8 max-w-md'}
+-          `}>
+-            {/* Spinner - only show when actively connecting */}
+-            {(isConnecting || isReconnecting) && !showRetryButton && (
+-              <div className={`
+-                animate-spin rounded-full border-b-2 border-purple-500 mx-auto mb-4
+-                ${isMobile ? 'h-8 w-8' : 'h-12 w-12'}
+-              `}></div>
+-            )}
+-
+-            {/* Error Icon */}
+-            {showRetryButton && (
+-              <div className={`
+-                mx-auto mb-4 flex items-center justify-center rounded-full bg-red-100
+-                ${isMobile ? 'h-12 w-12' : 'h-16 w-16'}
+-              `}>
+-                <svg className={`${isMobile ? 'h-6 w-6' : 'h-8 w-8'} text-red-600`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+-                </svg>
+-              </div>
+-            )}
+-
+-            {/* Title */}
+-            <h2 className={`font-bold text-gray-800 mb-2 ${isMobile ? 'text-lg' : 'text-2xl'}`}>
+-              {connectionError 
+-                ? 'Connection Failed' 
+-                : isReconnecting 
+-                  ? `Reconnecting (${reconnectAttempts}/${10})`
+-                  : !connected 
+-                    ? 'Connecting...' 
+-                    : 'Loading...'}
+-            </h2>
+-
+-            {/* Error Message */}
+-            {connectionError && (
+-              <p className={`text-red-600 mb-4 ${isMobile ? 'text-sm' : 'text-base'}`}>
+-                {connectionError}
+-              </p>
+-            )}
+-
+-            {/* Status Message */}
+-            {!connectionError && (
+-              <p className={`text-gray-600 ${isMobile ? 'text-sm' : ''}`}>
+-                {isReconnecting ? 'Attempting to reconnect...' : 'Please wait...'}
+-              </p>
+-            )}
+-
+-            {/* Retry Button */}
+-            {showRetryButton && (
+-              <button
+-                onClick={() => {
+-                  if (sessionId && storedPlayerName) {
+-                    forceReconnect();
+-                  }
+-                }}
+-                className={`
+-                  mt-4 px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg
+-                  transition-colors duration-200 shadow-md hover:shadow-lg
+-                  ${isMobile ? 'text-sm' : 'text-base'}
+-                `}
+-              >
+-                Retry Connection
+-              </button>
+-            )}
+-
+-            {/* Back to Menu - show after multiple failed attempts */}
+-            {reconnectAttempts >= 3 && (
+-              <button
+-                onClick={() => {
+-                  setInGame(false);
+-                  setGameMode(null);
+-                }}
+-                className={`
+-                  mt-2 px-4 py-2 text-gray-600 hover:text-gray-800 font-medium
+-                  transition-colors duration-200
+-                  ${isMobile ? 'text-xs' : 'text-sm'}
+-                `}
+-              >
+-                Back to Menu
+-              </button>
+-            )}
+-          </div>
++        <div className="xp-desktop">
++          <XpWindow title={title} icon={avatarSrc('3')} className="max-w-sm">
++            <div className="xp-stack">
++              {connectionError ? (
++                <div className="xp-note xp-note--err">{connectionError}</div>
++              ) : (
++                <p>{isReconnecting ? 'Attempting to reconnect...' : 'Connecting to the game server. Please wait...'}</p>
++              )}
++
++              {(isConnecting || isReconnecting) && !showRetryButton && <div className="xp-progress" role="progressbar" />}
++
++              {(showRetryButton || reconnectAttempts >= 3 || isIdle) && (
++                <div className="xp-actions justify-end">
++                  {/* Back to Menu - after multiple failed attempts, or when nothing is in progress at all */}
++                  {(reconnectAttempts >= 3 || isIdle) && (
++                    <button
++                      type="button"
++                      className="xp-btn"
++                      onClick={() => {
++                        setInGame(false);
++                        setGameMode(null);
++                      }}
++                    >
++                      Back to Menu
++                    </button>
++                  )}
++                  {showRetryButton && (
++                    <button
++                      type="button"
++                      className="xp-btn xp-btn--go"
++                      onClick={() => {
++                        if (sessionId && storedPlayerName) {
++                          forceReconnect();
++                        }
++                      }}
++                    >
++                      Retry Connection
++                    </button>
++                  )}
++                </div>
++              )}
++            </div>
++          </XpWindow>
+         </div>
+       </>
+     )
+--- a/web/react-frontend/src/theme-xp.css
++++ b/web/react-frontend/src/theme-xp.css
+@@ -0,0 +1,347 @@
++/*
++ * Windows XP × brutalism theme for the pre-game screens: mode menu, lobbies, connecting dialog, waiting room.
++ * XP: Luna blue title bars, beige window face, Tahoma, green "go" buttons, marquee progress bar.
++ * Brutalism: thick black borders, hard offset shadows, flat colours, no glass/blur.
++ * System fonts only — no web fonts or other external requests (see docs/privacy.md).
++ */
++:root {
++  --xp-ink: #0b0b0b;
++  --xp-face: #ece9d8;
++  --xp-face-dark: #d8d4c4;
++  --xp-paper: #ffffff;
++  --xp-blue: #0054e3;
++  --xp-select: #316ac5;
++  --xp-hover: #e8eef9;
++  --xp-orange: #ffc83c;
++  --xp-smb-sky: #9290ff;
++  --xp-shadow: 6px 6px 0 var(--xp-ink);
++  --xp-font: Tahoma, Verdana, "DejaVu Sans", "Segoe UI", sans-serif;
++  --xp-title-font: "Trebuchet MS", Tahoma, Verdana, "DejaVu Sans", sans-serif;
++}
++
++/* ---- Desktop (page background): flat, hard-edged take on the XP "Bliss" hill ---- */
++.xp-desktop {
++  min-height: 100vh;
++  min-height: 100dvh;
++  display: flex;
++  align-items: center;
++  justify-content: center;
++  padding: 24px 16px;
++  background:
++    radial-gradient(150% 55% at 25% 108%, #5aa632 0 54%, #3f8a22 54.2% 57%, transparent 57.2%),
++    linear-gradient(180deg, #1f63d1 0%, #4a8ee6 45%, #9cc8f2 100%);
++  background-attachment: fixed;
++  font-family: var(--xp-font);
++  color: var(--xp-ink);
++}
++
++/* ---- Window chrome ---- */
++.xp-window {
++  width: 100%;
++  background: var(--xp-face);
++  border: 3px solid var(--xp-ink);
++  border-radius: 8px 8px 0 0;
++  box-shadow: var(--xp-shadow);
++  font-family: var(--xp-font);
++  color: var(--xp-ink);
++  font-size: 14px;
++}
++.xp-titlebar {
++  display: flex;
++  align-items: center;
++  gap: 8px;
++  padding: 5px 6px 5px 10px;
++  border-radius: 5px 5px 0 0;
++  border-bottom: 3px solid var(--xp-ink);
++  background: linear-gradient(180deg, #3d95ff 0%, #0a64e8 12%, #0054e3 45%, #0050d8 80%, #0a3fa8 100%);
++  color: #fff;
++  font: bold 15px/1.3 var(--xp-title-font);
++  text-shadow: 1px 1px 0 #0a1a6a;
++}
++.xp-titlebar-icon {
++  width: 20px;
++  height: 20px;
++  flex-shrink: 0;
++  border: 1.5px solid #fff;
++  background: var(--xp-smb-sky);
++}
++.xp-titlebar-title {
++  flex: 1;
++  min-width: 0;
++  overflow: hidden;
++  text-overflow: ellipsis;
++  white-space: nowrap;
++}
++.xp-title-btn {
++  width: 24px;
++  height: 24px;
++  flex-shrink: 0;
++  display: inline-flex;
++  align-items: center;
++  justify-content: center;
++  border: 2px solid #fff;
++  border-radius: 4px;
++  background: linear-gradient(180deg, #f39a7d 0%, #e0532c 55%, #c4320f 100%);
++  color: #fff;
++  font: bold 14px/1 var(--xp-font);
++  cursor: pointer;
++}
++.xp-title-btn:hover { filter: brightness(1.12); }
++.xp-title-btn:active { filter: brightness(0.9); }
++.xp-body { padding: 18px; }
++.xp-statusbar {
++  display: flex;
++  justify-content: space-between;
++  gap: 12px;
++  padding: 4px 10px;
++  border-top: 2px solid var(--xp-ink);
++  background: var(--xp-face-dark);
++  font-size: 11px;
++}
++.xp-heading {
++  margin: 0 0 14px;
++  font: bold 22px/1.15 var(--xp-title-font);
++  letter-spacing: -0.01em;
++}
++.xp-heading small {
++  display: block;
++  margin-top: 3px;
++  font: 12px/1.3 var(--xp-font);
++  letter-spacing: 0;
++  color: #44443c;
++}
++
++/* ---- Buttons ---- */
++.xp-btn {
++  display: inline-flex;
++  align-items: center;
++  justify-content: center;
++  gap: 8px;
++  min-height: 36px;
++  padding: 7px 16px;
++  font: 13px/1.2 var(--xp-font);
++  color: var(--xp-ink);
++  background: linear-gradient(180deg, #ffffff 0%, #f4f3ee 55%, #e3e0d4 100%);
++  border: 2px solid var(--xp-ink);
++  border-radius: 4px;
++  box-shadow: 3px 3px 0 var(--xp-ink);
++  cursor: pointer;
++  user-select: none;
++  white-space: nowrap;
++}
++.xp-btn:hover:not(:disabled) { background: linear-gradient(180deg, #ffffff 0%, #fdf3d8 55%, #f6d998 100%); }
++.xp-btn:active:not(:disabled) { transform: translate(3px, 3px); box-shadow: none; }
++.xp-btn:focus-visible { outline: 2px dotted var(--xp-ink); outline-offset: -6px; }
++.xp-btn:disabled {
++  color: #8c8c86;
++  border-color: #8c8c86;
++  background: #f2f1ea;
++  box-shadow: none;
++  cursor: not-allowed;
++}
++.xp-btn--go {
++  color: #fff;
++  font-weight: bold;
++  font-style: italic;
++  font-size: 15px;
++  text-shadow: 1px 1px 0 #1b4d1b;
++  background: linear-gradient(180deg, #62c862 0%, #3a9e3a 45%, #2f8a2f 100%);
++}
++.xp-btn--go:hover:not(:disabled) { background: linear-gradient(180deg, #78d878 0%, #45ad45 45%, #36953a 100%); }
++.xp-btn--go:disabled { text-shadow: none; font-style: normal; }
++.xp-btn--block { width: 100%; }
++.xp-btn--lg { min-height: 48px; padding: 10px 22px; font-size: 17px; }
++.xp-btn--sm { min-height: 30px; padding: 4px 10px; font-size: 12px; box-shadow: 2px 2px 0 var(--xp-ink); }
++.xp-btn--sm:active:not(:disabled) { transform: translate(2px, 2px); }
++
++/* Big menu choices */
++.xp-tile {
++  display: flex;
++  align-items: center;
++  gap: 14px;
++  width: 100%;
++  padding: 12px 14px;
++  text-align: left;
++  background: var(--xp-paper);
++  border: 3px solid var(--xp-ink);
++  box-shadow: 5px 5px 0 var(--xp-ink);
++  font-family: var(--xp-font);
++  color: var(--xp-ink);
++  cursor: pointer;
++}
++.xp-tile:hover { background: #fffbe6; }
++.xp-tile:active { transform: translate(5px, 5px); box-shadow: none; }
++.xp-tile:focus-visible { outline: 3px solid var(--xp-orange); outline-offset: 2px; }
++.xp-tile-icons { display: flex; flex-shrink: 0; }
++.xp-tile-icons img {
++  width: 52px;
++  height: 52px;
++  border: 2px solid var(--xp-ink);
++  background: var(--xp-smb-sky);
++}
++.xp-tile-icons img + img { margin-left: -14px; }
++.xp-tile-title { display: block; font: bold 18px/1.2 var(--xp-title-font); }
++.xp-tile-sub { display: block; margin-top: 2px; font-size: 12px; color: #44443c; }
++.xp-tile-arrow { margin-left: auto; font: bold 22px/1 var(--xp-font); }
++
++/* ---- Form controls ---- */
++.xp-field-label {
++  display: block;
++  margin-bottom: 6px;
++  font: bold 11px/1.2 var(--xp-font);
++  text-transform: uppercase;
++  letter-spacing: 0.06em;
++}
++.xp-group {
++  position: relative;
++  padding: 16px 12px 12px;
++  border: 2px solid var(--xp-ink);
++}
++.xp-group-title {
++  position: absolute;
++  top: -10px;
++  left: 10px;
++  padding: 0 6px;
++  background: var(--xp-face);
++  color: var(--xp-blue);
++  font: bold 12px/18px var(--xp-font);
++}
++.xp-input,
++.xp-select {
++  width: 100%;
++  min-height: 36px;
++  padding: 6px 10px;
++  font: 14px/1.2 var(--xp-font);
++  color: var(--xp-ink);
++  background: var(--xp-paper);
++  border: 2px solid var(--xp-ink);
++  border-radius: 0;
++  box-shadow: inset 2px 2px 0 rgba(0, 0, 0, 0.12);
++}
++.xp-input:focus,
++.xp-select:focus { outline: 3px solid var(--xp-orange); outline-offset: 0; }
++.xp-input::placeholder { color: #7a7a72; }
++.xp-input--mono { font-family: "Lucida Console", "DejaVu Sans Mono", monospace; font-size: 12px; }
++
++/* Tabs */
++.xp-tabs { display: flex; gap: 4px; margin-bottom: 18px; border-bottom: 3px solid var(--xp-ink); }
++.xp-tab {
++  position: relative;
++  margin-bottom: -3px;
++  padding: 8px 16px;
++  font: bold 13px/1.2 var(--xp-font);
++  color: #3a3a34;
++  background: var(--xp-face-dark);
++  border: 2px solid var(--xp-ink);
++  border-bottom: 3px solid var(--xp-ink);
++  cursor: pointer;
++}
++.xp-tab:hover { background: #e6e2d2; }
++.xp-tab[aria-selected="true"] {
++  z-index: 1;
++  padding-top: 6px;
++  color: var(--xp-ink);
++  background: var(--xp-face);
++  border-top: 4px solid var(--xp-orange);
++  border-bottom-color: var(--xp-face);
++}
++
++/* Option list (radio rows) */
++.xp-list { background: var(--xp-paper); border: 2px solid var(--xp-ink); }
++.xp-list-item {
++  display: flex;
++  align-items: center;
++  gap: 10px;
++  padding: 8px 10px;
++  border-bottom: 1px dotted #9a9a90;
++  cursor: pointer;
++}
++.xp-list-item:last-child { border-bottom: none; }
++.xp-list-item:hover { background: var(--xp-hover); }
++.xp-list-item[data-selected="true"] { background: var(--xp-select); color: #fff; }
++.xp-list-item input[type="radio"] { width: 16px; height: 16px; accent-color: #2f8a2f; }
++
++/* Avatar picker */
++.xp-avatar-grid {
++  display: grid;
++  grid-template-columns: repeat(5, minmax(0, 1fr));
++  gap: 8px;
++}
++.xp-avatar {
++  aspect-ratio: 1;
++  padding: 0;
++  overflow: hidden;
++  background: var(--xp-smb-sky);
++  border: 2px solid var(--xp-ink);
++  box-shadow: 2px 2px 0 var(--xp-ink);
++  cursor: pointer;
++}
++.xp-avatar img { display: block; width: 100%; height: 100%; object-fit: cover; }
++.xp-avatar:hover { border-color: var(--xp-select); }
++.xp-avatar[aria-pressed="true"] {
++  outline: 4px solid var(--xp-orange);
++  outline-offset: 0;
++  border-color: var(--xp-ink);
++  box-shadow: 4px 4px 0 var(--xp-ink);
++}
++
++/* Notes / balloons */
++.xp-note { padding: 8px 10px; font-size: 12px; background: #ffffe1; border: 2px solid var(--xp-ink); }
++.xp-note--ok { background: #e3f5d9; }
++.xp-note--err { background: #ffe3dc; }
++
++/* Room list (list view) */
++.xp-listview { max-height: 50vh; overflow-y: auto; background: var(--xp-paper); border: 2px solid var(--xp-ink); }
++.xp-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px dotted #9a9a90; }
++.xp-row:last-child { border-bottom: none; }
++.xp-row:hover { background: var(--xp-hover); }
++.xp-row--expiring { background: #fff0ec; }
++.xp-empty { padding: 28px 12px; text-align: center; color: #55554c; }
++.xp-badge {
++  display: inline-block;
++  padding: 1px 6px;
++  font: bold 11px/1.4 var(--xp-font);
++  background: var(--xp-paper);
++  border: 1.5px solid var(--xp-ink);
++}
++.xp-badge--green { background: #b9f3b0; }
++.xp-badge--blue { background: #cfe0ff; }
++.xp-badge--orange { background: #ffe2a8; }
++.xp-badge--red { background: #ffc9bd; }
++
++/* XP marquee progress bar */
++.xp-progress {
++  position: relative;
++  height: 20px;
++  overflow: hidden;
++  background: var(--xp-paper);
++  border: 2px solid var(--xp-ink);
++}
++.xp-progress::before {
++  content: "";
++  position: absolute;
++  top: 3px;
++  bottom: 3px;
++  left: -64px;
++  width: 64px;
++  background: repeating-linear-gradient(90deg, #37b737 0 9px, transparent 9px 12px);
++  animation: xp-marquee 1.6s linear infinite;
++}
++@keyframes xp-marquee { to { left: 100%; } }
++
++.xp-actions { display: flex; flex-wrap: wrap; gap: 10px; }
++.xp-stack > * + * { margin-top: 16px; }
++.xp-muted { color: #55554c; font-size: 12px; }
++
++@media (max-width: 480px) {
++  .xp-desktop { padding: 16px 12px; }
++  .xp-window { width: calc(100% - 4px); box-shadow: 4px 4px 0 var(--xp-ink); } /* leave room for the shadow */
++  .xp-body { padding: 14px 12px; }
++  .xp-heading { font-size: 19px; }
++  .xp-tile-icons img { width: 44px; height: 44px; }
++  .xp-tile-title { font-size: 16px; }
++  .xp-avatar-grid { gap: 6px; }
++}
++@media (prefers-reduced-motion: reduce) {
++  .xp-progress::before { animation: none; left: 0; width: 100%; }
++}
+--- a/web/react-frontend/src/utils/avatar.js
++++ b/web/react-frontend/src/utils/avatar.js
+@@ -0,0 +1,23 @@
++// Player avatars: /assets/images/avatar/<id>.webp, generated from a Super Mario Bros. sprite sheet
++// (deploy/make-avatars.py). Ids 1..5 are also the AI defaults (avatar = player ID, max 5 players).
++export const AVATAR_IDS = Array.from({ length: 15 }, (_, i) => String(i + 1))
++
++// Bump AVATAR_VERSION whenever the avatar images change: Cloudflare/browsers cache /assets for 7 days,
++// and the query string makes them fetch the new files.
++const AVATAR_VERSION = 'smb1'
++
++export function avatarSrc(id) {
++  return `/assets/images/avatar/${id}.webp?v=${AVATAR_VERSION}`
++}
++
++// Avatar id to show for a player. Humans get the avatar they picked. The server gives AIs their player ID as
++// avatar, which can clash with a human's pick, so AIs take the avatars no human picked, in seat order —
++// deterministic, so every client shows the same thing.
++export function resolveAvatarId(player, players = []) {
++  if (!player) return AVATAR_IDS[0]
++  if (!player.isAI) return String(player.avatar || AVATAR_IDS[0])
++  const taken = new Set(players.filter((p) => !p.isAI).map((p) => String(p.avatar)))
++  const free = AVATAR_IDS.filter((id) => !taken.has(id))
++  const aiIndex = Math.max(0, players.filter((p) => p.isAI).findIndex((p) => p.id === player.id))
++  return free[aiIndex % free.length] || AVATAR_IDS[0]
++}
+--- a/web/react-frontend/src/utils/avatar.test.js
++++ b/web/react-frontend/src/utils/avatar.test.js
+@@ -0,0 +1,35 @@
++import { describe, it, expect } from 'vitest'
++import { AVATAR_IDS, avatarSrc, resolveAvatarId } from './avatar'
++
++const human = (id, avatar) => ({ id, name: `H${id}`, avatar, isAI: false })
++const ai = (id) => ({ id, name: `AI ${id}`, avatar: String(id), isAI: true })
++
++describe('resolveAvatarId', () => {
++  it('uses the avatar a human picked', () => {
++    expect(resolveAvatarId(human(0, '11'), [human(0, '11')])).toBe('11')
++  })
++
++  it('gives AIs avatars no human picked, without duplicates, in seat order', () => {
++    // Human picks Bowser (4); server would give AI seat 4 avatar "4" too.
++    const players = [human(0, '4'), ai(1), ai(2), ai(3), ai(4)]
++    const shown = players.map((p) => resolveAvatarId(p, players))
++    expect(shown).toEqual(['4', '1', '2', '3', '5'])
++    expect(new Set(shown).size).toBe(players.length)
++  })
++
++  it('keeps AIs distinct from several humans', () => {
++    const players = [human(0, '1'), human(1, '2'), ai(2), ai(3), human(4, '3')]
++    const shown = players.map((p) => resolveAvatarId(p, players))
++    expect(shown).toEqual(['1', '2', '4', '5', '3'])
++  })
++
++  it('falls back safely', () => {
++    expect(resolveAvatarId(null)).toBe(AVATAR_IDS[0])
++    expect(resolveAvatarId({ id: 9, name: 'x' })).toBe(AVATAR_IDS[0])
++    expect(resolveAvatarId(ai(1), [])).toBe(AVATAR_IDS[0])   // AI not found in list → first free
++  })
++
++  it('builds versioned URLs', () => {
++    expect(avatarSrc('3')).toMatch(/^\/assets\/images\/avatar\/3\.webp\?v=/)
++  })
++})

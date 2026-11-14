@@ -1,0 +1,90 @@
+# Century: Golem Edition — deploy tại century.pentium.ink
+#   cd /home/nghia/ai/rename-game/deploy && docker compose up -d --build
+#
+# Riêng tư: mongodb/redis/server nằm trên mạng `internal` (không có đường ra Internet) ⇒ backend
+# không thể gửi Telegram/telemetry đi đâu. Chỉ `web` (nginx) có cổng 127.0.0.1:8400 cho cloudflared.
+name: century-golem
+
+services:
+  mongodb:
+    image: mongo:7
+    restart: unless-stopped
+    # DB rất nhỏ (lịch sử ván) ⇒ giới hạn cache WiredTiger (mặc định ~50% RAM; pixel3xl chỉ có 3.5 GB)
+    command: ["mongod", "--wiredTigerCacheSizeGB", "0.25"]
+    networks: [backend]
+    environment:
+      - MONGO_INITDB_DATABASE=golem_game
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks: [backend]
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  server:
+    build:
+      context: ../src/golem
+      dockerfile: ../../deploy/Dockerfile.server   # upstream Dockerfile ép GOARCH=amd64 — xem file này
+    restart: unless-stopped
+    networks: [backend]
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=8080
+      - MONGO_URI=mongodb://mongodb:27017
+      - MONGO_DB=golem_game
+      - REDIS_ADDR=redis:6379
+      - REDIS_DB=0
+      - LOG_LEVEL=info
+      - LOG_FORMAT=json
+      # Dọn phòng: xoá phòng khi KHÔNG còn kết nối WebSocket nào trong khoảng này (giây)
+      - SESSION_IDLE_WAITING_SECONDS=300   # phòng chờ chưa bắt đầu
+      - SESSION_IDLE_PLAYING_SECONDS=600   # ván đang chơi mà mọi người rớt/bỏ (giữ chỗ để reconnect)
+      - SESSION_IDLE_ENDED_SECONDS=120     # ván đã kết thúc
+      - MAX_SESSIONS=100                   # trần số phòng trong RAM; vượt ⇒ /api/create, /api/single trả 503
+      # Tắt hẳn Telegram + Firebase/Google OAuth (để trống = disabled)
+      - TELEGRAM_BOT_TOKEN=
+      - TELEGRAM_CHAT_ID=
+      - FIREBASE_CREDENTIALS_FILE=
+      - GOOGLE_OAUTH_CLIENT_ID=
+      - GOOGLE_OAUTH_CLIENT_SECRET=
+
+  web:
+    build:
+      context: ../src/golem
+      dockerfile: ../../deploy/Dockerfile.web
+    restart: unless-stopped
+    networks: [backend, edge]
+    depends_on:
+      - server
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "127.0.0.1:8400:80"
+
+networks:
+  backend:
+    internal: true
+  edge: {}
+
+volumes:
+  mongodb_data:
+  redis_data:

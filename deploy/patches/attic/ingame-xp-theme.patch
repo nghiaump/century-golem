@@ -1,0 +1,3690 @@
+--- a/web/react-frontend/src/components/CollapsibleInfo.jsx
++++ b/web/react-frontend/src/components/CollapsibleInfo.jsx
+@@ -172,19 +172,19 @@
+       case 'play':
+       case 'upgrade':
+       case 'trade':
+-        return 'bg-blue-500/20 border-blue-500/30'
++        return 'bg-[#e4eeff]'
+       case 'acquire':
+-        return 'bg-green-500/20 border-green-500/30'
++        return 'bg-[#e3f5d9]'
+       case 'claim':
+-        return 'bg-yellow-500/20 border-yellow-500/30'
++        return 'bg-[#fff7d6]'
+       case 'rest':
+-        return 'bg-purple-500/20 border-purple-500/30'
++        return 'bg-[#efe9ff]'
+       case 'chat':
+-        return 'bg-emerald-500/20 border-emerald-500/30'
++        return 'bg-[#ffffe1]'
+       case 'log':
+-        return 'bg-gray-500/20 border-gray-500/30'
++        return 'bg-[var(--xp-paper)]'
+       default:
+-        return 'bg-gray-500/20 border-gray-500/30'
++        return 'bg-[var(--xp-paper)]'
+     }
+   }
+ 
+@@ -205,12 +205,7 @@
+               setHasUnreadMessages(false)
+               previousMessageCountRef.current = chatMessages.length
+             }}
+-            className={`
+-              bg-purple-600 hover:bg-purple-700 text-white rounded-full 
+-              flex items-center justify-center shadow-lg transition-all hover:scale-110
+-              relative
+-              ${isMobile ? 'w-10 h-10' : 'w-12 h-12'}
+-            `}
++            className={`xp-fab relative ${isMobile ? 'xp-fab--sm' : ''}`}
+             title="Show Activity Feed"
+           >
+             <svg 
+@@ -228,7 +223,7 @@
+             </svg>
+             {/* Unread Message Count Badge */}
+             {hasUnreadMessages && chatMessages.length - previousMessageCountRef.current > 0 && (
+-              <span className="absolute -top-1 -right-1 min-w-[20px] h-5 bg-emerald-500 rounded-full border-2 border-purple-600 animate-bounce flex items-center justify-center px-1">
++              <span className="absolute -top-2 -right-2 min-w-[20px] h-5 bg-[#e0532c] border-2 border-[var(--xp-ink)] flex items-center justify-center px-1">
+                 <span className="text-white text-xs font-bold">
+                   {chatMessages.length - previousMessageCountRef.current}
+                 </span>
+@@ -240,25 +235,22 @@
+         {/* Expanded State */}
+         {isExpanded && (
+           <div className={`
+-            bg-black/90 backdrop-blur-md rounded-lg border border-white/20 shadow-2xl overflow-hidden flex flex-col
++            xp-window overflow-hidden flex flex-col
+             ${isMobile 
+               ? 'min-w-[300px] max-w-[340px] max-h-[80vh]' 
+               : 'min-w-[420px] max-w-lg max-h-[85vh]'
+             }
+-          `}>
++          `} role="dialog" aria-label="Activity">
+             {/* Header */}
+-            <div className={`
+-              flex items-center justify-between bg-purple-600 flex-shrink-0
+-              ${isMobile ? 'px-3 py-1.5' : 'px-4 py-2'}
+-            `}>
+-              <h3 className={`text-white font-bold ${isMobile ? 'text-xs' : 'text-sm'}`}>
++            <div className="xp-titlebar flex-shrink-0">
++              <h3 className={`xp-titlebar-title ${isMobile ? 'text-xs' : 'text-sm'}`}>
+                 {roundNumber > 0 ? `🎯 Round ${roundNumber} • ` : ''}📊 Activity
+               </h3>
+               <div className="flex items-center gap-2">
+                 {activityFeed.length > 0 && (
+                   <button
+                     onClick={handleClear}
+-                    className={`text-white/80 hover:text-white hover:bg-white/20 rounded px-2 py-0.5 transition-all ${isMobile ? 'text-[10px]' : 'text-xs'}`}
++                    className="xp-btn xp-btn--sm !min-h-[22px] !py-0 !px-2 !shadow-none !text-[11px]"
+                     title="Clear all"
+                   >
+                     Clear
+@@ -266,7 +258,8 @@
+                 )}
+                 <button
+                   onClick={() => setIsExpanded(false)}
+-                  className={`text-white hover:bg-white/20 rounded-full flex items-center justify-center transition-all ${isMobile ? 'w-5 h-5 text-xs' : 'w-6 h-6'}`}
++                  className="xp-title-btn"
++                  aria-label="Close"
+                 >
+                   ✕
+                 </button>
+@@ -274,11 +267,11 @@
+             </div>
+ 
+             {/* Content */}
+-            <div className={`flex flex-col flex-1 min-h-0 ${isMobile ? 'p-2' : 'p-3'}`}>
++            <div className={`flex flex-col flex-1 min-h-0 bg-[var(--xp-face)] text-[var(--xp-ink)] ${isMobile ? 'p-2' : 'p-3'}`}>
+               {/* Room ID - Compact */}
+-              <div className="mb-2 pb-2 border-b border-white/10 flex-shrink-0">
++              <div className="mb-2 pb-2 border-b-2 border-[var(--xp-ink)] flex-shrink-0">
+                 <div className="flex items-center gap-2">
+-                  <span className={`text-white/50 ${isMobile ? 'text-[9px]' : 'text-[10px]'}`}>Room:</span>
++                  <span className={`xp-text-muted font-bold ${isMobile ? 'text-[9px]' : 'text-[10px]'}`}>Room:</span>
+                   <div className="flex-1 min-w-0">
+                     <RoomDisplay sessionId={sessionId} compact={true} />
+                   </div>
+@@ -287,71 +280,67 @@
+ 
+               {/* Activity Feed */}
+               <div className="flex-1 flex flex-col min-h-0">
+-                <h4 className={`text-white/70 font-semibold mb-2 flex-shrink-0 ${isMobile ? 'text-[10px]' : 'text-xs'}`}>
++                <h4 className={`xp-field-label flex-shrink-0 ${isMobile ? 'text-[10px]' : 'text-xs'}`}>
+                   Timeline
+                 </h4>
+                 <div 
+                   ref={scrollRef}
+-                  className={`bg-black/40 rounded-lg overflow-y-auto flex-1 ${isMobile ? 'p-1.5 max-h-[40vh]' : 'p-2 max-h-[50vh]'}`}
+-                  style={{
+-                    scrollbarWidth: 'thin',
+-                    scrollbarColor: 'rgba(255, 255, 255, 0.3) transparent'
+-                  }}
++                  className={`xp-listview xp-scroll overflow-y-auto flex-1 ${isMobile ? 'max-h-[40vh]' : 'max-h-[50vh]'}`}
+                 >
+                   {activityFeed.length === 0 ? (
+-                    <div className={`text-white/50 text-center py-8 ${isMobile ? 'text-[10px]' : 'text-xs'}`}>
++                    <div className={`xp-text-muted text-center py-8 ${isMobile ? 'text-[10px]' : 'text-xs'}`}>
+                       No activity yet
+                     </div>
+                   ) : (
+-                    <div className="space-y-1.5">
++                    <div>
+                       {activityFeed.map((item) => (
+-                        <div key={item.id}>
++                        <div key={item.id} className="border-b border-dotted border-[#9a9a90] last:border-b-0">
+                           {/* Chat Message */}
+                           {item.type === 'chat' && (
+-                            <div className={`${getActionColor('chat')} rounded-lg p-2 border ${isMobile ? 'text-[10px]' : 'text-xs'}`}>
++                            <div className={`${getActionColor('chat')} px-2 py-1.5 ${isMobile ? 'text-[10px]' : 'text-xs'}`}>
+                               <div className="flex items-center gap-1.5 mb-0.5">
+-                                <span className="text-emerald-400">💬</span>
+-                                <span className="text-emerald-400 font-semibold">{item.player}</span>
+-                                <span className="text-white/40 text-[9px] ml-auto">{formatTime(item.timestamp)}</span>
++                                <span>💬</span>
++                                <span className="text-[var(--xp-blue)] font-bold">{item.player}</span>
++                                <span className="xp-text-muted text-[9px] ml-auto">{formatTime(item.timestamp)}</span>
+                               </div>
+-                              <p className="text-white/90 leading-relaxed break-words pl-5">{item.message}</p>
++                              <p className="text-[var(--xp-ink)] leading-relaxed break-words pl-5">{item.message}</p>
+                             </div>
+                           )}
+ 
+                           {/* Game Action - Text-based with hover */}
+                           {item.type === 'action' && (
+                             <div 
+-                              className={`${getActionColor(item.actionType)} rounded-lg p-2 border cursor-pointer hover:bg-white/5 transition-colors ${isMobile ? 'text-[10px]' : 'text-xs'}`}
++                              className={`${getActionColor(item.actionType)} px-2 py-1.5 cursor-pointer hover:!bg-[var(--xp-hover)] ${isMobile ? 'text-[10px]' : 'text-xs'}`}
+                               onMouseEnter={() => item.card && setHoveredCard(item.card)}
+                               onMouseLeave={() => setHoveredCard(null)}
+                             >
+                               <div className="flex items-center justify-between">
+                                 <div className="flex-1 min-w-0">
+-                                  <span className="text-white font-semibold">{item.player}</span>
++                                  <span className="text-[var(--xp-ink)] font-bold">{item.player}</span>
+                                   {item.isOpponent && (
+-                                    <span className="ml-1.5 text-[8px] text-orange-300 bg-orange-500/20 px-1 py-0.5 rounded">OPP</span>
++                                    <span className="xp-badge xp-badge--orange ml-1.5 !text-[8px] !leading-[1.2]">OPP</span>
+                                   )}
+-                                  <span className="text-white/70 ml-1.5">
++                                  <span className="xp-text-muted ml-1.5">
+                                     {getActionLabel(item.actionType).toLowerCase()}
+                                     {item.card && (
+-                                      <span className="text-white/90 font-medium"> {item.card.name?.replace(/_/g, ' ')}</span>
++                                      <span className="text-[var(--xp-ink)] font-medium"> {item.card.name?.replace(/_/g, ' ')}</span>
+                                     )}
+                                   </span>
+                                 </div>
+-                                <span className="text-white/40 text-[9px] flex-shrink-0 ml-2">{formatTime(item.timestamp)}</span>
++                                <span className="xp-text-muted text-[9px] flex-shrink-0 ml-2">{formatTime(item.timestamp)}</span>
+                               </div>
+                             </div>
+                           )}
+ 
+                           {/* System Log */}
+                           {item.type === 'log' && (
+-                            <div className={`${getActionColor('log')} rounded-lg p-2 border ${isMobile ? 'text-[10px]' : 'text-xs'}`}>
++                            <div className={`${getActionColor('log')} px-2 py-1.5 ${isMobile ? 'text-[10px]' : 'text-xs'}`}>
+                               <div className="flex items-center justify-between">
+                                 <div className="flex items-center gap-1.5 flex-1">
+-                                  <span className="text-gray-400">ℹ️</span>
+-                                  <span className="text-white/80">{item.message}</span>
++                                  <span>ℹ️</span>
++                                  <span className="text-[var(--xp-ink)]">{item.message}</span>
+                                 </div>
+-                                <span className="text-white/40 text-[9px] flex-shrink-0 ml-2">{formatTime(item.timestamp)}</span>
++                                <span className="xp-text-muted text-[9px] flex-shrink-0 ml-2">{formatTime(item.timestamp)}</span>
+                               </div>
+                             </div>
+                           )}
+@@ -363,7 +352,7 @@
+               </div>
+ 
+               {/* Chat Input */}
+-              <div className="mt-2 pt-2 border-t border-white/10 flex-shrink-0">
++              <div className="mt-2 pt-2 border-t-2 border-[var(--xp-ink)] flex-shrink-0">
+                 <div className="flex items-center gap-1.5">
+                   <input
+                     type="text"
+@@ -371,12 +360,12 @@
+                     onChange={(e) => setChatInput(e.target.value)}
+                     onKeyPress={handleKeyPress}
+                     placeholder="Type message..."
+-                    className={`flex-1 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:border-emerald-500 ${isMobile ? 'px-2 py-1 text-xs' : 'px-3 py-1.5 text-sm'}`}
++                    className={`xp-input flex-1 min-w-0 ${isMobile ? '!min-h-[30px] !text-xs !px-2 !py-1' : ''}`}
+                   />
+                   <button
+                     onClick={handleSendChat}
+                     disabled={!chatInput.trim()}
+-                    className={`bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 ${isMobile ? 'px-2 py-1 text-xs' : 'px-3 py-1.5 text-sm'}`}
++                    className={`xp-btn xp-btn--go flex-shrink-0 ${isMobile ? 'xp-btn--sm' : ''}`}
+                     title="Send message"
+                   >
+                     💬
+@@ -398,10 +387,10 @@
+             transform: 'translate(calc(-50% + 200px), -50%)',
+           }}
+         >
+-          <div className="bg-slate-900/95 backdrop-blur-md rounded-xl shadow-2xl border-2 border-white/30 overflow-hidden">
++          <div className="bg-[var(--xp-face)] border-[3px] border-[var(--xp-ink)] shadow-[5px_5px_0_#0b0b0b] p-1 overflow-hidden">
+             <CardImage
+               cardName={hoveredCard.name}
+-              className="w-40 aspect-[2/3] rounded-lg"
++              className="w-40 aspect-[2/3]"
+             />
+           </div>
+         </div>,
+--- a/web/react-frontend/src/components/CompactCard.jsx
++++ b/web/react-frontend/src/components/CompactCard.jsx
+@@ -74,7 +74,7 @@
+       onMouseLeave={() => setShowHover(false)}
+       className={`
+         ${sizeClasses[size]} relative overflow-hidden cursor-pointer
+-        rounded-lg shadow-md
++        rounded-[3px] border-2 border-[var(--xp-ink)] shadow-[2px_2px_0_#0b0b0b]
+         ${canInteract ? '' : 'opacity-80'}
+       `}
+       style={{
+@@ -85,7 +85,8 @@
+           backgroundPosition: 'center',
+           backgroundRepeat: 'no-repeat',
+         }),
+-        backgroundColor: '#222',
++        // Letterbox colour when the art is 'contain'-ed in a wider slot: XP tray, not a dark hole
++        backgroundColor: 'var(--xp-face-dark)',
+         ...flexibleStyle
+       }}
+     >
+@@ -94,7 +95,7 @@
+       
+       {/* Position Badge */}
+       {position !== null && (
+-        <div className="absolute top-1 left-1 z-20 bg-orange-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] font-bold shadow">
++        <div className="xp-index absolute top-1 left-1 z-20 !bg-[var(--xp-orange)] !text-[var(--xp-ink)]">
+           {position}
+         </div>
+       )}
+@@ -121,24 +122,24 @@
+ 
+       {/* Hover Details - Enhanced Tooltip */}
+       {showHover && (
+-        <div className="absolute -top-36 left-1/2 transform -translate-x-1/2 bg-slate-900/95 backdrop-blur-xl text-white p-4 rounded-2xl text-xs whitespace-nowrap z-50 border border-white/20 shadow-2xl min-w-[220px]">
++        <div className="xp-balloon absolute -top-36 left-1/2 transform -translate-x-1/2 p-3 whitespace-nowrap z-50 min-w-[220px]">
+           <div className="font-bold mb-2">{card.name}</div>
+-          <div className="text-gray-400 text-[10px] mb-2">ID: #{card.id || index}</div>
++          <div className="xp-text-muted text-[10px] mb-2">ID: #{card.id || index}</div>
+           
+           {/* Card Type */}
+-          {card.actionType === 0 && <div className="text-green-400 font-semibold">Type: Produce Card</div>}
+-          {card.actionType === 1 && <div className="text-blue-400 font-semibold">Type: Upgrade Card (Lv.{upgradeLevel})</div>}
+-          {card.actionType === 2 && <div className="text-pink-400 font-semibold">Type: Trade Card</div>}
++          {card.actionType === 0 && <div className="text-green-800 font-semibold">Type: Produce Card</div>}
++          {card.actionType === 1 && <div className="text-blue-800 font-semibold">Type: Upgrade Card (Lv.{upgradeLevel})</div>}
++          {card.actionType === 2 && <div className="text-pink-800 font-semibold">Type: Trade Card</div>}
+           {type === 'point' && (
+             <>
+-              <div className="text-yellow-400 font-semibold">Type: Point Card</div>
+-              <div className="text-yellow-300 mt-1">Point Value: {card.points}</div>
++              <div className="text-yellow-800 font-semibold">Type: Point Card</div>
++              <div className="text-yellow-900 mt-1">Point Value: {card.points}</div>
+             </>
+           )}
+           
+           {/* Crystal Cost (for market cards) */}
+           {cost && costTotal > 0 && (
+-            <div className="mt-1 text-red-400">
++            <div className="mt-1 text-red-800">
+               Crystal Cost: 
+               {cost.yellow > 0 && ` 🟡${cost.yellow}`}
+               {cost.green > 0 && ` 🟢${cost.green}`}
+@@ -149,7 +150,7 @@
+ 
+           {/* Crystal Requirement (for point cards) */}
+           {card.requirement && getTotalCrystals(card.requirement) > 0 && (
+-            <div className="mt-1 text-orange-400">
++            <div className="mt-1 text-orange-800">
+               Crystal Cost: 
+               {card.requirement.yellow > 0 && ` 🟡${card.requirement.yellow}`}
+               {card.requirement.green > 0 && ` 🟢${card.requirement.green}`}
+@@ -160,7 +161,7 @@
+ 
+           {/* Crystal Produced (for produce cards) */}
+           {card.actionType === 0 && card.output && outputTotal > 0 && (
+-            <div className="mt-1 text-green-300">
++            <div className="mt-1 text-green-800">
+               Crystal Produced: 
+               {card.output.yellow > 0 && ` 🟡${card.output.yellow}`}
+               {card.output.green > 0 && ` 🟢${card.output.green}`}
+@@ -172,13 +173,13 @@
+           {/* Input → Output (for trade/upgrade cards) */}
+           {(card.actionType === 1 || card.actionType === 2) && card.input && card.output && (
+             <div className="mt-1">
+-              <span className="text-red-300">Input: </span>
++              <span className="text-red-800">Input: </span>
+               {card.input.yellow > 0 && `🟡${card.input.yellow} `}
+               {card.input.green > 0 && `🟢${card.input.green} `}
+               {card.input.blue > 0 && `🔵${card.input.blue} `}
+               {card.input.pink > 0 && `🟣${card.input.pink} `}
+-              <span className="text-white">→</span>
+-              <span className="text-green-300"> Output: </span>
++              <span>→</span>
++              <span className="text-green-800"> Output: </span>
+               {card.output.yellow > 0 && `🟡${card.output.yellow} `}
+               {card.output.green > 0 && `🟢${card.output.green} `}
+               {card.output.blue > 0 && `🔵${card.output.blue} `}
+@@ -188,7 +189,7 @@
+ 
+           {/* Upgrade Level */}
+           {card.actionType === 1 && upgradeLevel && (
+-            <div className="mt-1 text-blue-300">
++            <div className="mt-1 text-blue-800">
+               Upgrade Level: {upgradeLevel}
+             </div>
+           )}
+--- a/web/react-frontend/src/components/ConfirmGolemModal.jsx
++++ b/web/react-frontend/src/components/ConfirmGolemModal.jsx
+@@ -10,33 +10,45 @@
+   const totalCost = (requirement.yellow || 0) + (requirement.green || 0) + 
+                    (requirement.blue || 0) + (requirement.pink || 0)
+ 
++  const costChip = (color, amount) => (
++    <div className="xp-badge flex items-center gap-1">
++      <img src={`/assets/images/stone_${color}.JPG`} alt={color} className="w-4 h-4 rounded-full border border-[var(--xp-ink)]" />
++      <span className="text-sm font-bold">{amount}</span>
++    </div>
++  )
++
+   return createPortal(
+     <AnimatePresence>
+       {isOpen && (
+         <motion.div
+-          className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
++          className="xp-overlay z-[150]"
+           initial={{ opacity: 0 }}
+           animate={{ opacity: 1 }}
+           exit={{ opacity: 0 }}
+           onClick={onCancel}
+         >
+           <motion.div
+-            className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl shadow-2xl border border-yellow-500/30 max-w-sm w-full overflow-hidden"
+-            initial={{ scale: 0.9, y: 20, opacity: 0 }}
+-            animate={{ scale: 1, y: 0, opacity: 1 }}
+-            exit={{ scale: 0.9, y: 20, opacity: 0 }}
+-            transition={{ type: "spring", stiffness: 300, damping: 25 }}
++            className="xp-window max-w-sm"
++            initial={{ y: 12, opacity: 0 }}
++            animate={{ y: 0, opacity: 1 }}
++            exit={{ y: 12, opacity: 0 }}
++            transition={{ duration: 0.12 }}
+             onClick={(e) => e.stopPropagation()}
++            role="dialog"
++            aria-label="Claim Golem?"
+           >
+             {/* Header */}
+-            <div className="bg-gradient-to-r from-yellow-600/20 to-orange-600/20 px-4 py-3 border-b border-yellow-500/20">
+-              <h3 className="text-lg font-bold text-yellow-300 text-center">
++            <div className="xp-titlebar">
++              <h3 className="xp-titlebar-title">
+                 🗿 Claim Golem?
+               </h3>
++              <button type="button" className="xp-title-btn" onClick={onCancel} aria-label="Close">
++                ✕
++              </button>
+             </div>
+ 
+             {/* Content */}
+-            <div className="p-4">
++            <div className="xp-body !p-4">
+               {/* Golem Preview */}
+               <div className="flex items-center gap-4 mb-4">
+                 <div className="relative">
+@@ -45,7 +57,7 @@
+                     if (spriteStyle) {
+                       return (
+                         <div
+-                          className="w-20 h-28 rounded-lg border-2 border-yellow-500/50 shadow-lg"
++                          className="w-20 h-28 border-2 border-[var(--xp-ink)] shadow-[3px_3px_0_#0b0b0b]"
+                           style={spriteStyle}
+                         />
+                       )
+@@ -54,80 +66,50 @@
+                       <img
+                         src={getCardImagePath(golem.name)}
+                         alt={golem.name}
+-                        className="w-20 h-28 rounded-lg object-cover border-2 border-yellow-500/50 shadow-lg"
++                        className="w-20 h-28 object-cover border-2 border-[var(--xp-ink)] shadow-[3px_3px_0_#0b0b0b]"
+                         onError={(e) => { e.target.style.display = 'none' }}
+                       />
+                     )
+                   })()}
+-                  <span className="absolute -bottom-2 -right-2 bg-yellow-500 text-black rounded-full w-8 h-8 flex items-center justify-center font-bold text-sm shadow-lg">
++                  <span className="xp-index absolute -bottom-2 -right-2 !min-w-[28px] !h-7 !text-sm" style={{ background: 'var(--xp-orange)', color: 'var(--xp-ink)' }}>
+                     {golem.points}
+                   </span>
+                 </div>
+-                
++
+                 <div className="flex-1">
+-                  <div className="text-white/60 text-xs mb-1">Points</div>
+-                  <div className="text-yellow-300 text-2xl font-bold mb-2">
++                  <div className="xp-field-label !mb-1">Points</div>
++                  <div className="text-2xl font-bold mb-2">
+                     {golem.points} pts
+                   </div>
+-                  
+-                  <div className="text-white/60 text-xs mb-1">Cost</div>
++
++                  <div className="xp-field-label !mb-1">Cost</div>
+                   <div className="flex gap-1 flex-wrap">
+-                    {requirement.yellow > 0 && (
+-                      <div className="flex items-center gap-0.5 bg-yellow-500/20 rounded px-1.5 py-0.5">
+-                        <img src="/assets/images/stone_yellow.JPG" alt="yellow" className="w-4 h-4 rounded-full" />
+-                        <span className="text-yellow-300 text-sm font-semibold">{requirement.yellow}</span>
+-                      </div>
+-                    )}
+-                    {requirement.green > 0 && (
+-                      <div className="flex items-center gap-0.5 bg-green-500/20 rounded px-1.5 py-0.5">
+-                        <img src="/assets/images/stone_green.JPG" alt="green" className="w-4 h-4 rounded-full" />
+-                        <span className="text-green-300 text-sm font-semibold">{requirement.green}</span>
+-                      </div>
+-                    )}
+-                    {requirement.blue > 0 && (
+-                      <div className="flex items-center gap-0.5 bg-blue-500/20 rounded px-1.5 py-0.5">
+-                        <img src="/assets/images/stone_blue.JPG" alt="blue" className="w-4 h-4 rounded-full" />
+-                        <span className="text-blue-300 text-sm font-semibold">{requirement.blue}</span>
+-                      </div>
+-                    )}
+-                    {requirement.pink > 0 && (
+-                      <div className="flex items-center gap-0.5 bg-pink-500/20 rounded px-1.5 py-0.5">
+-                        <img src="/assets/images/stone_pink.JPG" alt="pink" className="w-4 h-4 rounded-full" />
+-                        <span className="text-pink-300 text-sm font-semibold">{requirement.pink}</span>
+-                      </div>
+-                    )}
++                    {requirement.yellow > 0 && costChip('yellow', requirement.yellow)}
++                    {requirement.green > 0 && costChip('green', requirement.green)}
++                    {requirement.blue > 0 && costChip('blue', requirement.blue)}
++                    {requirement.pink > 0 && costChip('pink', requirement.pink)}
+                     {totalCost === 0 && (
+-                      <span className="text-green-400 text-sm">Free!</span>
++                      <span className="xp-badge xp-badge--green">Free!</span>
+                     )}
+                   </div>
+                 </div>
+               </div>
+ 
+               {/* Warning */}
+-              <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-3 mb-4">
+-                <p className="text-orange-200 text-sm text-center">
++              <div className="xp-note mb-4">
++                <p className="text-sm text-center">
+                   ⚠️ This action cannot be undone. Your crystals will be spent.
+                 </p>
+               </div>
+ 
+               {/* Buttons */}
+               <div className="flex gap-3">
+-                <motion.button
+-                  onClick={onCancel}
+-                  className="flex-1 bg-slate-600 hover:bg-slate-500 text-white font-semibold py-3 px-4 rounded-xl transition-colors"
+-                  whileHover={{ scale: 1.02 }}
+-                  whileTap={{ scale: 0.98 }}
+-                >
++                <button type="button" onClick={onCancel} className="xp-btn flex-1">
+                   Cancel
+-                </motion.button>
+-                <motion.button
+-                  onClick={onConfirm}
+-                  className="flex-1 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white font-bold py-3 px-4 rounded-xl shadow-lg transition-colors"
+-                  whileHover={{ scale: 1.02 }}
+-                  whileTap={{ scale: 0.98 }}
+-                >
++                </button>
++                <button type="button" onClick={onConfirm} className="xp-btn xp-btn--go flex-1">
+                   ✓ Claim
+-                </motion.button>
++                </button>
+               </div>
+             </div>
+           </motion.div>
+--- a/web/react-frontend/src/components/DepositModal.jsx
++++ b/web/react-frontend/src/components/DepositModal.jsx
+@@ -97,10 +97,13 @@
+   const canConfirm = requiredPositions.length === 0 || 
+     requiredPositions.every(pos => deposits[pos] !== null)
+ 
++  // XP × brutalism styling (theme-xp.css): the chosen crystal per position gets the XP orange focus outline.
++  const selectedTile = { outline: '3px solid var(--xp-orange)', outlineOffset: 0, background: '#fff7d6' }
++
+   return createPortal(
+     <AnimatePresence>
+       <motion.div
+-        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-2 sm:p-4"
++        className="xp-overlay z-[100] !p-2 sm:!p-4"
+         initial={{ opacity: 0 }}
+         animate={{ opacity: 1 }}
+         exit={{ opacity: 0 }}
+@@ -108,134 +111,116 @@
+       >
+         <motion.div
+           className={`
+-            bg-white rounded-xl sm:rounded-2xl shadow-2xl border-4 border-purple-500 w-full overflow-y-auto
+-            ${isMobile 
+-              ? 'max-w-[95vw] max-h-[90vh] p-3 mx-2' 
+-              : 'max-w-2xl max-h-[90vh] p-8 mx-4'
+-            }
++            xp-window flex flex-col max-h-[90vh]
++            ${isMobile ? 'max-w-[95vw] mx-2' : 'max-w-2xl mx-4'}
+           `}
+-          initial={{ scale: 0.8, y: 50 }}
+-          animate={{ scale: 1, y: 0 }}
+-          exit={{ scale: 0.8, y: 50 }}
+-          transition={{ type: "spring", stiffness: 300, damping: 30 }}
++          initial={{ y: 12, opacity: 0 }}
++          animate={{ y: 0, opacity: 1 }}
++          exit={{ y: 12, opacity: 0 }}
++          transition={{ duration: 0.12 }}
+           onClick={(e) => e.stopPropagation()}
++          role="dialog"
++          aria-label="Deposit Crystals"
+         >
+-          <div className={`text-center ${isMobile ? 'mb-3' : 'mb-6'}`}>
+-            <h2 className={`font-bold text-purple-600 ${isMobile ? 'text-xl mb-1' : 'text-3xl mb-2'}`}>
+-              💎 Deposit Crystals
+-            </h2>
+-            <p className={`text-gray-700 ${isMobile ? 'text-xs' : 'text-base'}`}>
+-              To acquire card at position {targetPosition}, deposit to positions {requiredPositions.length > 0 ? requiredPositions.join(', ') : 'none'}
+-            </p>
+-            {requiredPositions.length === 0 && (
+-              <p className={`text-green-600 font-semibold ${isMobile ? 'text-xs mt-1' : 'text-sm mt-2'}`}>
+-                ✓ No deposit required for position 1 card
+-              </p>
+-            )}
++          <div className="xp-titlebar">
++            <h2 className="xp-titlebar-title">💎 Deposit Crystals</h2>
++            <button type="button" className="xp-title-btn" onClick={onClose} aria-label="Close">
++              ✕
++            </button>
+           </div>
+ 
+-          {/* Deposit to Required Positions */}
+-          {requiredPositions.length > 0 && (
+-            <div className={`space-y-3 ${isMobile ? 'mb-3' : 'space-y-6 mb-6'}`}>
+-              {requiredPositions.map((position) => (
+-                <div key={position} className={`bg-gray-50 rounded-lg ${isMobile ? 'p-2' : 'p-4'}`}>
+-                  <h3 className={`font-semibold text-gray-800 ${isMobile ? 'text-sm mb-2' : 'text-lg mb-3'}`}>
+-                    Position {position} (Required)
+-                  </h3>
+-                  <div className={`grid gap-2 ${isMobile ? 'grid-cols-2' : 'grid-cols-4 gap-3'}`}>
+-                    {crystalTypes.map(({ key, label, color, image }) => {
+-                      const isSelected = deposits[position] === key
+-                      const isAvailable = availableCrystals[key] > 0
+-                      const usedCount = Object.values(deposits).filter(v => v === key).length
+-                      const remaining = availableCrystals[key] - usedCount
+-
+-                      // If already selected, always allow click to deselect
+-                      const canClick = isSelected || (isAvailable && remaining > 0)
+-
+-                      return (
+-                        <motion.button
+-                          key={key}
+-                          onClick={() => handleSelectCrystal(position, key)}
+-                          disabled={!canClick}
+-                          className={`
+-                            relative rounded-lg border-2 transition-all
+-                            ${isMobile ? 'p-2' : 'p-4'}
+-                            ${isSelected 
+-                              ? 'border-purple-500 bg-purple-100 shadow-lg scale-105' 
+-                              : 'border-gray-300 bg-white hover:border-purple-300'
+-                            }
+-                            ${!canClick
+-                              ? 'opacity-50 cursor-not-allowed' 
+-                              : 'cursor-pointer'
+-                            }
+-                          `}
+-                          whileHover={canClick ? { scale: 1.05 } : {}}
+-                          whileTap={canClick ? { scale: 0.95 } : {}}
+-                        >
+-                          <img
+-                            src={image}
+-                            alt={label}
+-                            className={`mx-auto rounded-full object-cover ${isMobile ? 'w-8 h-8 mb-1' : 'w-12 h-12 mb-2'}`}
+-                            onError={(e) => {
+-                              e.target.src = '/assets/images/stone_yellow.JPG'
+-                            }}
+-                          />
+-                          <div className={`font-medium text-gray-700 ${isMobile ? 'text-[10px]' : 'text-xs'}`}>
+-                            {label}
+-                          </div>
+-                          <div className={`text-gray-500 ${isMobile ? 'text-[9px] mt-0.5' : 'text-xs mt-1'}`}>
+-                            Available: {remaining}
+-                          </div>
+-                          {isSelected && (
+-                            <motion.div
+-                              className={`
+-                                absolute bg-purple-500 rounded-full flex items-center justify-center
+-                                ${isMobile ? 'top-0.5 right-0.5 w-4 h-4' : 'top-1 right-1 w-6 h-6'}
+-                              `}
+-                              initial={{ scale: 0 }}
+-                              animate={{ scale: 1 }}
+-                            >
+-                              <span className={`text-white ${isMobile ? 'text-[8px]' : 'text-xs'}`}>✓</span>
+-                            </motion.div>
+-                          )}
+-                        </motion.button>
+-                      )
+-                    })}
+-                  </div>
+-                </div>
+-              ))}
++          <div className={`xp-body xp-scroll overflow-y-auto ${isMobile ? '!p-3' : ''}`}>
++            <div className={isMobile ? 'mb-3' : 'mb-5'}>
++              <p className={`xp-text-muted ${isMobile ? 'text-xs' : 'text-sm'}`}>
++                To acquire card at position {targetPosition}, deposit to positions {requiredPositions.length > 0 ? requiredPositions.join(', ') : 'none'}
++              </p>
++              {requiredPositions.length === 0 && (
++                <p className={`xp-note xp-note--ok font-bold ${isMobile ? 'mt-2' : 'mt-3'}`}>
++                  ✓ No deposit required for position 1 card
++                </p>
++              )}
+             </div>
+-          )}
+ 
+-          <div className={`flex ${isMobile ? 'gap-2' : 'gap-4'}`}>
+-            <motion.button
+-              onClick={onClose}
+-              className={`
+-                flex-1 bg-gray-300 text-gray-700 font-bold rounded-lg 
+-                hover:bg-gray-400 transition-all
+-                ${isMobile ? 'py-2 px-3 text-sm' : 'py-3 px-6'}
+-              `}
+-              whileHover={{ scale: 1.05 }}
+-              whileTap={{ scale: 0.95 }}
+-            >
+-              Cancel
+-            </motion.button>
+-            <motion.button
+-              onClick={handleConfirm}
+-              disabled={!canConfirm}
+-              className={`
+-                flex-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold 
+-                rounded-lg disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl
+-                ${isMobile ? 'py-2 px-3 text-sm' : 'py-3 px-6'}
+-              `}
+-              whileHover={canConfirm ? { scale: 1.05 } : {}}
+-              whileTap={canConfirm ? { scale: 0.95 } : {}}
+-            >
+-              {requiredPositions.length === 0 
+-                ? (isMobile ? 'Acquire' : 'Acquire Card (No Deposit Required)')
+-                : (isMobile ? `Deposit & Acquire` : `Deposit & Acquire Card (Positions ${requiredPositions.join(', ')})`)
+-              }
+-            </motion.button>
++            {/* Deposit to Required Positions */}
++            {requiredPositions.length > 0 && (
++              <div className={`space-y-5 ${isMobile ? 'mb-3' : 'space-y-6 mb-5'}`}>
++                {requiredPositions.map((position) => (
++                  <div key={position} className="xp-group">
++                    <h3 className="xp-group-title">
++                      Position {position} (Required)
++                    </h3>
++                    <div className={`grid gap-2 ${isMobile ? 'grid-cols-2' : 'grid-cols-4 gap-3'}`}>
++                      {crystalTypes.map(({ key, label, color, image }) => {
++                        const isSelected = deposits[position] === key
++                        const isAvailable = availableCrystals[key] > 0
++                        const usedCount = Object.values(deposits).filter(v => v === key).length
++                        const remaining = availableCrystals[key] - usedCount
++
++                        // If already selected, always allow click to deselect
++                        const canClick = isSelected || (isAvailable && remaining > 0)
++
++                        return (
++                          <button
++                            type="button"
++                            key={key}
++                            onClick={() => handleSelectCrystal(position, key)}
++                            disabled={!canClick}
++                            aria-pressed={isSelected}
++                            className={`
++                              xp-well relative text-[var(--xp-ink)]
++                              ${isMobile ? 'p-2' : 'p-3'}
++                              ${!canClick ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
++                              ${canClick && !isSelected ? 'hover:!bg-[var(--xp-hover)]' : ''}
++                            `}
++                            style={isSelected ? selectedTile : undefined}
++                          >
++                            <img
++                              src={image}
++                              alt={label}
++                              className={`mx-auto rounded-full object-cover border-2 border-[var(--xp-ink)] ${isMobile ? 'w-8 h-8 mb-1' : 'w-12 h-12 mb-2'}`}
++                              onError={(e) => {
++                                e.target.src = '/assets/images/stone_yellow.JPG'
++                              }}
++                            />
++                            <div className={`font-bold ${isMobile ? 'text-[10px]' : 'text-xs'}`}>
++                              {label}
++                            </div>
++                            <div className={`xp-text-muted ${isMobile ? 'text-[9px] mt-0.5' : 'text-xs mt-1'}`}>
++                              Available: {remaining}
++                            </div>
++                            {isSelected && (
++                              <span
++                                className={`xp-index absolute ${isMobile ? 'top-0.5 right-0.5' : 'top-1 right-1'}`}
++                                style={{ background: '#2f8a2f' }}
++                              >
++                                ✓
++                              </span>
++                            )}
++                          </button>
++                        )
++                      })}
++                    </div>
++                  </div>
++                ))}
++              </div>
++            )}
++
++            <div className={`flex ${isMobile ? 'gap-2' : 'gap-4'}`}>
++              <button type="button" onClick={onClose} className="xp-btn flex-1">
++                Cancel
++              </button>
++              <button
++                type="button"
++                onClick={handleConfirm}
++                disabled={!canConfirm}
++                className="xp-btn xp-btn--go flex-1 !whitespace-normal"
++              >
++                {requiredPositions.length === 0
++                  ? (isMobile ? 'Acquire' : 'Acquire Card (No Deposit Required)')
++                  : (isMobile ? `Deposit & Acquire` : `Deposit & Acquire Card (Positions ${requiredPositions.join(', ')})`)
++                }
++              </button>
++            </div>
+           </div>
+         </motion.div>
+       </motion.div>
+--- a/web/react-frontend/src/components/desktop/WebGameLayout.jsx
++++ b/web/react-frontend/src/components/desktop/WebGameLayout.jsx
+@@ -250,7 +250,7 @@
+         {/* Round Number Display */}
+         {!isWaiting && roundNumber > 0 && (
+           <div className="absolute top-4 left-4 z-40">
+-            <div className="bg-blue-600/90 backdrop-blur-md text-white px-3 py-1.5 rounded-lg shadow-lg border border-blue-300/30 flex items-center gap-2">
++            <div className="xp-chip px-3 py-1 flex items-center gap-2">
+               <span className="text-sm">🎯</span>
+               <span className="font-bold text-sm">Round {roundNumber}</span>
+             </div>
+@@ -276,9 +276,9 @@
+ 
+         {/* Row 2 - Market (Action Cards) - Hidden in waiting mode */}
+         {!isWaiting && (
+-        <div className="bg-black/30 backdrop-blur-md rounded-xl border border-white/20 p-2 flex flex-col min-h-[120px] sm:min-h-0 overflow-hidden">
+-          <div className="text-white/70 text-xs font-semibold mb-1">Market</div>
+-          <div className="flex-1 grid grid-cols-6 gap-1 place-items-center min-h-0">
++        <div className="xp-panel min-h-[120px] sm:min-h-0 overflow-hidden">
++          <div className="xp-panel-title">Market</div>
++          <div className="xp-panel-body flex-1 grid grid-cols-6 gap-1 place-items-center min-h-0">
+             {actionCards.slice(0, 6).map((card, index) => {
+               const cost = card.cost || {}
+               const isAffordable = isMyTurn && canAfford(cost)
+@@ -305,7 +305,7 @@
+                   onClick={() => handleAcquireCard(index)}
+                 >
+                   {/* Position Badge */}
+-                  <div className="absolute -top-1 -left-1 bg-purple-600 text-white rounded-full w-4 h-4 flex items-center justify-center font-bold text-[9px] z-20 shadow-lg border border-white pointer-events-none">
++                  <div className="xp-index absolute -top-1 -left-1 z-20 pointer-events-none">
+                     {index + 1}
+                   </div>
+ 
+@@ -317,7 +317,7 @@
+                           key={i}
+                           src={crystal.src}
+                           alt={crystal.type}
+-                          className="w-3.5 h-3.5 rounded-full object-cover border border-white shadow"
++                          className="w-3.5 h-3.5 rounded-full object-cover border border-[var(--xp-ink)]"
+                           onError={(e) => {
+                             e.target.src = '/assets/images/stone_yellow.JPG'
+                           }}
+@@ -336,24 +336,24 @@
+ 
+         {/* Row 3 - Golems (Point Cards) - Hidden in waiting mode */}
+         {!isWaiting && (
+-        <div className="bg-black/30 backdrop-blur-md rounded-xl border border-white/20 p-2 flex flex-col min-h-[120px] sm:min-h-0 overflow-hidden">
+-          <div className="flex items-center justify-between mb-1">
+-            <div className="text-white/70 text-xs font-semibold">Golems</div>
++        <div className="xp-panel min-h-[120px] sm:min-h-0 overflow-hidden">
++          <div className="xp-panel-title">
++            <span>Golems</span>
+             {/* Coins remaining info */}
+-            <div className="flex items-center gap-2 text-[10px]">
++            <div className="xp-panel-meta flex items-center gap-2">
+               {coins[0]?.amount > 0 && (
+-                <span className="text-orange-400" title="Copper coins (3pts each)">
++                <span title="Copper coins (3pts each)">
+                   🥉{coins[0].amount}
+                 </span>
+               )}
+               {coins[1]?.amount > 0 && (
+-                <span className="text-gray-300" title="Silver coins (1pt each)">
++                <span title="Silver coins (1pt each)">
+                   🥈{coins[1].amount}
+                 </span>
+               )}
+             </div>
+           </div>
+-          <div className="flex-1 grid grid-cols-5 gap-1 place-items-center min-h-0">
++          <div className="xp-panel-body flex-1 grid grid-cols-5 gap-1 place-items-center min-h-0">
+             {pointCards.slice(0, 5).map((card, index) => {
+               // Helper function to get coin for position based on new rules
+               // Position 0: First available coin (copper if available, silver if copper is gone)
+@@ -388,18 +388,18 @@
+                   onClick={() => handleClaimPointCard(index)}
+                 >
+                   {/* Position Badge */}
+-                  <div className="absolute -top-1 -left-1 bg-purple-600 text-white rounded-full w-4 h-4 flex items-center justify-center font-bold text-[9px] z-20 shadow-lg border border-white pointer-events-none">
++                  <div className="xp-index absolute -top-1 -left-1 z-20 pointer-events-none">
+                     {index + 1}
+                   </div>
+ 
+                   {/* Coin Bonus Badge */}
+                   {coinBonus && (
+                     <div
+-                      className="absolute -top-1 -right-1 z-20 flex items-center gap-0.5 bg-black/70 backdrop-blur-sm rounded-full px-1 py-0.5 border border-white/30 pointer-events-none"
++                      className="xp-badge absolute -top-1 -right-1 z-20 flex items-center gap-0.5 !px-1 !py-0 pointer-events-none"
+                       title={`${isCopperCoin ? 'Copper (3pts)' : 'Silver (1pt)'} - ${coinAmount} left`}
+                     >
+                       <span className="text-xs">{coinEmoji}</span>
+-                      <span className="text-[8px] text-white font-bold">{coinAmount}</span>
++                      <span className="text-[9px] font-bold">{coinAmount}</span>
+                     </div>
+                   )}
+ 
+@@ -421,34 +421,42 @@
+         {!isWaiting && (
+         <div className="flex gap-2 sm:gap-3 min-h-[150px] overflow-x-auto overflow-y-hidden">
+           {/* History */}
+-          <div className="w-44 flex-shrink-0 bg-black/30 backdrop-blur-md rounded-xl border border-white/20 flex flex-col min-h-0 overflow-hidden">
++          <div className="w-44 flex-shrink-0 xp-panel overflow-hidden">
+             <HistorySection />
+           </div>
+ 
+           {/* Graveyard */}
+-          <div className="w-28 flex-shrink-0 bg-black/30 backdrop-blur-md rounded-xl border border-white/20 py-2 flex flex-col min-h-0">
++          <div className="w-28 flex-shrink-0 xp-panel overflow-hidden">
+             <GraveyardPanel playedCards={playedCards} />
+           </div>
+ 
+           {/* My Hand + Info + Timer (Hidden for spectators) */}
+           {!isSpectator ? (
+             <>
+-              <div
+-                className={`flex-1 bg-black/30 backdrop-blur-md rounded-xl p-2 flex flex-col min-w-0 min-h-0 transition-all duration-300 ${
+-                  isMyTurn ? 'border-2 border-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.4)]' : 'border border-white/20'
+-                }`}
+-              >
++              <div className={`flex-1 xp-panel overflow-hidden ${isMyTurn ? 'xp-panel--active' : ''}`}>
++                {/* Title bar: avatar, name, turn indicator */}
++                <div className="xp-panel-title">
++                  <PlayerAvatar
++                    player={myPlayer}
++                    className="w-5 h-5 bg-white text-black text-[10px] border border-white"
++                  />
++                  <span>{myPlayer?.name || 'You'}</span>
++                  <span className="xp-panel-meta">
++                    {/* Turn indicator */}
++                    {isMyTurn ? (
++                      <span className="xp-badge xp-badge--orange text-[var(--xp-ink)]" style={{ textShadow: 'none' }}>
++                        Your Turn
++                      </span>
++                    ) : (
++                      <span>Waiting...</span>
++                    )}
++                  </span>
++                </div>
++
++                <div className="xp-panel-body flex flex-col min-w-0 min-h-0">
+                 {/* Header with info */}
+                 <div className="flex items-center justify-between mb-2">
+                   <div className="flex items-center gap-3">
+-                    {/* Avatar & Name */}
+-                    <div className="flex items-center gap-2">
+-                      <PlayerAvatar
+-                        player={myPlayer}
+-                        className="w-8 h-8 rounded-full bg-yellow-500 text-black text-sm border-2 border-white"
+-                      />
+-                      <div className="text-white font-bold text-sm">{myPlayer?.name || 'You'}</div>
+-                    </div>
+ 
+                     {/* Crystals - always show all 4 colors */}
+                     <div className="flex items-center gap-1.5 ml-2">
+@@ -456,8 +464,8 @@
+                         const count = myPlayer?.caravan?.[color] || 0
+                         return (
+                           <div key={color} className="flex items-center gap-0.5">
+-                            <div className={`w-4 h-4 rounded-full ${crystalColors[color]}`} />
+-                            <span className="text-white text-sm font-bold">{count}</span>
++                            <div className={`w-4 h-4 rounded-full border border-[var(--xp-ink)] ${crystalColors[color]}`} />
++                            <span className="text-sm font-bold">{count}</span>
+                           </div>
+                         )
+                       })}
+@@ -468,7 +476,7 @@
+                   <div className="flex items-center gap-3">
+                     {/* Timer */}
+                     <div className="flex items-center gap-2">
+-                      <div className="w-24 h-2 bg-white/20 rounded-full overflow-hidden">
++                      <div className="w-24 h-3 xp-well overflow-hidden">
+                         <div
+                           className={`h-full transition-all duration-1000 ${
+                             turnProgress > 50 ? 'bg-green-500' : turnProgress > 20 ? 'bg-yellow-500' : 'bg-red-500'
+@@ -478,7 +486,7 @@
+                       </div>
+                       <span
+                         className={`text-sm font-bold min-w-[2rem] text-right ${
+-                          turnProgress > 50 ? 'text-green-400' : turnProgress > 20 ? 'text-yellow-400' : 'text-red-400'
++                          turnProgress > 50 ? 'text-green-700' : turnProgress > 20 ? 'text-yellow-700' : 'text-red-700'
+                         }`}
+                       >
+                         {turnTimeRemaining}s
+@@ -489,25 +497,17 @@
+                     {canRest && (
+                       <button
+                         onClick={handleRest}
+-                        className="px-3 py-1 rounded-lg font-bold bg-green-600 hover:bg-green-500 text-white text-sm border border-green-400 transition-all"
++                        className="xp-btn xp-btn--go xp-btn--sm"
+                       >
+                         Rest
+                       </button>
+                     )}
+ 
+-                    {/* Turn indicator */}
+-                    {isMyTurn ? (
+-                      <div className="px-3 py-1 bg-yellow-500/20 text-yellow-400 rounded-lg text-sm font-bold border border-yellow-400">
+-                        Your Turn
+-                      </div>
+-                    ) : (
+-                      <div className="px-3 py-1 bg-white/10 text-white/50 rounded-lg text-sm">Waiting...</div>
+-                    )}
+                   </div>
+                 </div>
+ 
+                 {/* Hand Cards */}
+-                <div className="flex-1 flex items-center gap-2 overflow-x-auto scrollbar-thin scrollbar-thumb-white/30 scrollbar-track-transparent min-h-0">
++                <div className="flex-1 flex items-center gap-2 overflow-x-auto xp-scroll xp-well p-1.5 min-h-0">
+                   {hand.map((card, index) => (
+                     <div
+                       key={`hand-${index}`}
+@@ -519,28 +519,31 @@
+                   ))}
+ 
+                   {hand.length === 0 && (
+-                    <div className="h-full aspect-[2/3] rounded-xl border-2 border-dashed border-white/30 flex items-center justify-center flex-shrink-0">
+-                      <span className="text-white/40 text-xs">No cards</span>
++                    <div className="h-full aspect-[2/3] xp-well xp-well--dashed flex items-center justify-center flex-shrink-0">
++                      <span className="xp-text-muted text-xs">No cards</span>
+                     </div>
+                   )}
+                 </div>
++                </div>
+               </div>
+ 
+               {/* My Golems */}
+-              <div className="w-28 flex-shrink-0 bg-black/30 backdrop-blur-md rounded-xl border border-white/20 py-2 flex flex-col min-h-0">
++              <div className="w-28 flex-shrink-0 xp-panel overflow-hidden">
+                 <MyGolemsPanel pointCards={myPlayer?.pointCards || []} coins={myPlayer?.coins || []} />
+               </div>
+             </>
+           ) : (
+             /* Spectator Info Area */
+-            <div className="flex-1 bg-black/30 backdrop-blur-md rounded-xl p-2 flex flex-col min-w-0 min-h-0 border border-purple-400/40">
++            <div className="flex-1 xp-panel overflow-hidden">
++              <div className="xp-panel-title xp-panel-title--muted">Spectator</div>
++              <div className="xp-panel-body flex flex-col min-w-0 min-h-0">
+               <div className="flex items-center justify-between mb-2">
+ 
+                 {/* Timer for spectators */}
+                 <div className="flex items-center gap-3">
+                   {/* Timer */}
+                   <div className="flex items-center gap-2">
+-                    <div className="w-24 h-2 bg-white/20 rounded-full overflow-hidden">
++                    <div className="w-24 h-3 xp-well overflow-hidden">
+                       <div
+                         className={`h-full transition-all duration-1000 ${
+                           turnProgress > 50 ? 'bg-green-500' : turnProgress > 20 ? 'bg-yellow-500' : 'bg-red-500'
+@@ -550,7 +553,7 @@
+                     </div>
+                     <span
+                       className={`text-sm font-bold min-w-[2rem] text-right ${
+-                        turnProgress > 50 ? 'text-green-400' : turnProgress > 20 ? 'text-yellow-400' : 'text-red-400'
++                        turnProgress > 50 ? 'text-green-700' : turnProgress > 20 ? 'text-yellow-700' : 'text-red-700'
+                       }`}
+                     >
+                       {turnTimeRemaining}s
+@@ -561,11 +564,12 @@
+ 
+               {/* Spectator message */}
+               <div className="flex-1 flex items-center justify-center">
+-                <div className="text-center text-white/60">
++                <div className="text-center xp-text-muted">
+                   <p className="text-sm">You are watching this game</p>
+                   <p className="text-xs mt-1">You cannot perform any actions</p>
+                 </div>
+               </div>
++              </div>
+             </div>
+           )}
+         </div>
+--- a/web/react-frontend/src/components/DiscardModal.jsx
++++ b/web/react-frontend/src/components/DiscardModal.jsx
+@@ -63,7 +63,7 @@
+   return createPortal(
+     <AnimatePresence>
+       <motion.div
+-        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-2 sm:p-4"
++        className="xp-overlay z-[100] !p-2 sm:!p-4"
+         initial={{ opacity: 0 }}
+         animate={{ opacity: 1 }}
+         exit={{ opacity: 0 }}
+@@ -74,142 +74,118 @@
+       >
+         <motion.div
+           className={`
+-            bg-white rounded-xl sm:rounded-2xl shadow-2xl border-4 border-red-500 w-full
+-            ${isMobile 
+-              ? 'max-w-[95vw] p-3 mx-2' 
+-              : 'max-w-md p-8 mx-4'
+-            }
++            xp-window
++            ${isMobile ? 'max-w-[95vw] mx-2' : 'max-w-md mx-4'}
+           `}
+-          initial={{ scale: 0.8, y: 50 }}
+-          animate={{ scale: 1, y: 0 }}
+-          exit={{ scale: 0.8, y: 50 }}
+-          transition={{ type: "spring", stiffness: 300, damping: 30 }}
++          initial={{ y: 12, opacity: 0 }}
++          animate={{ y: 0, opacity: 1 }}
++          transition={{ duration: 0.12 }}
++          role="alertdialog"
++          aria-label="Too Many Crystals!"
+         >
+-          <div className={`text-center ${isMobile ? 'mb-3' : 'mb-6'}`}>
+-            <h2 className={`font-bold text-red-600 ${isMobile ? 'text-xl mb-1' : 'text-3xl mb-2'}`}>
+-              ⚠️ Too Many Crystals!
+-            </h2>
+-            <p className={`text-gray-700 ${isMobile ? 'text-xs' : 'text-base'}`}>
+-              You have <span className="font-bold text-red-600">{pending}</span> excess crystals.
++          <div className="xp-titlebar" style={{ background: 'linear-gradient(180deg, #f39a7d 0%, #e0532c 45%, #c4320f 100%)' }}>
++            <h2 className="xp-titlebar-title">⚠️ Too Many Crystals!</h2>
++          </div>
++
++          <div className={`xp-body ${isMobile ? '!p-3' : ''}`}>
++            <p className={`${isMobile ? 'text-xs mb-3' : 'text-sm mb-5'}`}>
++              You have <span className="xp-badge xp-badge--red">{pending}</span> excess crystals.
+               <br />
+               Discard <span className="font-bold">{remaining}</span> more to continue.
+             </p>
+-          </div>
+ 
+-          <div className={`space-y-2 ${isMobile ? 'mb-3' : 'space-y-4 mb-6'}`}>
+-            {crystalTypes.map(({ key, label, color }) => {
+-              // Use caravan (same as CompactGameBoard)
+-              const available = (myPlayer.caravan && myPlayer.caravan[key]) || 0
+-              const selected = discardCounts[key] || 0
+-              
+-              return (
+-                <div key={key} className={`flex items-center ${isMobile ? 'gap-2' : 'gap-4'}`}>
+-                  <div className={`
+-                    ${color} rounded-full flex items-center justify-center text-white font-bold shadow-lg
+-                    ${isMobile ? 'w-10 h-10' : 'w-12 h-12'}
+-                  `}>
++            <div className={`xp-list ${isMobile ? 'mb-3' : 'mb-5'}`}>
++              {crystalTypes.map(({ key, label, color }) => {
++                // Use caravan (same as CompactGameBoard)
++                const available = (myPlayer.caravan && myPlayer.caravan[key]) || 0
++                const selected = discardCounts[key] || 0
++
++                return (
++                  <div
++                    key={key}
++                    className={`xp-list-item !cursor-default ${isMobile ? '!gap-2 !p-2' : '!gap-3'}`}
++                    style={selected > 0 ? { background: '#fff7d6' } : undefined}
++                  >
+                     <img
+                       src={`/assets/images/stone_${key}.JPG`}
+                       alt={label}
+-                      className={`rounded-full object-cover ${isMobile ? 'w-8 h-8' : 'w-10 h-10'}`}
++                      className={`flex-shrink-0 rounded-full object-cover border-2 border-[var(--xp-ink)] ${isMobile ? 'w-8 h-8' : 'w-10 h-10'}`}
+                       onError={(e) => {
+                         e.target.src = '/assets/images/stone_yellow.JPG'
+                       }}
+                     />
+-                  </div>
+-                  <div className="flex-1">
+-                    <div className={`flex justify-between items-center ${isMobile ? 'mb-0.5' : 'mb-1'}`}>
+-                      <span className={`font-medium text-gray-700 ${isMobile ? 'text-xs' : 'text-sm'}`}>{label}</span>
+-                      <span className={`text-gray-500 ${isMobile ? 'text-[10px]' : 'text-xs'}`}>
+-                        Available: {available} | Selected: {selected}
+-                      </span>
+-                    </div>
+-                    <div className="flex items-center gap-2">
+-                      <motion.button
+-                        onClick={() => updateDiscard(key, -1)}
+-                        disabled={selected <= 0}
+-                        className={`
+-                          rounded-full bg-gray-200 hover:bg-gray-300 
+-                          disabled:opacity-50 disabled:cursor-not-allowed 
+-                          flex items-center justify-center font-bold text-gray-700
+-                          ${isMobile ? 'w-7 h-7 text-sm' : 'w-8 h-8'}
+-                        `}
+-                        whileHover={{ scale: 1.1 }}
+-                        whileTap={{ scale: 0.9 }}
+-                      >
+-                        −
+-                      </motion.button>
+-                      <div className={`
+-                        flex-1 bg-gray-100 rounded-lg text-center font-bold
+-                        ${isMobile ? 'px-2 py-1 text-base' : 'px-4 py-2 text-lg'}
+-                      `}>
+-                        {selected}
++                    <div className="flex-1">
++                      <div className={`flex justify-between items-center ${isMobile ? 'mb-0.5' : 'mb-1'}`}>
++                        <span className={`font-bold ${isMobile ? 'text-xs' : 'text-sm'}`}>{label}</span>
++                        <span className={`xp-text-muted ${isMobile ? 'text-[10px]' : 'text-xs'}`}>
++                          Available: {available} | Selected: {selected}
++                        </span>
++                      </div>
++                      <div className="flex items-center gap-2">
++                        <button
++                          type="button"
++                          onClick={() => updateDiscard(key, -1)}
++                          disabled={selected <= 0}
++                          className="xp-btn xp-btn--sm !px-2.5"
++                        >
++                          −
++                        </button>
++                        <div className={`
++                          flex-1 xp-well text-center font-bold
++                          ${isMobile ? 'px-2 py-0.5 text-base' : 'px-4 py-1 text-lg'}
++                        `}>
++                          {selected}
++                        </div>
++                        <button
++                          type="button"
++                          onClick={() => updateDiscard(key, 1)}
++                          disabled={selected >= available || currentTotal >= pending}
++                          className="xp-btn xp-btn--sm !px-2.5"
++                        >
++                          +
++                        </button>
+                       </div>
+-                      <motion.button
+-                        onClick={() => updateDiscard(key, 1)}
+-                        disabled={selected >= available || currentTotal >= pending}
+-                        className={`
+-                          rounded-full bg-gray-200 hover:bg-gray-300 
+-                          disabled:opacity-50 disabled:cursor-not-allowed 
+-                          flex items-center justify-center font-bold text-gray-700
+-                          ${isMobile ? 'w-7 h-7 text-sm' : 'w-8 h-8'}
+-                        `}
+-                        whileHover={{ scale: 1.1 }}
+-                        whileTap={{ scale: 0.9 }}
+-                      >
+-                        +
+-                      </motion.button>
+                     </div>
+                   </div>
+-                </div>
+-              )
+-            })}
+-          </div>
++                )
++              })}
++            </div>
+ 
+-          <div className={`
+-            bg-yellow-50 border-2 border-yellow-300 rounded-lg
+-            ${isMobile ? 'p-2 mb-3' : 'p-4 mb-6'}
+-          `}>
+-            <div className="text-center">
+-              <div className={`text-gray-600 ${isMobile ? 'text-xs mb-0.5' : 'text-sm mb-1'}`}>Progress</div>
+-              <div className={`font-bold text-yellow-700 ${isMobile ? 'text-xl' : 'text-2xl'}`}>
+-                {currentTotal} / {pending}
+-              </div>
+-              <div className={`w-full bg-gray-200 rounded-full overflow-hidden ${isMobile ? 'h-2 mt-1' : 'h-3 mt-2'}`}>
+-                <motion.div
+-                  className="bg-gradient-to-r from-yellow-400 to-red-500 h-full rounded-full"
+-                  initial={{ width: 0 }}
+-                  animate={{ width: `${(currentTotal / pending) * 100}%` }}
+-                  transition={{ duration: 0.3 }}
+-                />
++            <div className={`xp-group ${isMobile ? 'mb-3' : 'mb-5'}`}>
++              <span className="xp-group-title">Progress</span>
++              <div className="text-center">
++                <div className={`font-bold ${isMobile ? 'text-xl' : 'text-2xl'}`}>
++                  {currentTotal} / {pending}
++                </div>
++                {/* Segmented XP-style progress bar */}
++                <div className={`xp-well overflow-hidden !p-[2px] ${isMobile ? 'h-4 mt-1' : 'h-5 mt-2'}`}>
++                  <motion.div
++                    className="h-full"
++                    style={{ background: 'repeating-linear-gradient(90deg, #37b737 0 9px, transparent 9px 12px)' }}
++                    initial={{ width: 0 }}
++                    animate={{ width: `${(currentTotal / pending) * 100}%` }}
++                    transition={{ duration: 0.3 }}
++                  />
++                </div>
+               </div>
+             </div>
+-          </div>
+ 
+-          <motion.button
+-            onClick={(e) => {
+-              e.preventDefault()
+-              e.stopPropagation()
+-              handleConfirm()
+-            }}
+-            disabled={!canConfirm}
+-            className={`
+-              w-full bg-gradient-to-r from-red-500 to-orange-500 text-white font-bold 
+-              rounded-lg shadow-lg transition-all relative z-10
+-              ${isMobile ? 'py-3 px-4 text-sm' : 'py-4 px-6'}
+-              ${canConfirm 
+-                ? 'cursor-pointer hover:shadow-xl opacity-100' 
+-                : 'cursor-not-allowed opacity-50'
++            <button
++              type="button"
++              onClick={(e) => {
++                e.preventDefault()
++                e.stopPropagation()
++                handleConfirm()
++              }}
++              disabled={!canConfirm}
++              className={`xp-btn xp-btn--danger xp-btn--block relative z-10 disabled:![text-shadow:none] ${isMobile ? '' : 'xp-btn--lg'}`}
++            >
++              {currentTotal === pending
++                ? 'Confirm Discard'
++                : `Select ${remaining} more crystal${remaining !== 1 ? 's' : ''}`
+               }
+-            `}
+-            whileHover={canConfirm ? { scale: 1.05 } : {}}
+-            whileTap={canConfirm ? { scale: 0.95 } : {}}
+-          >
+-            {currentTotal === pending 
+-              ? 'Confirm Discard' 
+-              : `Select ${remaining} more crystal${remaining !== 1 ? 's' : ''}`
+-            }
+-          </motion.button>
++            </button>
++          </div>
+         </motion.div>
+       </motion.div>
+     </AnimatePresence>,
+--- a/web/react-frontend/src/components/GameOverModal.jsx
++++ b/web/react-frontend/src/components/GameOverModal.jsx
+@@ -56,21 +56,23 @@
+     duration: 3 + Math.random() * 2
+   }))
+ 
++  const rankEmojis = ['🥇', '🥈', '🥉']
++
+   return createPortal(
+     <AnimatePresence>
+       <motion.div
+-        className="fixed inset-0 z-[200] flex items-center justify-center bg-black/85 backdrop-blur-md p-2 sm:p-4 overflow-y-auto"
++        className="xp-overlay z-[200] overflow-y-auto !p-2 sm:!p-4"
+         initial={{ opacity: 0 }}
+         animate={{ opacity: 1 }}
+         exit={{ opacity: 0 }}
+       >
+-        {/* Confetti Animation */}
++        {/* Confetti Animation - flat squares with hard borders */}
+         {showConfetti && (
+           <div className="fixed inset-0 pointer-events-none overflow-hidden z-[201]">
+             {confettiParticles.map((particle) => (
+               <motion.div
+                 key={particle.id}
+-                className="absolute w-3 h-3 rounded-sm"
++                className="absolute w-3 h-3 border-2 border-[var(--xp-ink)]"
+                 style={{
+                   backgroundColor: particle.color,
+                   left: `${particle.left}%`,
+@@ -94,68 +96,47 @@
+ 
+         <motion.div
+           className={`
+-            relative bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 
+-            rounded-2xl sm:rounded-3xl shadow-2xl border-2 border-yellow-500/50
+-            w-full overflow-hidden
++            xp-window relative flex flex-col
+             ${isMobile ? 'max-w-[95vw] max-h-[90vh]' : 'max-w-3xl max-h-[85vh]'}
+           `}
+-          initial={{ scale: 0.8, y: 50, opacity: 0 }}
+-          animate={{ scale: 1, y: 0, opacity: 1 }}
+-          exit={{ scale: 0.8, y: 50, opacity: 0 }}
+-          transition={{ type: "spring", stiffness: 300, damping: 25 }}
++          initial={{ y: 16, opacity: 0 }}
++          animate={{ y: 0, opacity: 1 }}
++          exit={{ y: 16, opacity: 0 }}
++          transition={{ duration: 0.15 }}
++          role="dialog"
++          aria-label="GAME OVER!"
+         >
+-          {/* Glowing border effect */}
+-          <div className="absolute inset-0 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-yellow-400 via-orange-500 to-yellow-400 opacity-20 blur-xl" />
+-          
+-          {/* Content */}
+-          <div className={`relative z-10 ${isMobile ? 'p-4' : 'p-6 sm:p-8'} overflow-y-auto max-h-[85vh]`}>
+-            {/* Header */}
+-            <motion.div 
+-              className="text-center mb-4 sm:mb-6"
+-              initial={{ y: -20, opacity: 0 }}
+-              animate={{ y: 0, opacity: 1 }}
+-              transition={{ delay: 0.2 }}
+-            >
+-              <motion.div
+-                className={`inline-block ${isMobile ? 'text-4xl' : 'text-5xl sm:text-6xl'} mb-2`}
+-                animate={{ 
+-                  scale: [1, 1.1, 1],
+-                  rotate: [0, -5, 5, 0]
+-                }}
+-                transition={{ 
+-                  duration: 2, 
+-                  repeat: Infinity,
+-                  repeatType: "reverse"
+-                }}
+-              >
+-                🏆
+-              </motion.div>
+-              <h2 className={`font-black bg-gradient-to-r from-yellow-300 via-orange-400 to-yellow-300 bg-clip-text text-transparent ${isMobile ? 'text-2xl' : 'text-3xl sm:text-4xl'}`}>
+-                GAME OVER!
+-              </h2>
+-            </motion.div>
++          {/* Header */}
++          <div className="xp-titlebar">
++            <h2 className="xp-titlebar-title">🏆 GAME OVER!</h2>
++            <button type="button" className="xp-title-btn" onClick={onBackToMenu} aria-label="Close" title="Back to Menu">
++              ✕
++            </button>
++          </div>
+ 
++          {/* Content */}
++          <div className={`xp-body xp-scroll overflow-y-auto ${isMobile ? '!p-3' : ''}`}>
+             {/* Winner Announcement */}
+             <motion.div
+-              className={`bg-gradient-to-r from-yellow-500/20 via-orange-500/20 to-yellow-500/20 rounded-xl border border-yellow-500/30 ${isMobile ? 'p-3 mb-4' : 'p-4 sm:p-6 mb-6'}`}
+-              initial={{ scale: 0.9, opacity: 0 }}
+-              animate={{ scale: 1, opacity: 1 }}
+-              transition={{ delay: 0.3 }}
++              className={`xp-note !border-[3px] shadow-[4px_4px_0_#0b0b0b] ${isMobile ? '!p-3 mb-4' : '!p-4 mb-5'}`}
++              initial={{ opacity: 0, y: 8 }}
++              animate={{ opacity: 1, y: 0 }}
++              transition={{ delay: 0.2 }}
+             >
+               <div className="flex items-center justify-center gap-3">
+                 <span className={`${isMobile ? 'text-2xl' : 'text-3xl'}`}>👑</span>
+                 {winner && (
+                   <PlayerAvatar
+                     player={winner}
+-                    className={`rounded-full bg-purple-600 text-white border-2 border-yellow-400 ${isMobile ? 'w-10 h-10 text-base' : 'w-14 h-14 text-xl'}`}
++                    className={`bg-white text-[var(--xp-ink)] border-2 border-[var(--xp-ink)] ${isMobile ? 'w-10 h-10 text-base' : 'w-14 h-14 text-xl'}`}
+                   />
+                 )}
+                 <div className="text-center">
+-                  <div className={`text-yellow-300 font-bold ${isMobile ? 'text-lg' : 'text-xl sm:text-2xl'}`}>
++                  <div className={`font-bold ${isMobile ? 'text-lg' : 'text-xl sm:text-2xl'}`} style={{ fontFamily: 'var(--xp-title-font)' }}>
+                     {winner?.name || 'Unknown'}
+                   </div>
+-                  <div className={`text-white/80 ${isMobile ? 'text-sm' : 'text-base'}`}>
+-                    Wins with <span className="text-yellow-400 font-bold">{winner?.points || 0}</span> points!
++                  <div className={`${isMobile ? 'text-sm' : 'text-base'}`}>
++                    Wins with <span className="xp-badge xp-badge--orange">{winner?.points || 0}</span> points!
+                   </div>
+                 </div>
+                 <span className={`${isMobile ? 'text-2xl' : 'text-3xl'}`}>👑</span>
+@@ -163,226 +144,192 @@
+             </motion.div>
+ 
+             {/* Bonus Coins Remaining */}
+-            <motion.div
+-              className={`bg-slate-800/50 rounded-xl border border-slate-600/30 ${isMobile ? 'p-2 mb-3' : 'p-3 mb-4'}`}
+-              initial={{ scale: 0.9, opacity: 0 }}
+-              animate={{ scale: 1, opacity: 1 }}
+-              transition={{ delay: 0.35 }}
+-            >
+-              <div className={`text-white/60 text-center ${isMobile ? 'text-xs mb-1' : 'text-sm mb-2'}`}>
++            <div className={`xp-group ${isMobile ? 'mb-4' : 'mb-5'}`}>
++              <span className="xp-group-title">
+                 Bonus Coins Remaining
+-              </div>
++              </span>
+               <div className="flex justify-center gap-6">
+                 <div className="flex items-center gap-2">
+                   <span className={isMobile ? 'text-lg' : 'text-xl'}>🥉</span>
+                   <div className="text-center">
+-                    <div className={`text-orange-400 font-bold ${isMobile ? 'text-sm' : 'text-base'}`}>
++                    <div className={`font-bold ${isMobile ? 'text-sm' : 'text-base'}`}>
+                       {copperRemaining}/10
+                     </div>
+-                    <div className={`text-white/50 ${isMobile ? 'text-[10px]' : 'text-xs'}`}>Copper (3pts)</div>
++                    <div className={`xp-text-muted ${isMobile ? 'text-[10px]' : 'text-xs'}`}>Copper (3pts)</div>
+                   </div>
+                 </div>
+                 <div className="flex items-center gap-2">
+                   <span className={isMobile ? 'text-lg' : 'text-xl'}>🥈</span>
+                   <div className="text-center">
+-                    <div className={`text-gray-300 font-bold ${isMobile ? 'text-sm' : 'text-base'}`}>
++                    <div className={`font-bold ${isMobile ? 'text-sm' : 'text-base'}`}>
+                       {silverRemaining}/10
+                     </div>
+-                    <div className={`text-white/50 ${isMobile ? 'text-[10px]' : 'text-xs'}`}>Silver (1pt)</div>
++                    <div className={`xp-text-muted ${isMobile ? 'text-[10px]' : 'text-xs'}`}>Silver (1pt)</div>
+                   </div>
+                 </div>
+               </div>
+-            </motion.div>
++            </div>
+ 
+             {/* Players Ranking */}
+-            <div className={`space-y-3 ${isMobile ? 'mb-4' : 'mb-6'}`}>
+-              <h3 className={`text-white/80 font-semibold ${isMobile ? 'text-sm' : 'text-base'}`}>
++            <div className={isMobile ? 'mb-4' : 'mb-5'}>
++              <h3 className="xp-field-label">
+                 Ranking
+               </h3>
+-              
+-              {sortedPlayers.map((player, index) => {
+-                const isWinner = player.id === winner?.id
+-                const pointCardPoints = player.pointCards?.reduce((sum, card) => sum + (card.points || 0), 0) || 0
+-                const coinPoints = player.coins?.reduce((sum, coin) => sum + (coin.points || 0), 0) || 0
+-                const copperCoins = player.coins?.filter(c => c.points === 3) || []
+-                const silverCoins = player.coins?.filter(c => c.points === 1) || []
+-                const resources = player.caravan || player.resources || {}
+-                const crystalPoints = (resources.green || 0) + (resources.blue || 0) + (resources.pink || 0)
+-                const totalPoints = pointCardPoints + coinPoints + crystalPoints
+-
+-                const rankColors = ['from-yellow-500/30 to-amber-600/30 border-yellow-500/50', 
+-                                   'from-gray-400/20 to-gray-500/20 border-gray-400/40',
+-                                   'from-orange-700/20 to-orange-800/20 border-orange-600/40']
+-                const rankEmojis = ['🥇', '🥈', '🥉']
+-
+-                return (
+-                  <motion.div
+-                    key={player.id}
+-                    className={`
+-                      bg-gradient-to-r ${rankColors[index] || 'from-slate-700/30 to-slate-800/30 border-slate-600/30'}
+-                      rounded-xl border backdrop-blur-sm overflow-hidden
+-                      ${isWinner ? 'ring-2 ring-yellow-400/50' : ''}
+-                    `}
+-                    initial={{ x: -50, opacity: 0 }}
+-                    animate={{ x: 0, opacity: 1 }}
+-                    transition={{ delay: 0.4 + index * 0.1 }}
+-                  >
+-                    {/* Player Header */}
+-                    <div className={`flex items-center justify-between ${isMobile ? 'p-2' : 'p-3 sm:p-4'}`}>
+-                      <div className="flex items-center gap-2 sm:gap-3">
+-                        <span className={`${isMobile ? 'text-lg' : 'text-xl sm:text-2xl'}`}>
+-                          {rankEmojis[index] || `#${index + 1}`}
+-                        </span>
+-                        {isWinner && <span className="text-lg">👑</span>}
+-                        <PlayerAvatar
+-                          player={player}
+-                          className={`rounded-full bg-purple-600 text-white border-2 border-white/60 ${isMobile ? 'w-7 h-7 text-xs' : 'w-9 h-9 text-sm'}`}
+-                        />
+-                        <span className={`font-bold text-white ${isMobile ? 'text-sm' : 'text-base sm:text-lg'}`}>
+-                          {player.name}
+-                        </span>
+-                      </div>
+-                      <div className={`font-black text-yellow-300 ${isMobile ? 'text-lg' : 'text-xl sm:text-2xl'}`}>
+-                        {totalPoints} pts
+-                      </div>
+-                    </div>
+ 
+-                    {/* Points Breakdown */}
+-                    <div className={`bg-black/30 ${isMobile ? 'p-2' : 'p-3 sm:p-4'}`}>
+-                      {/* Golems */}
+-                      <div className={`flex items-center gap-2 ${isMobile ? 'mb-2' : 'mb-3'}`}>
+-                        <span className={`text-white/60 ${isMobile ? 'text-xs w-16' : 'text-sm w-20'}`}>Golems:</span>
+-                        <div className="flex gap-1 flex-wrap flex-1">
+-                          {player.pointCards?.length > 0 ? (
+-                            player.pointCards.map((card, i) => {
+-                              const cardName = card.name || `golem_${String(card.points).padStart(4, '0')}`
+-                              const spriteStyle = getCardSpriteStyle(cardName)
+-                              return (
+-                                <div key={i} className="relative group">
+-                                  {spriteStyle ? (
+-                                    <div
+-                                      className={`rounded border border-white/30 ${isMobile ? 'w-8 h-10' : 'w-10 h-12 sm:w-12 sm:h-14'}`}
+-                                      style={spriteStyle}
+-                                    />
+-                                  ) : (
+-                                    <img
+-                                      src={getCardImagePath(cardName)}
+-                                      alt={`Golem ${card.points}pts`}
+-                                      className={`rounded object-cover border border-white/30 ${isMobile ? 'w-8 h-10' : 'w-10 h-12 sm:w-12 sm:h-14'}`}
+-                                      onError={(e) => { e.target.style.display = 'none' }}
+-                                    />
+-                                  )}
+-                                  <span className={`absolute -bottom-1 -right-1 bg-yellow-500 text-black rounded-full font-bold ${isMobile ? 'text-[8px] w-4 h-4' : 'text-[10px] w-5 h-5'} flex items-center justify-center`}>
+-                                    {card.points}
+-                                  </span>
+-                                </div>
+-                              )
+-                            })
+-                          ) : (
+-                            <span className="text-white/40 text-xs">None</span>
+-                          )}
++              <div className="xp-listview !max-h-none">
++                {sortedPlayers.map((player, index) => {
++                  const isWinner = player.id === winner?.id
++                  const pointCardPoints = player.pointCards?.reduce((sum, card) => sum + (card.points || 0), 0) || 0
++                  const coinPoints = player.coins?.reduce((sum, coin) => sum + (coin.points || 0), 0) || 0
++                  const copperCoins = player.coins?.filter(c => c.points === 3) || []
++                  const silverCoins = player.coins?.filter(c => c.points === 1) || []
++                  const resources = player.caravan || player.resources || {}
++                  const crystalPoints = (resources.green || 0) + (resources.blue || 0) + (resources.pink || 0)
++                  const totalPoints = pointCardPoints + coinPoints + crystalPoints
++
++                  return (
++                    <motion.div
++                      key={player.id}
++                      className="border-b-2 border-[var(--xp-ink)] last:border-b-0"
++                      style={isWinner ? { background: '#fff7d6' } : undefined}
++                      initial={{ x: -24, opacity: 0 }}
++                      animate={{ x: 0, opacity: 1 }}
++                      transition={{ delay: 0.3 + index * 0.08 }}
++                    >
++                      {/* Player Header */}
++                      <div className={`xp-row !border-b-0 justify-between ${isMobile ? '!p-2' : '!p-3'}`}>
++                        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
++                          <span className={`${isMobile ? 'text-lg' : 'text-xl sm:text-2xl'}`}>
++                            {rankEmojis[index] || `#${index + 1}`}
++                          </span>
++                          {isWinner && <span className="text-lg">👑</span>}
++                          <PlayerAvatar
++                            player={player}
++                            className={`bg-white text-[var(--xp-ink)] border-2 border-[var(--xp-ink)] ${isMobile ? 'w-7 h-7 text-xs' : 'w-9 h-9 text-sm'}`}
++                          />
++                          <span className={`font-bold truncate ${isMobile ? 'text-sm' : 'text-base sm:text-lg'}`}>
++                            {player.name}
++                          </span>
++                        </div>
++                        <div className={`font-black ${isMobile ? 'text-lg' : 'text-xl sm:text-2xl'}`} style={{ fontFamily: 'var(--xp-title-font)' }}>
++                          {totalPoints} pts
+                         </div>
+-                        <span className={`text-green-400 font-semibold ${isMobile ? 'text-xs' : 'text-sm'}`}>
+-                          = {pointCardPoints}pts
+-                        </span>
+                       </div>
+ 
+-                      {/* Coins */}
+-                      <div className={`flex items-center gap-2 ${isMobile ? 'mb-2' : 'mb-3'}`}>
+-                        <span className={`text-white/60 ${isMobile ? 'text-xs w-16' : 'text-sm w-20'}`}>Coins:</span>
+-                        <div className="flex gap-1 flex-1">
+-                          {copperCoins.length > 0 && (
+-                            <div className="flex items-center gap-0.5">
+-                              <span className={isMobile ? 'text-sm' : 'text-base'}>🥉</span>
+-                              <span className={`text-orange-400 ${isMobile ? 'text-xs' : 'text-sm'}`}>×{copperCoins.length}</span>
+-                            </div>
+-                          )}
+-                          {silverCoins.length > 0 && (
+-                            <div className="flex items-center gap-0.5">
+-                              <span className={isMobile ? 'text-sm' : 'text-base'}>🥈</span>
+-                              <span className={`text-gray-300 ${isMobile ? 'text-xs' : 'text-sm'}`}>×{silverCoins.length}</span>
+-                            </div>
+-                          )}
+-                          {copperCoins.length === 0 && silverCoins.length === 0 && (
+-                            <span className="text-white/40 text-xs">None</span>
+-                          )}
++                      {/* Points Breakdown */}
++                      <div className={`bg-[var(--xp-face)] border-t border-dotted border-[#9a9a90] ${isMobile ? 'p-2' : 'p-3'}`}>
++                        {/* Golems */}
++                        <div className={`flex items-center gap-2 ${isMobile ? 'mb-2' : 'mb-3'}`}>
++                          <span className={`xp-text-muted ${isMobile ? 'text-xs w-16' : 'text-sm w-20'}`}>Golems:</span>
++                          <div className="flex gap-1 flex-wrap flex-1">
++                            {player.pointCards?.length > 0 ? (
++                              player.pointCards.map((card, i) => {
++                                const cardName = card.name || `golem_${String(card.points).padStart(4, '0')}`
++                                const spriteStyle = getCardSpriteStyle(cardName)
++                                return (
++                                  <div key={i} className="relative group">
++                                    {spriteStyle ? (
++                                      <div
++                                        className={`border-2 border-[var(--xp-ink)] ${isMobile ? 'w-8 h-10' : 'w-10 h-12 sm:w-12 sm:h-14'}`}
++                                        style={spriteStyle}
++                                      />
++                                    ) : (
++                                      <img
++                                        src={getCardImagePath(cardName)}
++                                        alt={`Golem ${card.points}pts`}
++                                        className={`object-cover border-2 border-[var(--xp-ink)] ${isMobile ? 'w-8 h-10' : 'w-10 h-12 sm:w-12 sm:h-14'}`}
++                                        onError={(e) => { e.target.style.display = 'none' }}
++                                      />
++                                    )}
++                                    <span
++                                      className={`xp-index absolute -bottom-1 -right-1 ${isMobile ? '!min-w-[16px] !h-4 !text-[8px]' : ''}`}
++                                      style={{ background: 'var(--xp-orange)', color: 'var(--xp-ink)' }}
++                                    >
++                                      {card.points}
++                                    </span>
++                                  </div>
++                                )
++                              })
++                            ) : (
++                              <span className="xp-text-muted text-xs">None</span>
++                            )}
++                          </div>
++                          <span className={`font-bold text-[#2f8a2f] ${isMobile ? 'text-xs' : 'text-sm'}`}>
++                            = {pointCardPoints}pts
++                          </span>
++                        </div>
++
++                        {/* Coins */}
++                        <div className={`flex items-center gap-2 ${isMobile ? 'mb-2' : 'mb-3'}`}>
++                          <span className={`xp-text-muted ${isMobile ? 'text-xs w-16' : 'text-sm w-20'}`}>Coins:</span>
++                          <div className="flex gap-1 flex-1">
++                            {copperCoins.length > 0 && (
++                              <div className="flex items-center gap-0.5">
++                                <span className={isMobile ? 'text-sm' : 'text-base'}>🥉</span>
++                                <span className={`font-bold ${isMobile ? 'text-xs' : 'text-sm'}`}>×{copperCoins.length}</span>
++                              </div>
++                            )}
++                            {silverCoins.length > 0 && (
++                              <div className="flex items-center gap-0.5">
++                                <span className={isMobile ? 'text-sm' : 'text-base'}>🥈</span>
++                                <span className={`font-bold ${isMobile ? 'text-xs' : 'text-sm'}`}>×{silverCoins.length}</span>
++                              </div>
++                            )}
++                            {copperCoins.length === 0 && silverCoins.length === 0 && (
++                              <span className="xp-text-muted text-xs">None</span>
++                            )}
++                          </div>
++                          <span className={`font-bold text-[#2f8a2f] ${isMobile ? 'text-xs' : 'text-sm'}`}>
++                            = {coinPoints}pts
++                          </span>
+                         </div>
+-                        <span className={`text-green-400 font-semibold ${isMobile ? 'text-xs' : 'text-sm'}`}>
+-                          = {coinPoints}pts
+-                        </span>
+-                      </div>
+ 
+-                      {/* Crystals */}
+-                      <div className="flex items-center gap-2">
+-                        <span className={`text-white/60 ${isMobile ? 'text-xs w-16' : 'text-sm w-20'}`}>Crystals:</span>
+-                        <div className="flex gap-2 flex-1">
+-                          {resources.green > 0 && (
+-                            <div className="flex items-center gap-0.5">
+-                              <img src="/assets/images/stone_green.JPG" alt="green" className={`rounded-full ${isMobile ? 'w-4 h-4' : 'w-5 h-5'}`} />
+-                              <span className={`text-green-400 ${isMobile ? 'text-xs' : 'text-sm'}`}>{resources.green}</span>
+-                            </div>
+-                          )}
+-                          {resources.blue > 0 && (
+-                            <div className="flex items-center gap-0.5">
+-                              <img src="/assets/images/stone_blue.JPG" alt="blue" className={`rounded-full ${isMobile ? 'w-4 h-4' : 'w-5 h-5'}`} />
+-                              <span className={`text-blue-400 ${isMobile ? 'text-xs' : 'text-sm'}`}>{resources.blue}</span>
+-                            </div>
+-                          )}
+-                          {resources.pink > 0 && (
+-                            <div className="flex items-center gap-0.5">
+-                              <img src="/assets/images/stone_pink.JPG" alt="pink" className={`rounded-full ${isMobile ? 'w-4 h-4' : 'w-5 h-5'}`} />
+-                              <span className={`text-pink-400 ${isMobile ? 'text-xs' : 'text-sm'}`}>{resources.pink}</span>
+-                            </div>
+-                          )}
+-                          {crystalPoints === 0 && (
+-                            <span className="text-white/40 text-xs">None</span>
+-                          )}
++                        {/* Crystals */}
++                        <div className="flex items-center gap-2">
++                          <span className={`xp-text-muted ${isMobile ? 'text-xs w-16' : 'text-sm w-20'}`}>Crystals:</span>
++                          <div className="flex gap-2 flex-1">
++                            {resources.green > 0 && (
++                              <div className="flex items-center gap-0.5">
++                                <img src="/assets/images/stone_green.JPG" alt="green" className={`rounded-full border border-[var(--xp-ink)] ${isMobile ? 'w-4 h-4' : 'w-5 h-5'}`} />
++                                <span className={`font-bold ${isMobile ? 'text-xs' : 'text-sm'}`}>{resources.green}</span>
++                              </div>
++                            )}
++                            {resources.blue > 0 && (
++                              <div className="flex items-center gap-0.5">
++                                <img src="/assets/images/stone_blue.JPG" alt="blue" className={`rounded-full border border-[var(--xp-ink)] ${isMobile ? 'w-4 h-4' : 'w-5 h-5'}`} />
++                                <span className={`font-bold ${isMobile ? 'text-xs' : 'text-sm'}`}>{resources.blue}</span>
++                              </div>
++                            )}
++                            {resources.pink > 0 && (
++                              <div className="flex items-center gap-0.5">
++                                <img src="/assets/images/stone_pink.JPG" alt="pink" className={`rounded-full border border-[var(--xp-ink)] ${isMobile ? 'w-4 h-4' : 'w-5 h-5'}`} />
++                                <span className={`font-bold ${isMobile ? 'text-xs' : 'text-sm'}`}>{resources.pink}</span>
++                              </div>
++                            )}
++                            {crystalPoints === 0 && (
++                              <span className="xp-text-muted text-xs">None</span>
++                            )}
++                          </div>
++                          <span className={`font-bold text-[#2f8a2f] ${isMobile ? 'text-xs' : 'text-sm'}`}>
++                            = {crystalPoints}pts
++                          </span>
+                         </div>
+-                        <span className={`text-green-400 font-semibold ${isMobile ? 'text-xs' : 'text-sm'}`}>
+-                          = {crystalPoints}pts
+-                        </span>
+                       </div>
+-                    </div>
+-                  </motion.div>
+-                )
+-              })}
++                    </motion.div>
++                  )
++                })}
++              </div>
+             </div>
+ 
+             {/* Action Buttons */}
+-            <motion.div
+-              className={`flex gap-3 ${isMobile ? 'flex-col' : 'flex-row justify-center'}`}
+-              initial={{ y: 20, opacity: 0 }}
+-              animate={{ y: 0, opacity: 1 }}
+-              transition={{ delay: 0.7 }}
+-            >
+-              <motion.button
+-                onClick={onNewGame}
+-                className={`
+-                  flex-1 bg-gradient-to-r from-emerald-500 to-green-600 text-white font-bold 
+-                  rounded-xl shadow-lg transition-all
+-                  hover:from-emerald-600 hover:to-green-700 hover:shadow-emerald-500/30
+-                  ${isMobile ? 'py-3 px-4 text-sm' : 'py-4 px-6 text-base'}
+-                `}
+-                whileHover={{ scale: 1.02 }}
+-                whileTap={{ scale: 0.98 }}
+-              >
++            <div className={`flex gap-3 ${isMobile ? 'flex-col' : 'flex-row justify-center'}`}>
++              <button type="button" onClick={onNewGame} className="xp-btn xp-btn--go xp-btn--lg flex-1">
+                 🎮 Play Again
+-              </motion.button>
+-              
+-              <motion.button
+-                onClick={onBackToMenu}
+-                className={`
+-                  flex-1 bg-gradient-to-r from-slate-600 to-slate-700 text-white font-bold 
+-                  rounded-xl shadow-lg transition-all
+-                  hover:from-slate-700 hover:to-slate-800
+-                  ${isMobile ? 'py-3 px-4 text-sm' : 'py-4 px-6 text-base'}
+-                `}
+-                whileHover={{ scale: 1.02 }}
+-                whileTap={{ scale: 0.98 }}
+-              >
++              </button>
++              <button type="button" onClick={onBackToMenu} className="xp-btn xp-btn--lg flex-1">
+                 🏠 Back to Menu
+-              </motion.button>
+-            </motion.div>
++              </button>
++            </div>
+           </div>
+         </motion.div>
+       </motion.div>
+--- a/web/react-frontend/src/components/GraveyardPanel.jsx
++++ b/web/react-frontend/src/components/GraveyardPanel.jsx
+@@ -12,22 +12,23 @@
+   return (
+     <>
+       <div 
+-        className="h-full flex flex-col items-center justify-center cursor-pointer group"
++        className="h-full flex flex-col cursor-pointer group"
+         onClick={() => hasCards && setExpanded(true)}
+       >
+         {/* Label */}
+-        <div className="text-white/70 text-xs font-semibold mb-2">Graveyard</div>
++        <div className="xp-panel-title">Graveyard</div>
+         
+         {/* Card Display */}
++        <div className="xp-panel-body !p-1 flex items-center justify-center">
+         <div className="relative">
+           {hasCards ? (
+             <div className="relative">
+               {/* Stacked cards effect */}
+               {playedCards.length > 1 && (
+                 <>
+-                  <div className="absolute -left-1 -top-1 w-24 h-36 bg-white/10 rounded-xl border border-white/20 transform rotate-[5deg]" />
++                  <div className="absolute -left-1 -top-1 w-24 h-36 bg-[var(--xp-paper)] border-2 border-[var(--xp-ink)] transform rotate-[5deg]" />
+                   {playedCards.length > 2 && (
+-                    <div className="absolute -left-2 -top-2 w-24 h-36 bg-white/5 rounded-xl border border-white/10 transform rotate-[10deg]" />
++                    <div className="absolute -left-2 -top-2 w-24 h-36 bg-[var(--xp-face)] border-2 border-[var(--xp-ink)] transform rotate-[10deg]" />
+                   )}
+                 </>
+               )}
+@@ -44,17 +45,18 @@
+               
+               {/* Count badge */}
+               {playedCards.length > 1 && (
+-                <div className="absolute -top-2 -right-2 z-20 bg-gray-500 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center">
++                <div className="xp-index absolute -top-2 -right-2 z-20 !bg-gray-500">
+                   {playedCards.length}
+                 </div>
+               )}
+             </div>
+           ) : (
+-            <div className="w-24 h-36 rounded-xl border-2 border-dashed border-white/30 flex items-center justify-center">
+-              <span className="text-white/40 text-xs">Empty</span>
++            <div className="w-24 h-36 xp-well xp-well--dashed flex items-center justify-center">
++              <span className="xp-text-muted text-xs">Empty</span>
+             </div>
+           )}
+         </div>
++        </div>
+       </div>
+ 
+       {/* Expanded Modal */}
+@@ -64,30 +66,33 @@
+             initial={{ opacity: 0 }}
+             animate={{ opacity: 1 }}
+             exit={{ opacity: 0 }}
+-            className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
++            className="xp-overlay z-50"
+             onClick={() => setExpanded(false)}
+           >
+             <motion.div
+               initial={{ scale: 0.9, opacity: 0 }}
+               animate={{ scale: 1, opacity: 1 }}
+               exit={{ scale: 0.9, opacity: 0 }}
+-              className="bg-gray-900/95 rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto"
++              className="xp-window max-w-2xl w-full max-h-[80vh] flex flex-col"
+               onClick={(e) => e.stopPropagation()}
+             >
+-              <div className="flex items-center justify-between mb-4">
+-                <h3 className="text-white font-bold text-lg">
++              <div className="xp-titlebar">
++                <h3 className="xp-titlebar-title">
+                   Graveyard ({playedCards.length})
+-                  <span className="text-sm font-normal text-white/60 ml-2">
++                  <span className="text-xs font-normal opacity-90 ml-2">
+                     Rest to recover these cards
+                   </span>
+                 </h3>
+                 <button
++                  type="button"
+                   onClick={() => setExpanded(false)}
+-                  className="text-white/60 hover:text-white text-2xl"
++                  className="xp-title-btn"
++                  aria-label="Close"
+                 >
+                   ×
+                 </button>
+               </div>
++              <div className="xp-body flex-1 min-h-0 overflow-y-auto xp-scroll">
+               
+               <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                 {playedCards.map((card, index) => (
+@@ -101,6 +106,7 @@
+                   </div>
+                 ))}
+               </div>
++              </div>
+             </motion.div>
+           </motion.div>
+         </AnimatePresence>,
+--- a/web/react-frontend/src/components/HistorySection.jsx
++++ b/web/react-frontend/src/components/HistorySection.jsx
+@@ -48,15 +48,15 @@
+       case 'play':
+       case 'upgrade':
+       case 'trade':
+-        return 'bg-blue-500/20 border-blue-500/30'
++        return 'bg-[#cfe0ff]'
+       case 'acquire':
+-        return 'bg-green-500/20 border-green-500/30'
++        return 'bg-[#b9f3b0]'
+       case 'claim':
+-        return 'bg-yellow-500/20 border-yellow-500/30'
++        return 'bg-[#fff1b8]'
+       case 'rest':
+-        return 'bg-purple-500/20 border-purple-500/30'
++        return 'bg-[#e7dcff]'
+       default:
+-        return 'bg-gray-500/20 border-gray-500/30'
++        return 'bg-[var(--xp-paper)]'
+     }
+   }
+ 
+@@ -75,22 +75,23 @@
+   return (
+     <>
+       <div 
+-        className="h-full flex flex-col items-center justify-center cursor-pointer group"
++        className="h-full flex flex-col cursor-pointer group"
+         onClick={() => actionHistory.length > 0 && setExpanded(true)}
+       >
+         {/* Label */}
+-        <div className="text-white/70 text-xs font-semibold mb-2">History</div>
++        <div className="xp-panel-title">History</div>
+         
+         {/* Card Display */}
++        <div className="xp-panel-body flex items-center justify-center">
+         <div className="relative">
+           {actionHistory.length > 0 ? (
+             <div className="relative">
+               {/* Stacked cards effect */}
+               {actionHistory.length > 1 && (
+                 <>
+-                  <div className="absolute -left-1 -top-1 w-24 aspect-[2/3] bg-white/10 rounded-xl border border-white/20 transform rotate-[5deg]" />
++                  <div className="absolute -left-1 -top-1 w-24 aspect-[2/3] bg-[var(--xp-paper)] border-2 border-[var(--xp-ink)] transform rotate-[5deg]" />
+                   {actionHistory.length > 2 && (
+-                    <div className="absolute -left-2 -top-2 w-24 aspect-[2/3] bg-white/5 rounded-xl border border-white/10 transform rotate-[10deg]" />
++                    <div className="absolute -left-2 -top-2 w-24 aspect-[2/3] bg-[var(--xp-face)] border-2 border-[var(--xp-ink)] transform rotate-[10deg]" />
+                   )}
+                 </>
+               )}
+@@ -100,26 +101,27 @@
+                 {displayCard ? (
+                   <CardImage
+                     cardName={displayCard.name}
+-                    className="w-full aspect-[2/3] rounded-xl border border-white/30"
++                    className="w-full aspect-[2/3] border-2 border-[var(--xp-ink)]"
+                   />
+                 ) : (
+-                  <div className="w-full aspect-[2/3] rounded-xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center">
++                  <div className="w-full aspect-[2/3] bg-[#e4eeff] border-2 border-[var(--xp-ink)] flex items-center justify-center">
+                     <span className="text-2xl">💤</span>
+                   </div>
+                 )}
+               </div>
+               
+               {/* Count badge */}
+-              <div className="absolute -top-2 -right-2 z-20 bg-blue-500 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center">
++              <div className="xp-index absolute -top-2 -right-2 z-20">
+                 {actionHistory.length}
+               </div>
+             </div>
+           ) : (
+-            <div className="w-24 aspect-[2/3] rounded-xl border-2 border-dashed border-white/30 flex items-center justify-center">
+-              <span className="text-white/40 text-xs text-center px-2">No actions<br/>yet</span>
++            <div className="w-24 aspect-[2/3] xp-well xp-well--dashed flex items-center justify-center">
++              <span className="xp-text-muted text-xs text-center px-2">No actions<br/>yet</span>
+             </div>
+           )}
+         </div>
++        </div>
+       </div>
+ 
+       {/* Expanded Modal */}
+@@ -129,33 +131,36 @@
+             initial={{ opacity: 0 }}
+             animate={{ opacity: 1 }}
+             exit={{ opacity: 0 }}
+-            className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
++            className="xp-overlay z-50"
+             onClick={() => setExpanded(false)}
+           >
+             <motion.div
+               initial={{ scale: 0.9, opacity: 0 }}
+               animate={{ scale: 1, opacity: 1 }}
+               exit={{ scale: 0.9, opacity: 0 }}
+-              className="bg-gray-900/95 rounded-2xl p-6 max-w-lg w-full max-h-[80vh] overflow-y-auto"
++              className="xp-window max-w-lg w-full max-h-[80vh] flex flex-col"
+               onClick={(e) => e.stopPropagation()}
+             >
+-              <div className="flex items-center justify-between mb-4">
+-                <h3 className="text-white font-bold text-lg">
++              <div className="xp-titlebar">
++                <h3 className="xp-titlebar-title">
+                   📜 Action History ({actionHistory.length})
+                 </h3>
+                 <button
++                  type="button"
+                   onClick={() => setExpanded(false)}
+-                  className="text-white/60 hover:text-white text-2xl"
++                  className="xp-title-btn"
++                  aria-label="Close"
+                 >
+                   ×
+                 </button>
+               </div>
++              <div className="xp-body flex-1 min-h-0 overflow-y-auto xp-scroll">
+               
+               <div className="space-y-2">
+                 {actionHistory.map((action, index) => (
+                   <div 
+                     key={action.timestamp}
+-                    className={`${getActionColor(action.type)} rounded-lg p-3 border flex items-center gap-3`}
++                    className={`${getActionColor(action.type)} p-2 border-2 border-[var(--xp-ink)] flex items-center gap-3`}
+                     onMouseEnter={() => action.card && setHoveredCard(action.card)}
+                     onMouseLeave={() => setHoveredCard(null)}
+                   >
+@@ -163,10 +168,10 @@
+                     {action.card ? (
+                       <CardImage
+                         cardName={action.card.name}
+-                        className="w-14 aspect-[2/3] rounded border border-white/30 flex-shrink-0"
++                        className="w-14 aspect-[2/3] border-2 border-[var(--xp-ink)] flex-shrink-0"
+                       />
+                     ) : (
+-                      <div className="w-14 aspect-[2/3] rounded bg-white/10 flex items-center justify-center flex-shrink-0">
++                      <div className="w-14 aspect-[2/3] bg-[var(--xp-face)] border-2 border-[var(--xp-ink)] flex items-center justify-center flex-shrink-0">
+                         <span className="text-xl">💤</span>
+                       </div>
+                     )}
+@@ -174,34 +179,35 @@
+                     {/* Info */}
+                     <div className="flex-1">
+                       <div className="flex items-center gap-2">
+-                        <span className="text-white font-medium">
++                        <span className="font-bold">
+                           {action.playerName}
+                         </span>
+                         {action.isOpponent && (
+-                          <span className="text-[10px] text-orange-300 bg-orange-500/20 px-1.5 py-0.5 rounded">
++                          <span className="xp-badge xp-badge--orange">
+                             opponent
+                           </span>
+                         )}
+                       </div>
+-                      <span className="text-white/60 text-sm">
++                      <span className="xp-text-muted text-sm">
+                         {getActionLabel(action.type)}
+                         {action.card && ` • ${action.card.name?.replace(/_/g, ' ')}`}
+                       </span>
+                     </div>
+ 
+                     {/* Time */}
+-                    <span className="text-white/40 text-sm">
++                    <span className="xp-text-muted text-sm">
+                       {formatTime(action.timestamp)}
+                     </span>
+                   </div>
+                 ))}
+ 
+                 {actionHistory.length === 0 && (
+-                  <div className="text-center py-8 text-white/40">
++                  <div className="text-center py-8 xp-text-muted">
+                     No actions yet. Play a card to start!
+                   </div>
+                 )}
+               </div>
++              </div>
+             </motion.div>
+           </motion.div>
+         </AnimatePresence>,
+@@ -218,10 +224,10 @@
+             transform: 'translate(calc(-50% + 200px), -50%)',
+           }}
+         >
+-          <div className="bg-slate-900/95 backdrop-blur-md rounded-xl shadow-2xl border-2 border-white/30 overflow-hidden">
++          <div className="xp-panel p-1 overflow-hidden">
+             <CardImage
+               cardName={hoveredCard.name}
+-              className="w-40 aspect-[2/3] rounded-lg"
++              className="w-40 aspect-[2/3] border-2 border-[var(--xp-ink)]"
+             />
+           </div>
+         </div>,
+--- a/web/react-frontend/src/components/mobile/CompactGameBoard.jsx
++++ b/web/react-frontend/src/components/mobile/CompactGameBoard.jsx
+@@ -147,21 +147,19 @@
+       `}
+     >
+       {/* Action Cards Market */}
+-      <div className={`
+-        bg-black/40 rounded-xl flex flex-col flex-1 min-h-0 overflow-hidden
+-        ${isMobile && isPortrait ? 'p-2' : isMobile ? 'p-3' : 'p-4'}
+-      `}>
+-        <div className={`flex items-center justify-between ${isMobile && isPortrait ? 'mb-1' : 'mb-2'}`}>
+-          <h3 className={`text-white/60 font-medium ${isMobile && isPortrait ? 'text-[10px]' : isMobile ? 'text-xs' : 'text-sm'}`}>
++      <div className="xp-panel flex-1 overflow-hidden">
++        <div className="xp-panel-title">
++          <h3 className={`font-bold ${isMobile && isPortrait ? 'text-[11px]' : isMobile ? 'text-xs' : 'text-sm'}`}>
+             Market
+           </h3>
+-          <span className={`text-white/40 ${isMobile && isPortrait ? 'text-[9px]' : 'text-[10px]'}`}>
++          <span className={`xp-panel-meta ${isMobile && isPortrait ? 'text-[9px]' : 'text-[10px]'}`}>
+             {gameState.market.actionDeck || 0} left
+           </span>
+         </div>
+         
+         <div className={`
+-          grid flex-1 min-h-0
++          xp-panel-body grid min-h-0
++          ${isMobile && isPortrait ? '!p-1.5' : isMobile ? '!p-2' : '!p-3'}
+           ${isMobile && isPortrait 
+             ? 'grid-cols-3 grid-rows-2 gap-1' 
+             : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2'
+@@ -208,7 +206,7 @@
+                         key={i}
+                         src={crystal.src}
+                         alt={crystal.type}
+-                        className="w-4 h-4 rounded-full object-cover border border-white/50 shadow"
++                        className="w-4 h-4 rounded-full object-cover border border-[var(--xp-ink)]"
+                         onError={(e) => { e.target.src = '/assets/images/stone_yellow.JPG' }}
+                       />
+                     ))}
+@@ -221,34 +219,32 @@
+       </div>
+ 
+       {/* Point Cards Market */}
+-      <div className={`
+-        bg-black/40 rounded-xl flex flex-col flex-1 min-h-0 overflow-hidden
+-        ${isMobile && isPortrait ? 'p-2' : isMobile ? 'p-3' : 'p-4'}
+-      `}>
+-        <div className={`flex items-center justify-between ${isMobile && isPortrait ? 'mb-1' : 'mb-2'}`}>
+-          <h3 className={`text-white/60 font-medium ${isMobile && isPortrait ? 'text-[10px]' : isMobile ? 'text-xs' : 'text-sm'}`}>
++      <div className="xp-panel flex-1 overflow-hidden">
++        <div className="xp-panel-title">
++          <h3 className={`font-bold ${isMobile && isPortrait ? 'text-[11px]' : isMobile ? 'text-xs' : 'text-sm'}`}>
+             Golems
+           </h3>
+-          <div className={`flex items-center gap-2 ${isMobile && isPortrait ? 'text-[9px]' : 'text-[10px]'}`}>
++          <div className={`xp-panel-meta flex items-center gap-2 ${isMobile && isPortrait ? 'text-[9px]' : 'text-[10px]'}`}>
+             {/* Coins remaining info */}
+             {coins && coins[0]?.amount > 0 && (
+-              <span className="text-orange-400" title="Copper coins (3pts each)">
++              <span title="Copper coins (3pts each)">
+                 🥉{coins[0].amount}
+               </span>
+             )}
+             {coins && coins[1]?.amount > 0 && (
+-              <span className="text-gray-300" title="Silver coins (1pt each)">
++              <span title="Silver coins (1pt each)">
+                 🥈{coins[1].amount}
+               </span>
+             )}
+-            <span className="text-white/40">
++            <span>
+               {gameState.market.pointDeck || 0} left
+             </span>
+           </div>
+         </div>
+         
+         <div className={`
+-          grid flex-1 min-h-0
++          xp-panel-body grid min-h-0
++          ${isMobile && isPortrait ? '!p-1.5' : isMobile ? '!p-2' : '!p-3'}
+           ${isMobile && isPortrait 
+             ? 'grid-cols-3 grid-rows-2 gap-1' 
+             : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2'
+@@ -297,11 +293,11 @@
+                 position={index + 1}
+                 badge={coinBonus ? (
+                   <div 
+-                    className="flex items-center gap-0.5 bg-black/60 backdrop-blur-sm rounded-full px-1.5 py-0.5 border border-white/20"
++                    className="xp-badge flex items-center gap-0.5 !px-1.5 !py-0.5"
+                     title={`${coinLabel} - ${coinAmount} remaining`}
+                   >
+                     <span className="text-sm">{coinEmoji}</span>
+-                    <span className="text-[10px] text-white font-bold">{coinAmount}</span>
++                    <span className="text-[10px] text-[var(--xp-ink)] font-bold">{coinAmount}</span>
+                   </div>
+                 ) : null}
+               />
+--- a/web/react-frontend/src/components/mobile/CompactPlayerHand.jsx
++++ b/web/react-frontend/src/components/mobile/CompactPlayerHand.jsx
+@@ -104,11 +104,12 @@
+       data-hand-container
+       className={`
+         w-full flex-shrink-0 z-30
++        bg-[var(--xp-face)] border-t-[3px] border-[var(--xp-ink)] text-[var(--xp-ink)] font-[family-name:var(--xp-font)]
+         ${isMobile && isPortrait 
+-          ? 'fixed bottom-0 left-0 right-0 px-2 py-2 bg-black/70' 
++          ? 'fixed bottom-0 left-0 right-0 px-2 py-2' 
+           : isMobile 
+-            ? 'relative py-2 px-2 bg-black/50' 
+-            : 'relative py-4 px-4 bg-black/40'
++            ? 'relative py-2 px-2' 
++            : 'relative py-4 px-4'
+         }
+       `}
+       style={isMobile && isPortrait ? { height: '130px' } : {}}
+@@ -117,19 +118,16 @@
+       >
+         {/* Player Info Panel - Left Side (Mobile Portrait) */}
+         {isMobile && isPortrait && (
+-          <div className="flex-shrink-0 bg-black/50 rounded-lg p-2 flex flex-col justify-center gap-1.5 min-w-[80px]">
++          <div className={`xp-chip flex-shrink-0 p-2 flex flex-col justify-center gap-1.5 min-w-[80px] ${isMyTurn ? 'xp-chip--active' : ''}`}>
+             {/* Row 1: Avatar + Name + Points */}
+             <div className="flex items-center gap-2">
+               <PlayerAvatar
+                 player={myPlayer}
+-                className={`
+-                  w-8 h-8 rounded-lg text-sm border-2
+-                  ${isMyTurn ? 'border-yellow-400 bg-yellow-500 text-black' : 'border-transparent bg-gray-600 text-white'}
+-                `}
++                className="w-8 h-8 text-sm border-2 border-[var(--xp-ink)] bg-[#9290ff] text-[var(--xp-ink)]"
+               />
+               <div className="flex flex-col">
+-                <span className="text-white text-[11px] font-medium">{myPlayer.name || 'Player'}</span>
+-                <span className="text-yellow-400 text-[11px] font-bold">★ {myPlayer.points || 0}</span>
++                <span className="text-[var(--xp-ink)] text-[11px] font-bold">{myPlayer.name || 'Player'}</span>
++                <span className="text-[var(--xp-blue)] text-[11px] font-bold">★ {myPlayer.points || 0}</span>
+               </div>
+             </div>
+             
+@@ -146,8 +144,8 @@
+                 
+                 return (
+                   <div key={color} className="flex items-center gap-0.5">
+-                    <div className={`w-3 h-3 rounded-full ${bgClass}`}/>
+-                    <span className="text-white text-[10px] font-medium">{count}</span>
++                    <div className={`w-3 h-3 rounded-full border border-[var(--xp-ink)] ${bgClass}`}/>
++                    <span className="text-[var(--xp-ink)] text-[10px] font-bold">{count}</span>
+                   </div>
+                 )
+               })}
+@@ -157,20 +155,20 @@
+             <div className="flex items-center gap-1">
+               <button
+                 onClick={() => setShowMyGolems(true)}
+-                className="flex-1 py-1 rounded bg-amber-700 text-[10px] text-white font-medium"
++                className="xp-btn xp-btn--sm flex-1 !min-h-[24px] !px-1 !py-0.5 !text-[10px]"
+               >
+                 🎭 {myGolems.length}
+               </button>
+               <button
+                 onClick={() => setShowPlayedCards(true)}
+-                className="flex-1 py-1 rounded bg-stone-600 text-[10px] text-white font-medium"
++                className="xp-btn xp-btn--sm flex-1 !min-h-[24px] !px-1 !py-0.5 !text-[10px]"
+               >
+                 🃏 {playedCards.length}
+               </button>
+               {canRest && (
+                 <button
+                   onClick={handleRest}
+-                  className="flex-1 py-1 rounded text-[10px] font-bold bg-emerald-700 text-white"
++                  className="xp-btn xp-btn--sm xp-btn--go flex-1 !min-h-[24px] !px-1 !py-0.5 !text-[10px]"
+                 >
+                   Rest
+                 </button>
+@@ -182,20 +180,21 @@
+         {/* Player Info Panel - Desktop/Tablet */}
+         {!isMobile || !isPortrait ? (
+           <div className={`
+-            flex-shrink-0 bg-black/40 rounded-xl
++            xp-chip flex-shrink-0
+             flex items-center gap-3 ${isMobile ? 'p-2' : 'p-2 px-4'}
++            ${isMyTurn ? 'xp-chip--active' : ''}
+           `}>
+             {/* Avatar & Name */}
+             <div className="flex items-center gap-2">
+               <PlayerAvatar
+                 player={myPlayer}
+-                className={`rounded-lg bg-yellow-500 text-black ${isMobile ? 'w-8 h-8 text-sm' : 'w-9 h-9 text-base'}`}
++                className={`border-2 border-[var(--xp-ink)] bg-[#9290ff] text-[var(--xp-ink)] ${isMobile ? 'w-8 h-8 text-sm' : 'w-9 h-9 text-base'}`}
+               />
+               <div>
+-                <div className={`text-white font-medium ${isMobile ? 'text-xs' : 'text-sm'}`}>
++                <div className={`text-[var(--xp-ink)] font-bold ${isMobile ? 'text-xs' : 'text-sm'}`}>
+                   {myPlayer.name || 'You'}
+                 </div>
+-                <span className="text-yellow-400 text-xs font-bold">★{myPlayer.points || 0}</span>
++                <span className="text-[var(--xp-blue)] text-xs font-bold">★{myPlayer.points || 0}</span>
+               </div>
+             </div>
+ 
+@@ -212,8 +211,8 @@
+                 
+                 return (
+                   <div key={color} className="flex items-center gap-0.5">
+-                    <div className={`rounded-full ${bgClass} w-3 h-3`}/>
+-                    <span className="text-white text-xs font-medium">{count}</span>
++                    <div className={`rounded-full border border-[var(--xp-ink)] ${bgClass} w-3 h-3`}/>
++                    <span className="text-[var(--xp-ink)] text-xs font-bold">{count}</span>
+                   </div>
+                 )
+               })}
+@@ -223,20 +222,20 @@
+             <div className="flex items-center gap-2">
+               <button
+                 onClick={() => setShowMyGolems(true)}
+-                className="px-3 py-1.5 rounded-lg bg-amber-700 text-white text-xs font-medium"
++                className="xp-btn xp-btn--sm"
+               >
+                 🎭 {myGolems.length}
+               </button>
+               <button
+                 onClick={() => setShowPlayedCards(true)}
+-                className="px-3 py-1.5 rounded-lg bg-stone-600 text-white text-xs font-medium"
++                className="xp-btn xp-btn--sm"
+               >
+                 🃏 {playedCards.length}
+               </button>
+               {canRest && (
+                 <button
+                   onClick={handleRest}
+-                  className="px-3 py-1.5 rounded-lg font-bold bg-emerald-700 text-white text-xs"
++                  className="xp-btn xp-btn--sm xp-btn--go"
+                 >
+                   Rest
+                 </button>
+@@ -249,12 +248,12 @@
+         <div className={`flex-1 flex flex-col min-w-0 ${isMobile && isPortrait ? 'h-full' : 'mt-2'}`}>
+           {/* Hand Cards - Horizontal Scroll */}
+           <div className={`
+-            flex overflow-x-auto items-center h-full
++            xp-well xp-scroll flex overflow-x-auto items-center h-full p-1
+             ${isMobile && isPortrait 
+               ? 'gap-2 scrollbar-none' 
+               : isMobile 
+-                ? 'gap-1.5 scrollbar-none pb-1' 
+-                : 'gap-3 justify-center md:justify-start scrollbar-thin scrollbar-thumb-white/30 scrollbar-track-transparent pb-1'
++                ? 'gap-1.5 scrollbar-none' 
++                : 'gap-3 justify-center md:justify-start'
+             }
+           `}
+           >
+@@ -283,20 +282,12 @@
+           {/* Empty slot indicator */}
+           {hand.length === 0 && (
+             <div className={`
+-              card-base relative overflow-hidden flex-shrink-0
++              xp-well xp-well--dashed relative overflow-hidden flex-shrink-0
+               ${isMobile ? 'w-[100px] h-[150px]' : 'w-28 h-44'}
+-              border-2 border-dashed border-white/30 bg-white/5
+             `}
+-              style={{
+-                backgroundImage: 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
+-                backgroundSize: 'cover',
+-                backgroundPosition: 'center',
+-                backgroundRepeat: 'no-repeat',
+-                backgroundColor: '#222'
+-              }}
+             >
+               <div className="absolute inset-0 flex items-center justify-center">
+-                <span className="text-white/50 text-xs font-semibold">Empty</span>
++                <span className="xp-text-muted text-xs font-bold">Empty</span>
+               </div>
+             </div>
+           )}
+@@ -307,21 +298,23 @@
+       {/* Played Cards View */}
+       {showPlayedCards && (
+         <div 
+-          className="fixed inset-0 z-50 flex items-center justify-center px-4"
++          className="xp-overlay z-50"
+           onClick={() => setShowPlayedCards(false)}
+         >
+-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+           <div 
+-            className="relative bg-slate-900/95 rounded-2xl p-4 max-w-sm w-full border border-white/20 shadow-2xl max-h-[70vh] overflow-y-auto"
++            className="xp-window relative max-w-sm w-full max-h-[70vh] flex flex-col overflow-hidden"
++            role="dialog"
++            aria-label="My Played Cards"
+             onClick={e => e.stopPropagation()}
+           >
+-            <h3 className="text-white font-bold text-lg mb-3 flex items-center gap-2">
++            <h3 className="xp-titlebar flex-shrink-0">
+               🃏 My Played Cards
+             </h3>
++            <div className="xp-body xp-scroll overflow-y-auto !p-3">
+             {playedCards.length > 0 ? (
+               <div className="grid grid-cols-3 gap-2">
+                 {playedCards.map((card, idx) => (
+-                  <div key={idx} className="aspect-[2/3] rounded-xl overflow-hidden bg-white/10 shadow-lg">
++                  <div key={idx} className="aspect-[2/3] overflow-hidden bg-[var(--xp-paper)] border-2 border-[var(--xp-ink)] shadow-[2px_2px_0_#0b0b0b]">
+                     <img 
+                       src={`/assets/images/${card.name}.JPG`} 
+                       alt={card.name}
+@@ -332,14 +325,15 @@
+                 ))}
+               </div>
+             ) : (
+-              <p className="text-white/50 text-center py-8">No cards played yet</p>
++              <p className="xp-text-muted text-center py-8">No cards played yet</p>
+             )}
+             <button 
+               onClick={() => setShowPlayedCards(false)}
+-              className="mt-4 w-full py-2.5 bg-white/10 hover:bg-white/20 rounded-xl text-white font-semibold transition-all"
++              className="xp-btn xp-btn--block mt-4"
+             >
+               Close
+             </button>
++            </div>
+           </div>
+         </div>
+       )}
+@@ -347,21 +341,23 @@
+       {/* My Golems View */}
+       {showMyGolems && (
+         <div 
+-          className="fixed inset-0 z-50 flex items-center justify-center px-4"
++          className="xp-overlay z-50"
+           onClick={() => setShowMyGolems(false)}
+         >
+-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+           <div 
+-            className="relative bg-slate-900/95 rounded-2xl p-4 max-w-sm w-full border border-white/20 shadow-2xl max-h-[70vh] overflow-y-auto"
++            className="xp-window relative max-w-sm w-full max-h-[70vh] flex flex-col overflow-hidden"
++            role="dialog"
++            aria-label="My Golems"
+             onClick={e => e.stopPropagation()}
+           >
+-            <h3 className="text-white font-bold text-lg mb-3 flex items-center gap-2">
++            <h3 className="xp-titlebar flex-shrink-0">
+               🎭 My Golems
+             </h3>
++            <div className="xp-body xp-scroll overflow-y-auto !p-3">
+             {myGolems.length > 0 ? (
+               <div className="grid grid-cols-3 gap-2">
+                 {myGolems.map((card, idx) => (
+-                  <div key={idx} className="aspect-[2/3] rounded-xl overflow-hidden bg-white/10 shadow-lg">
++                  <div key={idx} className="aspect-[2/3] overflow-hidden bg-[var(--xp-paper)] border-2 border-[var(--xp-ink)] shadow-[2px_2px_0_#0b0b0b]">
+                     <img 
+                       src={`/assets/images/${card.name}.JPG`} 
+                       alt={card.name}
+@@ -372,14 +368,15 @@
+                 ))}
+               </div>
+             ) : (
+-              <p className="text-white/50 text-center py-8">No golems collected yet</p>
++              <p className="xp-text-muted text-center py-8">No golems collected yet</p>
+             )}
+             <button 
+               onClick={() => setShowMyGolems(false)}
+-              className="mt-4 w-full py-2.5 bg-white/10 hover:bg-white/20 rounded-xl text-white font-semibold transition-all"
++              className="xp-btn xp-btn--block mt-4"
+             >
+               Close
+             </button>
++            </div>
+           </div>
+         </div>
+       )}
+--- a/web/react-frontend/src/components/MyGolemsPanel.jsx
++++ b/web/react-frontend/src/components/MyGolemsPanel.jsx
+@@ -19,22 +19,23 @@
+   return (
+     <>
+       <div 
+-        className="h-full flex flex-col items-center justify-center cursor-pointer group"
++        className="h-full flex flex-col cursor-pointer group"
+         onClick={() => hasCards && setExpanded(true)}
+       >
+         {/* Label */}
+-        <div className="text-white/70 text-xs font-semibold mb-2">My Golems</div>
++        <div className="xp-panel-title">My Golems</div>
+         
+         {/* Card Display */}
++        <div className="xp-panel-body !p-1 flex items-center justify-center">
+         <div className="relative">
+           {hasCards ? (
+             <div className="relative">
+               {/* Stacked cards effect */}
+               {pointCards.length > 1 && (
+                 <>
+-                  <div className="absolute -left-1 -top-1 w-24 h-36 bg-white/10 rounded-xl border border-white/20 transform rotate-[-5deg]" />
++                  <div className="absolute -left-1 -top-1 w-24 h-36 bg-[var(--xp-paper)] border-2 border-[var(--xp-ink)] transform rotate-[-5deg]" />
+                   {pointCards.length > 2 && (
+-                    <div className="absolute -left-2 -top-2 w-24 h-36 bg-white/5 rounded-xl border border-white/10 transform rotate-[-10deg]" />
++                    <div className="absolute -left-2 -top-2 w-24 h-36 bg-[var(--xp-face)] border-2 border-[var(--xp-ink)] transform rotate-[-10deg]" />
+                   )}
+                 </>
+               )}
+@@ -51,17 +52,18 @@
+               
+               {/* Count badge */}
+               {pointCards.length > 1 && (
+-                <div className="absolute -top-2 -right-2 z-20 bg-yellow-500 text-black text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center">
++                <div className="xp-index absolute -top-2 -right-2 z-20 !bg-[var(--xp-orange)] !text-[var(--xp-ink)]">
+                   {pointCards.length}
+                 </div>
+               )}
+             </div>
+           ) : (
+-            <div className="w-24 h-36 rounded-xl border-2 border-dashed border-white/30 flex items-center justify-center">
+-              <span className="text-white/40 text-xs">No Golems</span>
++            <div className="w-24 h-36 xp-well xp-well--dashed flex items-center justify-center">
++              <span className="xp-text-muted text-xs">No Golems</span>
+             </div>
+           )}
+         </div>
++        </div>
+       </div>
+ 
+       {/* Expanded Modal */}
+@@ -71,25 +73,28 @@
+             initial={{ opacity: 0 }}
+             animate={{ opacity: 1 }}
+             exit={{ opacity: 0 }}
+-            className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
++            className="xp-overlay z-50"
+             onClick={() => setExpanded(false)}
+           >
+             <motion.div
+               initial={{ scale: 0.9, opacity: 0 }}
+               animate={{ scale: 1, opacity: 1 }}
+               exit={{ scale: 0.9, opacity: 0 }}
+-              className="bg-gray-900/95 rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto"
++              className="xp-window max-w-2xl w-full max-h-[80vh] flex flex-col"
+               onClick={(e) => e.stopPropagation()}
+             >
+-              <div className="flex items-center justify-between mb-4">
+-                <h3 className="text-white font-bold text-lg">My Golems ({pointCards.length})</h3>
++              <div className="xp-titlebar">
++                <h3 className="xp-titlebar-title">My Golems ({pointCards.length})</h3>
+                 <button
++                  type="button"
+                   onClick={() => setExpanded(false)}
+-                  className="text-white/60 hover:text-white text-2xl"
++                  className="xp-title-btn"
++                  aria-label="Close"
+                 >
+                   ×
+                 </button>
+               </div>
++              <div className="xp-body flex-1 min-h-0 overflow-y-auto xp-scroll">
+               
+               <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                 {pointCards.map((card, index) => (
+@@ -104,41 +109,42 @@
+               </div>
+               
+               {/* Points Summary */}
+-              <div className="mt-4 p-3 bg-black/40 rounded-xl border border-white/20">
++              <div className="mt-4 p-3 xp-well">
+                 <div className="flex flex-wrap items-center justify-center gap-4">
+                   {/* Golem Points */}
+                   <div className="flex items-center gap-1">
+-                    <span className="text-white/70 text-sm">Golems:</span>
+-                    <span className="text-yellow-400 font-bold">★{golemPoints}</span>
++                    <span className="xp-text-muted text-sm">Golems:</span>
++                    <span className="text-yellow-800 font-bold">★{golemPoints}</span>
+                   </div>
+                   
+                   {/* Coin Bonuses */}
+                   {coins.length > 0 && (
+                     <div className="flex items-center gap-2">
+-                      <span className="text-white/70 text-sm">Bonus:</span>
++                      <span className="xp-text-muted text-sm">Bonus:</span>
+                       {copperCoins > 0 && (
+-                        <span className="flex items-center gap-0.5 text-orange-400">
++                        <span className="flex items-center gap-0.5 text-orange-800">
+                           <span>🥉</span>
+                           <span className="font-bold">{copperCoins}</span>
+                         </span>
+                       )}
+                       {silverCoins > 0 && (
+-                        <span className="flex items-center gap-0.5 text-gray-300">
++                        <span className="flex items-center gap-0.5 text-gray-700">
+                           <span>🥈</span>
+                           <span className="font-bold">{silverCoins}</span>
+                         </span>
+                       )}
+-                      <span className="text-yellow-400 font-bold">(+{coinPoints})</span>
++                      <span className="text-yellow-800 font-bold">(+{coinPoints})</span>
+                     </div>
+                   )}
+                   
+                   {/* Total */}
+                   <div className="flex items-center gap-1">
+-                    <span className="text-white/70 text-sm">Total:</span>
+-                    <span className="text-green-400 font-bold text-lg">★{totalPoints}</span>
++                    <span className="xp-text-muted text-sm">Total:</span>
++                    <span className="text-green-800 font-bold text-lg">★{totalPoints}</span>
+                   </div>
+                 </div>
+               </div>
++              </div>
+             </motion.div>
+           </motion.div>
+         </AnimatePresence>,
+--- a/web/react-frontend/src/components/PlayerCard.jsx
++++ b/web/react-frontend/src/components/PlayerCard.jsx
+@@ -16,17 +16,11 @@
+ 
+   return (
+     <div 
+-      className={`
+-        relative bg-white/10 backdrop-blur-md rounded-xl border p-2
+-        ${isCurrentPlayer 
+-          ? 'border-yellow-400 ring-2 ring-yellow-400/50 bg-yellow-500/10' 
+-          : 'border-white/20'
+-        }
+-      `}
++      className={`relative xp-chip p-2 ${isCurrentPlayer ? 'xp-chip--active' : ''}`}
+     >
+       {/* Current Turn Indicator */}
+       {isCurrentPlayer && (
+-        <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-pulse" />
++        <div className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-[var(--xp-orange)] border-2 border-[var(--xp-ink)]" />
+       )}
+ 
+       {/* Row 1: Avatar + Name + Golems (top right) */}
+@@ -36,9 +30,9 @@
+           <PlayerAvatar
+             player={player}
+             className={`
+-              w-8 h-8 rounded-full text-xs
+-              border-2 ${isCurrentPlayer ? 'border-yellow-400' : 'border-white'} shadow
+-              ${isCurrentPlayer ? 'bg-yellow-500 text-black' : 'bg-purple-600 text-white'}
++              w-8 h-8 text-xs
++              border-2 border-[var(--xp-ink)]
++              ${isCurrentPlayer ? 'bg-[var(--xp-orange)] text-black' : 'bg-[var(--xp-face)] text-black'}
+               ${player.online === false ? 'opacity-50' : ''}
+             `}
+           />
+@@ -46,7 +40,7 @@
+           {player.online !== undefined && (
+             <div 
+               className={`
+-                absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white shadow
++                absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-[var(--xp-ink)]
+                 ${player.online ? 'bg-green-500' : 'bg-gray-500'}
+               `}
+               title={player.online ? 'Online' : 'Offline'}
+@@ -55,17 +49,20 @@
+         </div>
+         
+         {/* Name */}
+-        <div className={`text-white font-bold text-sm flex-1 ${player.online === false ? 'opacity-60' : ''}`}>
++        <div className={`font-bold text-sm flex-1 truncate ${player.online === false ? 'opacity-60' : ''}`}>
+           {player.name || 'Player'}
+           {player.online === false && (
+-            <span className="text-gray-400 text-xs ml-1">(offline)</span>
++            <span className="xp-text-muted text-xs font-normal ml-1">(offline)</span>
+           )}
+         </div>
+         
+         {/* Golems count (top right) */}
+-        <div className={`flex items-center gap-1 bg-purple-600/50 rounded-lg px-2 py-0.5 ${golemsCount >= 4 ? 'animate-bounce ring-2 ring-red-500' : ''}`}>
++        <div
++          className={`flex items-center gap-1 px-1.5 border-2 border-[var(--xp-ink)] ${golemsCount >= 4 ? 'bg-[#ffc9bd]' : 'bg-[var(--xp-face)]'}`}
++          title={golemsCount >= 4 ? 'Close to ending the game' : undefined}
++        >
+           <span className="text-base">🗿</span>
+-          <span className="text-white font-bold text-sm">{golemsCount}</span>
++          <span className="font-bold text-sm">{golemsCount}</span>
+         </div>
+       </div>
+ 
+@@ -75,8 +72,8 @@
+           const count = player.caravan?.[color] || 0
+           return (
+             <div key={color} className="flex items-center">
+-              <div className={`w-4 h-4 rounded-full ${crystalColors[color]}`} />
+-              <span className="text-white text-sm font-bold">{count}</span>
++              <div className={`w-4 h-4 rounded-full border border-[var(--xp-ink)] ${crystalColors[color]}`} />
++              <span className="text-sm font-bold ml-0.5">{count}</span>
+             </div>
+           )
+         })}
+--- a/web/react-frontend/src/components/PlayersInfoBar.jsx
++++ b/web/react-frontend/src/components/PlayersInfoBar.jsx
+@@ -19,13 +19,14 @@
+   }, [gameState?.currentPlayer])
+   
+   const progress = (timeLeft / duration) * 100
+-  const color = timeLeft > 30 ? '#22c55e' : timeLeft > 10 ? '#eab308' : '#ef4444'
++  const color = timeLeft > 30 ? '#37b737' : timeLeft > 10 ? '#ffc83c' : '#e0532c'
+   
++  // Hard-edged square ring (XP × brutalism): flat colour, black frame, no glow
+   return (
+     <div 
+-      className="absolute inset-[-3px] rounded-full"
++      className="absolute inset-[-4px] border-2 border-[var(--xp-ink)]"
+       style={{
+-        background: `conic-gradient(${color} ${progress}%, transparent ${progress}%)`,
++        background: `conic-gradient(${color} ${progress}%, var(--xp-paper) ${progress}%)`,
+       }}
+     />
+   )
+@@ -40,7 +41,7 @@
+   if (otherPlayers.length === 0) return null
+ 
+   return (
+-    <div data-players-info-bar className="w-full flex-shrink-0 py-1.5 px-2 bg-black/60">
++    <div data-players-info-bar className="w-full flex-shrink-0 py-1.5 px-2 bg-[var(--xp-face)] border-b-[3px] border-[var(--xp-ink)] font-[family-name:var(--xp-font)] text-[var(--xp-ink)]">
+       <div className="flex items-center justify-center gap-2 flex-wrap">
+         {otherPlayers.map((player) => {
+           const isCurrentTurn = currentPlayer?.id === player.id
+@@ -48,25 +49,21 @@
+           return (
+             <div
+               key={player.id}
+-              className={`flex items-center gap-2 px-2 py-1 rounded-xl ${isCurrentTurn ? 'bg-yellow-500/20' : 'bg-white/5'}`}
++              className={`xp-chip flex items-center gap-2 px-2 py-1 ${isCurrentTurn ? 'xp-chip--active' : ''} ${player.online === false ? 'xp-chip--offline' : ''}`}
+             >
+               {/* Avatar with timer ring for current turn */}
+               <div className="relative">
+                 {isCurrentTurn && <TimerRing duration={60} />}
+                 <PlayerAvatar
+                   player={player}
+-                  className={`
+-                    relative w-7 h-7 rounded-full text-xs
+-                    ${isCurrentTurn ? 'bg-yellow-500 text-black' : 'bg-purple-600 text-white'}
+-                    ${player.online === false ? 'opacity-50' : ''}
+-                  `}
++                  className="relative w-7 h-7 text-xs border-2 border-[var(--xp-ink)] bg-[#9290ff] text-[var(--xp-ink)]"
+                 />
+                 {/* Online/Offline status indicator */}
+                 {player.online !== undefined && (
+                   <div 
+                     className={`
+-                      absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white shadow
+-                      ${player.online ? 'bg-green-500' : 'bg-gray-500'}
++                      absolute -bottom-1 -right-1 w-2.5 h-2.5 border-2 border-[var(--xp-ink)]
++                      ${player.online ? 'bg-[#37b737]' : 'bg-[#8c8c86]'}
+                     `}
+                     title={player.online ? 'Online' : 'Offline'}
+                   />
+@@ -77,11 +74,11 @@
+               <div className="flex flex-col text-[10px]">
+                 {/* Row 1: Name + Points */}
+                 <div className="flex items-center gap-1">
+-                  <span className={`text-white font-medium ${player.online === false ? 'opacity-60' : ''}`}>
++                  <span className="text-[var(--xp-ink)] font-bold">
+                     {player.name}
+-                    {player.online === false && <span className="text-gray-400 ml-1">(offline)</span>}
++                    {player.online === false && <span className="xp-text-muted font-normal ml-1">(offline)</span>}
+                   </span>
+-                  <span className="text-yellow-400 font-bold">★{player.points || 0}</span>
++                  <span className="text-[var(--xp-blue)] font-bold">★{player.points || 0}</span>
+                 </div>
+                 
+                 {/* Row 2: Crystals + Counts */}
+@@ -92,17 +89,17 @@
+                     const bg = { yellow: 'bg-yellow-400', green: 'bg-green-500', blue: 'bg-blue-500', pink: 'bg-pink-400' }[color]
+                     return (
+                       <div key={color} className="flex items-center gap-0.5">
+-                        <div className={`w-2.5 h-2.5 rounded-full ${bg}`}/>
+-                        <span className="text-white/80">{count}</span>
++                        <div className={`w-2.5 h-2.5 border border-[var(--xp-ink)] ${bg}`}/>
++                        <span className="text-[var(--xp-ink)]">{count}</span>
+                       </div>
+                     )
+                   })}
+                   
+-                  <span className="text-white/30">|</span>
++                  <span className="xp-text-muted">|</span>
+                   
+                   {/* Counts */}
+-                  <span className="text-blue-300">🎭{player.pointCards?.length || 0}</span>
+-                  <span className="text-green-300">🃏{player.playedCards?.length || 0}</span>
++                  <span className="text-[var(--xp-ink)]">🎭{player.pointCards?.length || 0}</span>
++                  <span className="text-[var(--xp-ink)]">🃏{player.playedCards?.length || 0}</span>
+                 </div>
+               </div>
+             </div>
+--- a/web/react-frontend/src/components/RoomDisplay.jsx
++++ b/web/react-frontend/src/components/RoomDisplay.jsx
+@@ -12,14 +12,14 @@
+   if (!sessionId) return null
+ 
+   return (
+-    <div className="bg-black/40 backdrop-blur-md rounded-lg px-4 py-2 flex items-center gap-3">
+-      <div className="flex flex-col">
+-        <span className="text-white/60 text-xs">Room ID</span>
+-        <span className="text-white font-mono text-sm">{sessionId}</span>
++    <div className="xp-well px-3 py-1.5 flex items-center gap-3 min-w-0">
++      <div className="flex flex-col min-w-0">
++        <span className="xp-text-muted text-[10px] font-bold uppercase tracking-wide">Room ID</span>
++        <span className="text-[var(--xp-ink)] font-mono text-xs truncate">{sessionId}</span>
+       </div>
+       <button
+         onClick={copyToClipboard}
+-        className="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm transition-colors"
++        className="xp-btn xp-btn--sm flex-shrink-0 ml-auto"
+       >
+         {copied ? '✓ Copied!' : 'Copy'}
+       </button>
+--- a/web/react-frontend/src/components/SoundToggleButton.jsx
++++ b/web/react-frontend/src/components/SoundToggleButton.jsx
+@@ -13,7 +13,7 @@
+   return (
+     <button
+       onClick={handleToggle}
+-      className="fixed top-4 right-20 z-50 p-2 bg-gray-800/80 hover:bg-gray-700/90 text-white rounded-lg shadow-lg transition-all duration-200 backdrop-blur-sm border border-gray-600/50"
++      className="xp-fab xp-fab--sm fixed top-4 right-20 z-50"
+       title={soundsMuted ? 'Unmute sounds' : 'Mute sounds'}
+       aria-label={soundsMuted ? 'Unmute sounds' : 'Mute sounds'}
+     >
+--- a/web/react-frontend/src/components/ThemeToggleButton.jsx
++++ b/web/react-frontend/src/components/ThemeToggleButton.jsx
+@@ -15,33 +15,8 @@
+       onClick={() => {
+         toggleTheme()
+       }}
+-      style={{
+-        position: 'fixed',
+-        top: '8px',
+-        left: '8px',
+-        zIndex: 99999,
+-        padding: '8px',
+-        borderRadius: '50%',
+-        border: '2px solid',
+-        borderColor: isFantasy ? '#f59e0b' : '#a855f7',
+-        backgroundColor: isFantasy ? '#92400e' : '#7c3aed',
+-        color: 'white',
+-        fontSize: '16px',
+-        cursor: 'pointer',
+-        display: 'flex',
+-        alignItems: 'center',
+-        justifyContent: 'center',
+-        width: '36px',
+-        height: '36px',
+-        boxShadow: '0 2px 10px rgba(0,0,0,0.3)',
+-        transition: 'all 0.2s ease',
+-      }}
+-      onMouseEnter={(e) => {
+-        e.target.style.transform = 'scale(1.1)'
+-      }}
+-      onMouseLeave={(e) => {
+-        e.target.style.transform = 'scale(1)'
+-      }}
++      className="xp-fab xp-fab--sm fixed top-2 left-2"
++      style={{ zIndex: 99999 }}
+       title={isFantasy ? 'Switch to Default' : 'Switch to Fantasy'}
+     >
+       {isFantasy ? '⬅️' : '✨'}
+--- a/web/react-frontend/src/components/Toast.jsx
++++ b/web/react-frontend/src/components/Toast.jsx
+@@ -37,28 +37,29 @@
+         {toasts.map(toast => (
+           <motion.div
+             key={toast.id}
+-            initial={{ opacity: 0, x: 100, scale: 0.9 }}
+-            animate={{ opacity: 1, x: 0, scale: 1 }}
+-            exit={{ opacity: 0, x: 100, scale: 0.9 }}
++            initial={{ opacity: 0, x: 40 }}
++            animate={{ opacity: 1, x: 0 }}
++            exit={{ opacity: 0, x: 40 }}
++            transition={{ duration: 0.12 }}
+             className={`
+-              px-4 py-3 rounded-xl shadow-2xl text-white font-semibold text-sm
+-              backdrop-blur-md border-2 pointer-events-auto
+-              ${toast.type === 'error' 
+-                ? 'bg-red-500/90 border-red-300' 
+-                : toast.type === 'success'
+-                ? 'bg-green-500/90 border-green-300'
+-                : 'bg-blue-500/90 border-blue-300'
+-              }
++              xp-balloon px-3 py-2 pointer-events-auto
++              ${toast.type === 'error' ? 'xp-balloon--err' : toast.type === 'success' ? 'xp-balloon--ok' : 'xp-balloon--info'}
+             `}
++            role="status"
+           >
+             <div className="flex items-center gap-2">
+-              <span>
+-                {toast.type === 'error' ? '❌' : toast.type === 'success' ? '✅' : 'ℹ️'}
++              <span
++                className="xp-index"
++                style={toast.type === 'error' ? { background: '#c4320f' } : toast.type === 'success' ? { background: '#2f8a2f' } : undefined}
++                aria-hidden="true"
++              >
++                {toast.type === 'error' ? '!' : toast.type === 'success' ? '✓' : 'i'}
+               </span>
+-              <span className="flex-1">{toast.message}</span>
++              <span className="flex-1 font-bold">{toast.message}</span>
+               <button
+                 onClick={() => removeToast(toast.id)}
+-                className="ml-2 w-5 h-5 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/40 transition-colors text-xs font-bold"
++                className="xp-btn xp-btn--sm"
++                style={{ minHeight: 22, padding: '0 6px' }}
+                 aria-label="Close"
+               >
+                 ✕
+--- a/web/react-frontend/src/components/TradeModal.jsx
++++ b/web/react-frontend/src/components/TradeModal.jsx
+@@ -136,10 +136,39 @@
+ 
+   const canConfirm = !error && multiplier >= 1;
+ 
++  // XP × brutalism styling (theme-xp.css): tiles that move crystals get coloured XP tints.
++  const payTile = { outline: "3px solid #c4320f", outlineOffset: 0, background: "#ffe3dc" };
++  const receiveTile = { outline: "3px solid #2f8a2f", outlineOffset: 0, background: "#e3f5d9" };
++
++  const renderCrystalRow = (amounts, activeStyle) => (
++    <div className={`grid gap-2 ${isMobile ? 'grid-cols-4' : 'grid-cols-4 gap-3'}`}>
++      {crystalTypes.map(({ key, label, image }) => {
++        const amount = amounts[key] || 0;
++        return (
++          <div
++            key={key}
++            className={`xp-well text-center ${isMobile ? 'p-1.5' : 'p-2'}`}
++            style={amount > 0 ? activeStyle : undefined}
++          >
++            <img
++              src={image}
++              alt={label}
++              className={`mx-auto rounded-full object-cover border-2 border-[var(--xp-ink)] ${isMobile ? 'w-6 h-6' : 'w-10 h-10'}`}
++              onError={(e) => { e.target.src = '/assets/images/stone_yellow.JPG' }}
++            />
++            <div className={`font-bold ${isMobile ? 'text-sm' : 'text-lg'}`}>
++              {amount}
++            </div>
++          </div>
++        );
++      })}
++    </div>
++  );
++
+   return createPortal(
+     <AnimatePresence>
+       <motion.div
+-        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-2 sm:p-4"
++        className="xp-overlay z-[100] !p-2 sm:!p-4"
+         initial={{ opacity: 0 }}
+         animate={{ opacity: 1 }}
+         exit={{ opacity: 0 }}
+@@ -147,176 +176,101 @@
+       >
+         <motion.div
+           className={`
+-            bg-white rounded-xl sm:rounded-2xl shadow-2xl border-4 border-pink-500 w-full overflow-y-auto
+-            max-h-[85vh]
+-            ${isMobile ? 'max-w-[95vw] p-3 mx-2' : 'max-w-2xl p-6 mx-4'}
++            xp-window flex flex-col max-h-[85vh]
++            ${isMobile ? 'max-w-[95vw] mx-2' : 'max-w-2xl mx-4'}
+           `}
+-          initial={{ scale: 0.8, y: 50 }}
+-          animate={{ scale: 1, y: 0 }}
+-          exit={{ scale: 0.8, y: 50 }}
+-          transition={{ type: "spring", stiffness: 300, damping: 30 }}
++          initial={{ y: 12, opacity: 0 }}
++          animate={{ y: 0, opacity: 1 }}
++          exit={{ y: 12, opacity: 0 }}
++          transition={{ duration: 0.12 }}
+           onClick={(e) => e.stopPropagation()}
++          role="dialog"
++          aria-label="Trade Crystals"
+         >
+-          {/* Header */}
+-          <div className={`text-center ${isMobile ? 'mb-3' : 'mb-6'}`}>
+-            <h2 className={`font-bold text-pink-600 ${isMobile ? 'text-xl mb-1' : 'text-3xl mb-2'}`}>
+-              🔄 Trade Crystals
+-            </h2>
+-            <p className={`text-gray-700 ${isMobile ? 'text-xs' : 'text-base'}`}>
++          <div className="xp-titlebar">
++            <h2 className="xp-titlebar-title">🔄 Trade Crystals</h2>
++            <button type="button" className="xp-title-btn" onClick={onCancel} aria-label="Close">
++              ✕
++            </button>
++          </div>
++
++          <div className={`xp-body xp-scroll overflow-y-auto ${isMobile ? '!p-3' : ''}`}>
++            {/* Header */}
++            <p className={`xp-text-muted ${isMobile ? 'text-xs mb-3' : 'text-sm mb-4'}`}>
+               {card?.name || "Trade Card"} - Select multiplier (max {maxMultiplier}x)
+             </p>
+-          </div>
+ 
+-          {/* Input Section - You Pay */}
+-          <div className={`bg-red-50 rounded-lg ${isMobile ? 'p-2 mb-2' : 'p-4 mb-4'}`}>
+-            <h3 className={`font-semibold text-gray-800 ${isMobile ? 'text-sm mb-2' : 'text-lg mb-3'}`}>
+-              You Pay (x{multiplier})
+-            </h3>
+-            <div className={`grid gap-2 ${isMobile ? 'grid-cols-4' : 'grid-cols-4 gap-3'}`}>
+-              {crystalTypes.map(({ key, label, image }) => {
+-                const amount = requiredInput[key] || 0;
+-                return (
+-                  <div
+-                    key={key}
+-                    className={`
+-                      rounded-lg border-2 text-center
+-                      ${isMobile ? 'p-1.5' : 'p-2'}
+-                      ${amount > 0 ? 'border-red-400 bg-red-100' : 'border-gray-200 bg-white'}
+-                    `}
+-                  >
+-                    <img
+-                      src={image}
+-                      alt={label}
+-                      className={`mx-auto rounded-full object-cover ${isMobile ? 'w-6 h-6' : 'w-10 h-10'}`}
+-                      onError={(e) => { e.target.src = '/assets/images/stone_yellow.JPG' }}
+-                    />
+-                    <div className={`font-bold text-gray-800 ${isMobile ? 'text-sm' : 'text-lg'}`}>
+-                      {amount}
+-                    </div>
+-                  </div>
+-                );
+-              })}
++            {/* Input Section - You Pay */}
++            <div className={`xp-group ${isMobile ? 'mb-2' : 'mb-4'}`}>
++              <h3 className="xp-group-title">
++                You Pay (x{multiplier})
++              </h3>
++              {renderCrystalRow(requiredInput, payTile)}
+             </div>
+-          </div>
+ 
+-          {/* Arrow */}
+-          <div className="flex justify-center my-2">
+-            <motion.div
+-              animate={{ y: [0, 5, 0] }}
+-              transition={{ duration: 1.5, repeat: Infinity }}
+-              className={`text-pink-400 ${isMobile ? 'text-2xl' : 'text-4xl'}`}
+-            >
++            {/* Arrow */}
++            <div className={`flex justify-center font-bold ${isMobile ? 'text-xl my-1' : 'text-2xl my-2'}`} aria-hidden="true">
+               ↓
+-            </motion.div>
+-          </div>
++            </div>
+ 
+-          {/* Output Section - You Receive */}
+-          <div className={`bg-green-50 rounded-lg ${isMobile ? 'p-2 mb-3' : 'p-4 mb-4'}`}>
+-            <h3 className={`font-semibold text-gray-800 ${isMobile ? 'text-sm mb-2' : 'text-lg mb-3'}`}>
+-              You Receive (x{multiplier})
+-            </h3>
+-            <div className={`grid gap-2 ${isMobile ? 'grid-cols-4' : 'grid-cols-4 gap-3'}`}>
+-              {crystalTypes.map(({ key, label, image }) => {
+-                const amount = outputResult[key] || 0;
+-                return (
+-                  <div
+-                    key={key}
+-                    className={`
+-                      rounded-lg border-2 text-center
+-                      ${isMobile ? 'p-1.5' : 'p-2'}
+-                      ${amount > 0 ? 'border-green-400 bg-green-100' : 'border-gray-200 bg-white'}
+-                    `}
+-                  >
+-                    <img
+-                      src={image}
+-                      alt={label}
+-                      className={`mx-auto rounded-full object-cover ${isMobile ? 'w-6 h-6' : 'w-10 h-10'}`}
+-                      onError={(e) => { e.target.src = '/assets/images/stone_yellow.JPG' }}
+-                    />
+-                    <div className={`font-bold text-gray-800 ${isMobile ? 'text-sm' : 'text-lg'}`}>
+-                      {amount}
+-                    </div>
+-                  </div>
+-                );
+-              })}
++            {/* Output Section - You Receive */}
++            <div className={`xp-group ${isMobile ? 'mb-3' : 'mb-4'}`}>
++              <h3 className="xp-group-title">
++                You Receive (x{multiplier})
++              </h3>
++              {renderCrystalRow(outputResult, receiveTile)}
+             </div>
+-          </div>
+ 
+-          {/* Multiplier Selection */}
+-          <div className={`bg-gray-50 rounded-lg ${isMobile ? 'p-2 mb-3' : 'p-4 mb-4'}`}>
+-            <h3 className={`font-semibold text-gray-800 text-center ${isMobile ? 'text-sm mb-2' : 'text-base mb-3'}`}>
+-              Trade Multiplier
+-            </h3>
+-            <div className="flex items-center justify-center gap-3">
+-              <motion.button
+-                onClick={() => adjustMultiplier(-1)}
+-                disabled={multiplier <= 1}
+-                className={`
+-                  rounded-full bg-red-500 text-white font-bold 
+-                  disabled:bg-gray-300 disabled:cursor-not-allowed
+-                  ${isMobile ? 'w-10 h-10 text-xl' : 'w-12 h-12 text-2xl'}
+-                `}
+-                whileTap={{ scale: 0.9 }}
+-              >
+-                −
+-              </motion.button>
+-              <div className={`
+-                font-bold text-gray-800 text-center bg-white border-2 border-gray-300 rounded-lg
+-                ${isMobile ? 'w-16 py-2 text-2xl' : 'w-20 py-2 text-3xl'}
+-              `}>
+-                {multiplier}
++            {/* Multiplier Selection */}
++            <div className={`xp-group ${isMobile ? 'mb-3' : 'mb-4'}`}>
++              <h3 className="xp-group-title">
++                Trade Multiplier
++              </h3>
++              <div className="flex items-center justify-center gap-3">
++                <button
++                  type="button"
++                  onClick={() => adjustMultiplier(-1)}
++                  disabled={multiplier <= 1}
++                  className={`xp-btn ${isMobile ? '!min-h-[40px] !px-3 text-xl' : '!min-h-[44px] !px-4 text-2xl'}`}
++                >
++                  −
++                </button>
++                <div className={`
++                  xp-well font-bold text-center
++                  ${isMobile ? 'w-16 py-1 text-2xl' : 'w-20 py-1 text-3xl'}
++                `}>
++                  {multiplier}
++                </div>
++                <button
++                  type="button"
++                  onClick={() => adjustMultiplier(1)}
++                  disabled={multiplier >= maxMultiplier}
++                  className={`xp-btn ${isMobile ? '!min-h-[40px] !px-3 text-xl' : '!min-h-[44px] !px-4 text-2xl'}`}
++                >
++                  +
++                </button>
++              </div>
++              <div className={`text-center xp-text-muted ${isMobile ? 'text-xs mt-1' : 'text-sm mt-2'}`}>
++                {multiplier === 1 ? "Single trade" : `${multiplier}x trade`}
+               </div>
+-              <motion.button
+-                onClick={() => adjustMultiplier(1)}
+-                disabled={multiplier >= maxMultiplier}
+-                className={`
+-                  rounded-full bg-green-500 text-white font-bold 
+-                  disabled:bg-gray-300 disabled:cursor-not-allowed
+-                  ${isMobile ? 'w-10 h-10 text-xl' : 'w-12 h-12 text-2xl'}
+-                `}
+-                whileTap={{ scale: 0.9 }}
+-              >
+-                +
+-              </motion.button>
+-            </div>
+-            <div className={`text-center text-gray-600 ${isMobile ? 'text-xs mt-1' : 'text-sm mt-2'}`}>
+-              {multiplier === 1 ? "Single trade" : `${multiplier}x trade`}
+             </div>
+-          </div>
+ 
+-          {/* Error Message */}
+-          {error && (
+-            <div className={`bg-red-50 border border-red-300 text-red-700 rounded-lg text-center ${isMobile ? 'px-2 py-1.5 mb-3 text-xs' : 'px-4 py-2 mb-4 text-sm'}`}>
+-              ⚠️ {error}
+-            </div>
+-          )}
+-
+-          {/* Buttons */}
+-          <div className={`flex ${isMobile ? 'gap-2' : 'gap-4'}`}>
+-            <motion.button
+-              onClick={onCancel}
+-              className={`
+-                flex-1 bg-gray-300 text-gray-700 font-bold rounded-lg hover:bg-gray-400 transition-all
+-                ${isMobile ? 'py-2 px-3 text-sm' : 'py-3 px-6'}
+-              `}
+-              whileHover={{ scale: 1.02 }}
+-              whileTap={{ scale: 0.95 }}
+-            >
+-              Cancel
+-            </motion.button>
+-            <motion.button
+-              onClick={handleConfirm}
+-              disabled={!canConfirm}
+-              className={`
+-                flex-1 bg-gradient-to-r from-pink-500 to-purple-500 text-white font-bold 
+-                rounded-lg disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl
+-                ${isMobile ? 'py-2 px-3 text-sm' : 'py-3 px-6'}
+-              `}
+-              whileHover={canConfirm ? { scale: 1.02 } : {}}
+-              whileTap={canConfirm ? { scale: 0.95 } : {}}
+-            >
+-              Confirm Trade
+-            </motion.button>
++            {/* Error Message */}
++            {error && (
++              <div className={`xp-note xp-note--err text-center ${isMobile ? 'mb-3' : 'mb-4'}`}>
++                ⚠️ {error}
++              </div>
++            )}
++
++            {/* Buttons */}
++            <div className={`flex ${isMobile ? 'gap-2' : 'gap-4'}`}>
++              <button type="button" onClick={onCancel} className="xp-btn flex-1">
++                Cancel
++              </button>
++              <button type="button" onClick={handleConfirm} disabled={!canConfirm} className="xp-btn xp-btn--go flex-1">
++                Confirm Trade
++              </button>
++            </div>
+           </div>
+         </motion.div>
+       </motion.div>
+--- a/web/react-frontend/src/components/UpgradeModal.jsx
++++ b/web/react-frontend/src/components/UpgradeModal.jsx
+@@ -106,213 +106,156 @@
+ 
+   const canConfirm = totalInput > 0 && totalInput === totalOutput && error === "";
+ 
++  // XP × brutalism styling (theme-xp.css): selected tiles get the XP orange focus outline.
++  const selectedTile = { outline: "3px solid var(--xp-orange)", outlineOffset: 0, background: "#fff7d6" };
++  const levelGain =
++    outputResources.yellow * 1 + outputResources.green * 2 + outputResources.blue * 3 + outputResources.pink * 4 -
++    (inputResources.yellow * 1 + inputResources.green * 2 + inputResources.blue * 3 + inputResources.pink * 4);
++
++  const renderStepper = (value, onMinus, onPlus, minusDisabled, plusDisabled) => (
++    <div className={`flex items-center justify-center ${isMobile ? "gap-1 mt-1" : "gap-2 mt-2"}`}>
++      <button type="button" onClick={onMinus} disabled={minusDisabled} className="xp-btn xp-btn--sm !px-2 !min-h-[26px]">
++        −
++      </button>
++      <span className={`font-bold ${isMobile ? "w-5 text-sm" : "w-6 text-base"}`}>{value}</span>
++      <button type="button" onClick={onPlus} disabled={plusDisabled} className="xp-btn xp-btn--sm !px-2 !min-h-[26px]">
++        +
++      </button>
++    </div>
++  );
++
+   return createPortal(
+     <AnimatePresence>
+       {/* Fixed overlay - rendered via portal to escape stacking context */}
+-      <div 
+-        className="fixed inset-0 z-[100] overflow-y-auto bg-black/60 backdrop-blur-sm"
+-        onClick={onCancel}
+-      >
++      <div className="xp-overlay z-[100] overflow-y-auto !items-start sm:!items-center" onClick={onCancel}>
+         {/* Centering wrapper */}
+-        <div className="min-h-full flex items-center justify-center p-2 sm:p-4">
++        <div className="min-h-full w-full flex items-center justify-center p-1 sm:p-2">
+           <motion.div
+-            className={`
+-              bg-white rounded-xl sm:rounded-2xl shadow-2xl border-4 border-blue-500 w-full
+-              max-h-[85vh] overflow-y-auto
+-              ${isMobile ? 'max-w-[95vw] p-3' : 'max-w-2xl p-6'}
+-            `}
+-            initial={{ opacity: 0, scale: 0.9 }}
+-            animate={{ opacity: 1, scale: 1 }}
+-            exit={{ opacity: 0, scale: 0.9 }}
+-            transition={{ type: "spring", stiffness: 300, damping: 30 }}
++            className={`xp-window max-h-[85vh] flex flex-col ${isMobile ? "max-w-[95vw]" : "max-w-2xl"}`}
++            initial={{ opacity: 0, y: 12 }}
++            animate={{ opacity: 1, y: 0 }}
++            exit={{ opacity: 0, y: 12 }}
++            transition={{ duration: 0.12 }}
+             onClick={(e) => e.stopPropagation()}
++            role="dialog"
++            aria-label="Upgrade Crystals"
+           >
+-          {/* Header */}
+-          <div className={`text-center ${isMobile ? 'mb-3' : 'mb-6'}`}>
+-            <h2 className={`font-bold text-blue-600 ${isMobile ? 'text-xl mb-1' : 'text-3xl mb-2'}`}>
+-              💎 Upgrade Crystals
+-            </h2>
+-            <p className={`text-gray-700 ${isMobile ? 'text-xs' : 'text-base'}`}>
+-              Select crystals to upgrade (max {maxTurnUpgrade} levels)
+-            </p>
+-          </div>
+-
+-          {/* Input Section */}
+-          <div className={`bg-gray-50 rounded-lg ${isMobile ? 'p-2 mb-3' : 'p-4 mb-4'}`}>
+-            <h3 className={`font-semibold text-gray-800 ${isMobile ? 'text-sm mb-2' : 'text-lg mb-3'}`}>
+-              Input Crystals (You have)
+-            </h3>
+-            <div className={`grid gap-2 ${isMobile ? 'grid-cols-2' : 'grid-cols-4 gap-3'}`}>
+-              {crystalTypes.map(({ key, label, level, image }) => {
+-                const hasResources = availableResources[key] + inputResources[key] > 0;
+-                return (
+-                  <div
+-                    key={key}
+-                    className={`
+-                      relative rounded-lg border-2 transition-all text-center
+-                      ${isMobile ? 'p-2' : 'p-3'}
+-                      ${inputResources[key] > 0 ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-white'}
+-                    `}
+-                  >
+-                    <img
+-                      src={image}
+-                      alt={label}
+-                      className={`mx-auto rounded-full object-cover ${isMobile ? 'w-8 h-8 mb-1' : 'w-10 h-10 mb-2'}`}
+-                      onError={(e) => { e.target.src = '/assets/images/stone_yellow.JPG' }}
+-                    />
+-                    <div className={`font-medium text-gray-700 ${isMobile ? 'text-[10px]' : 'text-xs'}`}>
+-                      {label} (Lv.{level})
+-                    </div>
+-                    <div className={`text-gray-500 ${isMobile ? 'text-[9px]' : 'text-xs'}`}>
+-                      Have: {availableResources[key] + inputResources[key]}
+-                    </div>
+-                    {/* Controls */}
+-                    <div className={`flex items-center justify-center ${isMobile ? 'gap-1 mt-1' : 'gap-2 mt-2'}`}>
+-                      <motion.button
+-                        onClick={() => adjustInput(key, -1)}
+-                        disabled={inputResources[key] <= 0}
+-                        className={`rounded-full bg-red-500 text-white font-bold disabled:bg-gray-300 ${isMobile ? 'w-6 h-6 text-xs' : 'w-7 h-7 text-sm'}`}
+-                        whileTap={{ scale: 0.9 }}
+-                      >
+-                        −
+-                      </motion.button>
+-                      <span className={`font-bold text-gray-800 ${isMobile ? 'w-5 text-sm' : 'w-6 text-base'}`}>
+-                        {inputResources[key]}
+-                      </span>
+-                      <motion.button
+-                        onClick={() => adjustInput(key, 1)}
+-                        disabled={availableResources[key] <= 0}
+-                        className={`rounded-full bg-green-500 text-white font-bold disabled:bg-gray-300 ${isMobile ? 'w-6 h-6 text-xs' : 'w-7 h-7 text-sm'}`}
+-                        whileTap={{ scale: 0.9 }}
+-                      >
+-                        +
+-                      </motion.button>
++            <div className="xp-titlebar">
++              <h2 className="xp-titlebar-title">💎 Upgrade Crystals</h2>
++              <button type="button" className="xp-title-btn" onClick={onCancel} aria-label="Close">
++                ✕
++              </button>
++            </div>
++
++            <div className={`xp-body xp-scroll overflow-y-auto ${isMobile ? "!p-3" : ""}`}>
++              {/* Header */}
++              <p className={`xp-text-muted ${isMobile ? "text-xs mb-3" : "text-sm mb-4"}`}>
++                Select crystals to upgrade (max {maxTurnUpgrade} levels)
++              </p>
++
++              {/* Input Section */}
++              <div className={`xp-group ${isMobile ? "mb-3" : "mb-4"}`}>
++                <h3 className="xp-group-title">Input Crystals (You have)</h3>
++                <div className={`grid gap-2 ${isMobile ? "grid-cols-2" : "grid-cols-4 gap-3"}`}>
++                  {crystalTypes.map(({ key, label, level, image }) => (
++                    <div
++                      key={key}
++                      className={`xp-well text-center ${isMobile ? "p-2" : "p-3"}`}
++                      style={inputResources[key] > 0 ? selectedTile : undefined}
++                    >
++                      <img
++                        src={image}
++                        alt={label}
++                        className={`mx-auto rounded-full object-cover border-2 border-[var(--xp-ink)] ${isMobile ? "w-8 h-8 mb-1" : "w-10 h-10 mb-2"}`}
++                        onError={(e) => { e.target.src = '/assets/images/stone_yellow.JPG' }}
++                      />
++                      <div className={`font-bold ${isMobile ? "text-[10px]" : "text-xs"}`}>
++                        {label} (Lv.{level})
++                      </div>
++                      <div className={`xp-text-muted ${isMobile ? "text-[9px]" : "text-xs"}`}>
++                        Have: {availableResources[key] + inputResources[key]}
++                      </div>
++                      {/* Controls */}
++                      {renderStepper(
++                        inputResources[key],
++                        () => adjustInput(key, -1),
++                        () => adjustInput(key, 1),
++                        inputResources[key] <= 0,
++                        availableResources[key] <= 0
++                      )}
+                     </div>
+-                  </div>
+-                );
+-              })}
+-            </div>
+-            <div className={`font-semibold text-gray-700 ${isMobile ? 'mt-2 text-xs' : 'mt-3 text-sm'}`}>
+-              Total: {totalInput} crystals
+-            </div>
+-          </div>
++                  ))}
++                </div>
++                <div className={`font-bold ${isMobile ? "mt-2 text-xs" : "mt-3 text-sm"}`}>
++                  Total: {totalInput} crystals
++                </div>
++              </div>
+ 
+-          {/* Arrow */}
+-          <div className="flex justify-center my-2">
+-            <motion.div
+-              animate={{ y: [0, 5, 0] }}
+-              transition={{ duration: 1.5, repeat: Infinity }}
+-              className={`text-blue-400 ${isMobile ? 'text-2xl' : 'text-4xl'}`}
+-            >
+-              ↓
+-            </motion.div>
+-          </div>
+-
+-          {/* Output Section */}
+-          <div className={`bg-green-50 rounded-lg ${isMobile ? 'p-2 mb-3' : 'p-4 mb-4'}`}>
+-            <h3 className={`font-semibold text-gray-800 ${isMobile ? 'text-sm mb-2' : 'text-lg mb-3'}`}>
+-              Output Crystals (You receive)
+-            </h3>
+-            <div className={`grid gap-2 ${isMobile ? 'grid-cols-2' : 'grid-cols-4 gap-3'}`}>
+-              {crystalTypes.map(({ key, label, level, image }) => (
+-                <div
+-                  key={key}
+-                  className={`
+-                    relative rounded-lg border-2 transition-all text-center
+-                    ${isMobile ? 'p-2' : 'p-3'}
+-                    ${outputResources[key] > 0 ? 'border-green-500 bg-green-100' : 'border-gray-200 bg-white'}
+-                  `}
+-                >
+-                  <img
+-                    src={image}
+-                    alt={label}
+-                    className={`mx-auto rounded-full object-cover ${isMobile ? 'w-8 h-8 mb-1' : 'w-10 h-10 mb-2'}`}
+-                    onError={(e) => { e.target.src = '/assets/images/stone_yellow.JPG' }}
+-                  />
+-                  <div className={`font-medium text-gray-700 ${isMobile ? 'text-[10px]' : 'text-xs'}`}>
+-                    {label} (Lv.{level})
+-                  </div>
+-                  {/* Controls */}
+-                  <div className={`flex items-center justify-center ${isMobile ? 'gap-1 mt-1' : 'gap-2 mt-2'}`}>
+-                    <motion.button
+-                      onClick={() => adjustOutput(key, -1)}
+-                      disabled={outputResources[key] <= 0}
+-                      className={`rounded-full bg-red-500 text-white font-bold disabled:bg-gray-300 ${isMobile ? 'w-6 h-6 text-xs' : 'w-7 h-7 text-sm'}`}
+-                      whileTap={{ scale: 0.9 }}
++              {/* Arrow */}
++              <div className={`flex justify-center font-bold ${isMobile ? "text-xl my-1" : "text-2xl my-2"}`} aria-hidden="true">
++                ↓
++              </div>
++
++              {/* Output Section */}
++              <div className={`xp-group ${isMobile ? "mb-3" : "mb-4"}`}>
++                <h3 className="xp-group-title">Output Crystals (You receive)</h3>
++                <div className={`grid gap-2 ${isMobile ? "grid-cols-2" : "grid-cols-4 gap-3"}`}>
++                  {crystalTypes.map(({ key, label, level, image }) => (
++                    <div
++                      key={key}
++                      className={`xp-well text-center ${isMobile ? "p-2" : "p-3"}`}
++                      style={outputResources[key] > 0 ? selectedTile : undefined}
+                     >
+-                      −
+-                    </motion.button>
+-                    <span className={`font-bold text-gray-800 ${isMobile ? 'w-5 text-sm' : 'w-6 text-base'}`}>
+-                      {outputResources[key]}
+-                    </span>
+-                    <motion.button
+-                      onClick={() => adjustOutput(key, 1)}
+-                      disabled={totalOutput >= totalInput || totalInput === 0}
+-                      className={`rounded-full bg-green-500 text-white font-bold disabled:bg-gray-300 ${isMobile ? 'w-6 h-6 text-xs' : 'w-7 h-7 text-sm'}`}
+-                      whileTap={{ scale: 0.9 }}
+-                    >
+-                      +
+-                    </motion.button>
+-                  </div>
++                      <img
++                        src={image}
++                        alt={label}
++                        className={`mx-auto rounded-full object-cover border-2 border-[var(--xp-ink)] ${isMobile ? "w-8 h-8 mb-1" : "w-10 h-10 mb-2"}`}
++                        onError={(e) => { e.target.src = '/assets/images/stone_yellow.JPG' }}
++                      />
++                      <div className={`font-bold ${isMobile ? "text-[10px]" : "text-xs"}`}>
++                        {label} (Lv.{level})
++                      </div>
++                      {/* Controls */}
++                      {renderStepper(
++                        outputResources[key],
++                        () => adjustOutput(key, -1),
++                        () => adjustOutput(key, 1),
++                        outputResources[key] <= 0,
++                        totalOutput >= totalInput || totalInput === 0
++                      )}
++                    </div>
++                  ))}
+                 </div>
+-              ))}
+-            </div>
+-            <div className={`font-semibold text-gray-700 ${isMobile ? 'mt-2 text-xs' : 'mt-3 text-sm'}`}>
+-              Total: {totalOutput} crystals
+-              {totalInput > 0 && totalInput === totalOutput && (
+-                <span className="text-green-600 ml-2">
+-                  (⬆️ +{outputResources.yellow * 1 + outputResources.green * 2 + outputResources.blue * 3 + outputResources.pink * 4 -
+-                    (inputResources.yellow * 1 + inputResources.green * 2 + inputResources.blue * 3 + inputResources.pink * 4)} levels)
+-                </span>
++                <div className={`font-bold ${isMobile ? "mt-2 text-xs" : "mt-3 text-sm"}`}>
++                  Total: {totalOutput} crystals
++                  {totalInput > 0 && totalInput === totalOutput && (
++                    <span className="xp-badge xp-badge--green ml-2">(⬆️ +{levelGain} levels)</span>
++                  )}
++                </div>
++              </div>
++
++              {/* Error Message */}
++              {error && (
++                <div className={`xp-note xp-note--err ${isMobile ? "mb-3" : "mb-4"}`}>⚠️ {error}</div>
++              )}
++              {!error && totalInput > 0 && (
++                <div className={`xp-note xp-note--ok ${isMobile ? "mb-3" : "mb-4"}`}>✅ You can upgrade now</div>
++              )}
++              {!error && totalInput === 0 && (
++                <div className={`xp-note xp-note--err ${isMobile ? "mb-3" : "mb-4"}`}>❌ No crystals to upgrade</div>
+               )}
+-            </div>
+-          </div>
+ 
+-          {/* Error Message */}
+-          {error && (
+-            <div className={`bg-red-50 border border-red-300 text-red-700 rounded-lg ${isMobile ? 'px-2 py-1.5 mb-3 text-xs' : 'px-4 py-2 mb-4 text-sm'}`}>
+-              ⚠️ {error}
+-            </div>
+-          )}
+-          {!error && totalInput > 0 && (
+-            <div className={`bg-green-50 border border-green-300 text-green-700 rounded-lg ${isMobile ? 'px-2 py-1.5 mb-3 text-xs' : 'px-4 py-2 mb-4 text-sm'}`}>
+-              ✅ You can upgrade now
++              {/* Buttons */}
++              <div className={`flex ${isMobile ? "gap-2" : "gap-4"}`}>
++                <button type="button" onClick={onCancel} className="xp-btn flex-1">
++                  Cancel
++                </button>
++                <button type="button" onClick={handleConfirm} disabled={!canConfirm} className="xp-btn xp-btn--go flex-1">
++                  {isMobile ? 'Confirm Upgrade' : 'Confirm Upgrade'}
++                </button>
++              </div>
+             </div>
+-          )}
+-          {!error && totalInput === 0 && (
+-            <div className={`bg-red-50 border border-red-300 text-red-700 rounded-lg ${isMobile ? 'px-2 py-1.5 mb-3 text-xs' : 'px-4 py-2 mb-4 text-sm'}`}>
+-              ❌ No crystals to upgrade
+-            </div>
+-          )}
+-
+-          {/* Buttons */}
+-          <div className={`flex ${isMobile ? 'gap-2' : 'gap-4'}`}>
+-            <motion.button
+-              onClick={onCancel}
+-              className={`
+-                flex-1 bg-gray-300 text-gray-700 font-bold rounded-lg hover:bg-gray-400 transition-all
+-                ${isMobile ? 'py-2 px-3 text-sm' : 'py-3 px-6'}
+-              `}
+-              whileHover={{ scale: 1.02 }}
+-              whileTap={{ scale: 0.95 }}
+-            >
+-              Cancel
+-            </motion.button>
+-            <motion.button
+-              onClick={handleConfirm}
+-              disabled={!canConfirm}
+-              className={`
+-                flex-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white font-bold 
+-                rounded-lg disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl
+-                ${isMobile ? 'py-2 px-3 text-sm' : 'py-3 px-6'}
+-              `}
+-              whileHover={canConfirm ? { scale: 1.02 } : {}}
+-              whileTap={canConfirm ? { scale: 0.95 } : {}}
+-            >
+-              {isMobile ? 'Confirm Upgrade' : 'Confirm Upgrade'}
+-            </motion.button>
+-          </div>
+-        </motion.div>
++          </motion.div>
+         </div>
+       </div>
+     </AnimatePresence>,
+--- a/web/react-frontend/src/SinglePlayerApp.jsx
++++ b/web/react-frontend/src/SinglePlayerApp.jsx
+@@ -65,16 +65,8 @@
+       {/* Sound Toggle Button - Always visible */}
+       <SoundToggleButton />
+ 
+-      {/* Blurred Background Layer */}
+-      <div className="fixed inset-0 z-0"
+-        style={{
+-          backgroundImage: 'url(/assets/images/background.jpg)',
+-          backgroundSize: 'cover',
+-          backgroundPosition: 'center center',
+-          backgroundRepeat: 'no-repeat',
+-          filter: isMobile ? 'blur(4px) brightness(0.8)' : 'blur(8px) brightness(0.7)',
+-        }}
+-      />
++      {/* Background layer: flat XP "Bliss" desktop (theme-xp.css) */}
++      <div className="xp-game-bg" />
+       
+       {useWebLayout ? (
+         /* Desktop/Tablet - WebGameLayout */
+--- a/web/react-frontend/src/theme-xp.css
++++ b/web/react-frontend/src/theme-xp.css
+@@ -345,3 +345,138 @@
+ @media (prefers-reduced-motion: reduce) {
+   .xp-progress::before { animation: none; left: 0; width: 100%; }
+ }
++
++/* =====================================================================================================
++ * In-game board — same XP × brutalism language, denser. Card artwork stays as is; only chrome changes.
++ * ===================================================================================================== */
++
++/* Fixed page background behind the board (replaces the blurred photo) */
++.xp-game-bg {
++  position: fixed;
++  inset: 0;
++  z-index: 0;
++  background:
++    radial-gradient(150% 55% at 25% 108%, #5aa632 0 54%, #3f8a22 54.2% 57%, transparent 57.2%),
++    linear-gradient(180deg, #1f63d1 0%, #4a8ee6 45%, #9cc8f2 100%);
++}
++
++/* Panel = small XP window used for board areas (market, golems, hand, history, ...) */
++.xp-panel {
++  display: flex;
++  flex-direction: column;
++  min-width: 0;
++  min-height: 0;
++  background: var(--xp-face);
++  border: 3px solid var(--xp-ink);
++  box-shadow: 4px 4px 0 var(--xp-ink);
++  color: var(--xp-ink);
++  font-family: var(--xp-font);
++}
++.xp-panel-title {
++  display: flex;
++  align-items: center;
++  gap: 6px;
++  flex-shrink: 0;
++  padding: 2px 8px;
++  border-bottom: 2px solid var(--xp-ink);
++  background: linear-gradient(180deg, #3d95ff 0%, #0a64e8 12%, #0054e3 45%, #0050d8 80%, #0a3fa8 100%);
++  color: #fff;
++  font: bold 12px/18px var(--xp-title-font);
++  text-shadow: 1px 1px 0 #0a1a6a;
++  white-space: nowrap;
++}
++.xp-panel-title--muted { background: linear-gradient(180deg, #a7b3c8 0%, #7d8aa3 50%, #6b7891 100%); }
++.xp-panel-meta { margin-left: auto; font-weight: normal; font-size: 11px; }
++.xp-panel-body { flex: 1; min-height: 0; padding: 6px; }
++/* Highlight "it's my turn" (or any active panel) with the XP orange focus colour */
++.xp-panel--active { outline: 3px solid var(--xp-orange); outline-offset: 0; }
++
++/* Sunken white area inside a panel (hand, lists, empty slots) */
++.xp-well {
++  background: var(--xp-paper);
++  border: 2px solid var(--xp-ink);
++  box-shadow: inset 2px 2px 0 rgba(0, 0, 0, 0.12);
++  color: var(--xp-ink);
++}
++.xp-well--dashed { border-style: dashed; box-shadow: none; background: rgba(255, 255, 255, 0.55); }
++
++/* Player chip (scoreboard entries) */
++.xp-chip {
++  background: var(--xp-paper);
++  border: 2px solid var(--xp-ink);
++  box-shadow: 2px 2px 0 var(--xp-ink);
++  color: var(--xp-ink);
++  font-family: var(--xp-font);
++}
++.xp-chip--active { background: #fff7d6; outline: 3px solid var(--xp-orange); outline-offset: 0; }
++.xp-chip--offline { opacity: 0.6; }
++
++/* Small square index/number marker (market slot numbers, counts) */
++.xp-index {
++  display: inline-flex;
++  align-items: center;
++  justify-content: center;
++  min-width: 18px;
++  height: 18px;
++  padding: 0 4px;
++  background: var(--xp-blue);
++  border: 1.5px solid var(--xp-ink);
++  color: #fff;
++  font: bold 11px/1 var(--xp-font);
++}
++
++/* Floating toolbar buttons (sound, chat, history, theme) */
++.xp-fab {
++  display: inline-flex;
++  align-items: center;
++  justify-content: center;
++  width: 44px;
++  height: 44px;
++  background: linear-gradient(180deg, #ffffff 0%, #f4f3ee 55%, #e3e0d4 100%);
++  border: 2px solid var(--xp-ink);
++  border-radius: 4px;
++  box-shadow: 3px 3px 0 var(--xp-ink);
++  color: var(--xp-ink);
++  font-size: 20px;
++  line-height: 1;
++  cursor: pointer;
++}
++.xp-fab:hover { background: linear-gradient(180deg, #ffffff 0%, #fdf3d8 55%, #f6d998 100%); }
++.xp-fab:active { transform: translate(3px, 3px); box-shadow: none; }
++.xp-fab--sm { width: 36px; height: 36px; font-size: 16px; }
++
++/* Modal backdrop: flat tint, no blur. z-index is set by the component. */
++.xp-overlay {
++  position: fixed;
++  inset: 0;
++  display: flex;
++  align-items: center;
++  justify-content: center;
++  padding: 16px;
++  background: rgba(0, 24, 80, 0.45);
++}
++
++/* Balloon / toast (XP notification-area tooltip) */
++.xp-balloon {
++  background: #ffffe1;
++  border: 2px solid var(--xp-ink);
++  box-shadow: 3px 3px 0 var(--xp-ink);
++  color: var(--xp-ink);
++  font: 13px/1.35 var(--xp-font);
++}
++.xp-balloon--ok { background: #e3f5d9; }
++.xp-balloon--err { background: #ffe3dc; }
++.xp-balloon--info { background: #e4eeff; }
++
++.xp-btn--danger { color: #fff; font-weight: bold; text-shadow: 1px 1px 0 #6b1606; background: linear-gradient(180deg, #f39a7d 0%, #e0532c 55%, #c4320f 100%); }
++.xp-btn--danger:hover:not(:disabled) { background: linear-gradient(180deg, #f6ae95 0%, #e86a45 55%, #d04016 100%); }
++.xp-btn--primary { color: #fff; font-weight: bold; text-shadow: 1px 1px 0 #0a1a6a; background: linear-gradient(180deg, #5aa6ff 0%, #1f6fe8 55%, #0d4fc4 100%); }
++.xp-btn--primary:hover:not(:disabled) { background: linear-gradient(180deg, #74b5ff 0%, #3480f0 55%, #1a5cd0 100%); }
++
++.xp-text-muted { color: #55554c; }
++
++/* XP-ish scrollbars inside the board */
++.xp-scroll { scrollbar-color: #c9c4b0 var(--xp-face); }
++.xp-scroll::-webkit-scrollbar { width: 14px; height: 14px; }
++.xp-scroll::-webkit-scrollbar-track { background: var(--xp-face); border-left: 1px solid var(--xp-ink); }
++.xp-scroll::-webkit-scrollbar-thumb { background: linear-gradient(90deg, #f4f3ee, #d8d4c4); border: 2px solid var(--xp-ink); }

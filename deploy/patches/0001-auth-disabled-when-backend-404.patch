@@ -1,0 +1,10 @@
+--- a/web/react-frontend/src/contexts/AuthContext.jsx
++++ b/web/react-frontend/src/contexts/AuthContext.jsx
+@@ -35,6 +35,7 @@
+       } else if (response.status === 404) {
+         // Auth not configured on backend - disable auth
+         setUser(null);
++        setAuthAvailable(false);
+         logger.info('Authentication not configured on backend');
+       } else {
+         setUser(null);
