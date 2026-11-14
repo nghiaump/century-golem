@@ -97,7 +97,7 @@ Play solo against 1–4 AI opponents or with up to 5 friends, right in the brows
 <table>
 <tr>
 <td align="center" width="51%"><img src="docs/assets/screenshots/menu.webp" alt="Main menu with the Windows XP style window"/><br/><sub><b>Main menu</b>: choose Single Player or Multiplayer</sub></td>
-<td align="center" width="27%"><img src="docs/assets/screenshots/lobby.webp" alt="Multiplayer lobby with avatar picker"/><br/><sub><b>Lobby</b>: name, avatar, player count, room ID</sub></td>
+<td align="center" width="27%"><img src="docs/assets/screenshots/difficulty.webp" alt="Single-player lobby with the AI difficulty picker"/><br/><sub><b>Single player</b>: 1–4 AIs, Easy → Very Hard</sub></td>
 <td align="center" width="22%"><img src="docs/assets/screenshots/mobile.webp" alt="Mobile layout of the game board"/><br/><sub><b>Mobile</b>: the full board on a phone</sub></td>
 </tr>
 </table>
