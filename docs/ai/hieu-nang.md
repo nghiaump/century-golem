@@ -16,6 +16,22 @@ Nhiệt độ sau 36 quyết định liên tiếp: ~67 °C (thermal_zone0). Máy
 
 So sánh rtx (Threadripper 3960X, cùng lệnh): Medium 9.6k it/quyết định, Hard 95k, Very Hard 530k — Pixel ≈ 2.2× chậm hơn mỗi core.
 
+### Sau vòng hiệu chỉnh 1 (RolloutTurns 2), 2 người, pin 19%
+
+| Cấp | Think p95 | Iteration/quyết định | Heap đỉnh |
+|---|---|---|---|
+| Medium | 312 ms | 6 067 | 11.1 MiB |
+| Hard | 1.410 s | 46 732 | 46.4 MiB |
+| Very Hard | — (máy tắt giữa chừng, xem sự cố bên dưới) | | |
+
+## ⚠ Sự cố 2026-11-14: Pixel tắt khi benchmark Very Hard lúc pin 19%
+
+Chạy `aibench bench -level veryhard` (4 luồng, liên tục) khi máy đang **chạy pin 19%, không sạc** ⇒ máy tắt (Tailscale
+offline, site trả 530 — tunnel mất). Bài học:
+- ⛔ Không chạy benchmark/tải nặng kéo dài trên Pixel khi `pmi8998-charger/online = 0` hoặc pin < 40%.
+- Kiểm trước: `cat /sys/class/power_supply/{max1720x/capacity,pmi8998-charger/online}`.
+- Very Hard ở production chỉ dùng 3 s/nước rồi nghỉ (không liên tục như benchmark) — nhưng máy chạy pin thì rủi ro vẫn còn.
+
 ## Vi mô (rtx, `go test -bench`)
 
 | Thao tác | Thời gian | Cấp phát |

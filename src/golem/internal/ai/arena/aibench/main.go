@@ -150,7 +150,7 @@ func tournament(args []string) {
 
 // ladderIters are the per-decision iteration budgets that approximate each level on the phone
 // (see docs/ai/hieu-nang.md; measured with `aibench bench` on pixel3xl).
-var ladderIters = map[ai.Level]int{ai.Easy: 0, ai.Medium: 3000, ai.Hard: 20000, ai.VeryHard: 60000}
+var ladderIters = map[ai.Level]int{ai.Easy: 0, ai.Medium: 5000, ai.Hard: 40000, ai.VeryHard: 200000}
 
 func ladder(args []string) {
 	fs := flag.NewFlagSet("ladder", flag.ExitOnError)
@@ -161,13 +161,14 @@ func ladder(args []string) {
 	fs.Parse(args)
 	it := func(l ai.Level) int { return int(float64(ladderIters[l]) * *scale) }
 	pairs := [][2]arena.Bot{
-		{arena.LevelBot(ai.Easy, 0, 1), arena.LegacyBot},
-		{arena.LevelBot(ai.Easy, 0, 1), arena.GreedyBot},
-		{arena.LevelBot(ai.Medium, it(ai.Medium), 1), arena.LevelBot(ai.Easy, 0, 1)},
-		{arena.LevelBot(ai.Hard, it(ai.Hard), 1), arena.LevelBot(ai.Medium, it(ai.Medium), 1)},
-		{arena.LevelBot(ai.VeryHard, it(ai.VeryHard), 1), arena.LevelBot(ai.Hard, it(ai.Hard), 1)},
-		{arena.LevelBot(ai.Hard, it(ai.Hard), 1), arena.RusherBot},
-		{arena.LevelBot(ai.Hard, it(ai.Hard), 1), arena.CoinChaserBot},
+		{arena.LevelBot(ai.Easy, 0, 0), arena.LegacyBot},
+		{arena.LevelBot(ai.Easy, 0, 0), arena.GreedyBot},
+		{arena.LevelBot(ai.Medium, it(ai.Medium), 0), arena.LegacyBot},
+		{arena.LevelBot(ai.Medium, it(ai.Medium), 0), arena.LevelBot(ai.Easy, 0, 0)},
+		{arena.LevelBot(ai.Hard, it(ai.Hard), 0), arena.LevelBot(ai.Medium, it(ai.Medium), 0)},
+		{arena.LevelBot(ai.VeryHard, it(ai.VeryHard), 0), arena.LevelBot(ai.Hard, it(ai.Hard), 0)},
+		{arena.LevelBot(ai.Hard, it(ai.Hard), 0), arena.RusherBot},
+		{arena.LevelBot(ai.Hard, it(ai.Hard), 0), arena.CoinChaserBot},
 	}
 	for _, p := range pairs {
 		start := time.Now()
@@ -187,11 +188,12 @@ func coalition(args []string) {
 	players := fs.Int("players", 4, "players")
 	parallel := fs.Int("parallel", 0, "parallel games")
 	humanIters := fs.Int("human-iters", 2*ladderIters[ai.VeryHard], "proxy human iterations")
+	oppScale := fs.Float64("iter-scale", 1, "multiply the AI opponents' iteration budgets")
 	fs.Parse(args)
 	human := arena.ProfileBot("proxy-human", ai.DefaultProfile(ai.Hard), *humanIters)
 	for _, opp := range []arena.Bot{
-		arena.LevelBot(ai.Hard, ladderIters[ai.Hard], 1),
-		arena.LevelBot(ai.VeryHard, ladderIters[ai.VeryHard], 1),
+		arena.LevelBot(ai.Hard, int(float64(ladderIters[ai.Hard])**oppScale), 0),
+		arena.LevelBot(ai.VeryHard, int(float64(ladderIters[ai.VeryHard])**oppScale), 0),
 	} {
 		start := time.Now()
 		r := arena.Coalition(human, opp, *players, *seeds, 1, *parallel)

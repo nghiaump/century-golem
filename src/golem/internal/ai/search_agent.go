@@ -65,6 +65,11 @@ func (a *searchAgent) Decide(ctx context.Context, snap *game.GameState, o Decide
 			chosen = w
 			break
 		}
+		if c, ok := antiStall(&st, legal); ok {
+			chosen = c
+			stats.Fallback = "anti-stall claim"
+			break
+		}
 		if !a.p.Search {
 			chosen = a.greedyPick(&st, legal, &pl, drawer, rng)
 			break
@@ -278,4 +283,50 @@ func denialTargets(st *sim.State, seat int, pv *perspective, ev evaluator) [sim.
 		out[leader] = true
 	}
 	return out
+}
+
+// antiStallRound: past this round the AI stops "investing": it takes the best available claim,
+// else the move that brings it closest to its most reachable golem. Real games end around rounds
+// 35–70; this only guards against AIs waiting each other out (observed ~1 in 2000 AI-only games,
+// e.g. caravans full of pink while the golem row wants green and yellow).
+const antiStallRound = 100
+
+func antiStall(st *sim.State, legal []sim.Action) (sim.Action, bool) {
+	if st.Round < antiStallRound {
+		return sim.Action{}, false
+	}
+	best, bestPts, found := sim.Action{}, -1, false
+	for _, a := range legal {
+		if a.Kind == sim.AClaim {
+			if p := int(sim.Golems[st.Row[a.Card]].Points); p > bestPts {
+				best, bestPts, found = a, p, true
+			}
+		}
+	}
+	if found {
+		return best, true
+	}
+	seat := st.Seat()
+	bestCost := 1 << 30
+	for _, a := range legal {
+		c := *st
+		c.Apply(a, noDraw{})
+		if a.Kind == sim.ARest && st.P[seat].Played == 0 {
+			continue
+		}
+		cost := 1 << 30
+		for j := 0; j < int(c.NRow); j++ {
+			cost = min(cost, deficit(c.P[seat].Res, sim.Golems[c.Row[j]].Req))
+		}
+		if cost < bestCost {
+			best, bestCost, found = a, cost, true
+		}
+	}
+	return best, found
+}
+
+// deficit is the crystal-level cost still missing for a golem (spare crystals upgraded first),
+// i.e. the numerator of turnsToAfford.
+func deficit(res, req sim.Crystals) int {
+	return turnsToAfford(res, req, 1) - 1
 }

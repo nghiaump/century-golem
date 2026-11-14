@@ -160,8 +160,8 @@ func TestScenario_DenyHumansTargetGolem(t *testing.T) {
 	for _, l := range []Level{Hard, VeryHard} {
 		gs := scenario(t, []string{"golem_0022", "golem_0230", "golem_3200", "golem_0040", "golem_2003"})
 		ai, human := gs.Players[0], gs.Players[1]
-		ai.Resources = &game.Resources{Blue: 2, Pink: 3}               // can claim golem_3200 (18 pts) now
-		human.Resources = &game.Resources{Blue: 2, Pink: 2, Yellow: 1} // one pink short of it
+		ai.Resources = &game.Resources{Blue: 2, Pink: 3}    // can claim golem_3200 (18 pts) now
+		human.Resources = &game.Resources{Blue: 2, Pink: 3} // …and so can the human, on their next turn
 		human.PointCards = []*game.Card{{ID: 9901, Type: game.PointCard, Points: 14}}
 		human.Points = 14
 		teams := []int{1, 100}
@@ -203,12 +203,29 @@ func TestIntent_TookTargetGolem(t *testing.T) {
 	gs := scenario(t, []string{"golem_0022", "golem_0230", "golem_3200", "golem_0040", "golem_2003"})
 	ai, human := gs.Players[0], gs.Players[1]
 	ai.Resources = &game.Resources{Blue: 2, Pink: 3}
-	human.Resources = &game.Resources{Blue: 2, Pink: 2, Green: 1} // upgrade_2 (G→P) then claim: 2 turns
+	// The human can claim golem_3200 on their very next turn, so waiting would lose it. (With a
+	// 2-turn human the AI may correctly take a free card first and still claim in time.)
+	human.Resources = &game.Resources{Blue: 2, Pink: 3}
 	d := decide(t, NewAgentWithProfile(testProfile(VeryHard), DefaultRuntime()), gs, 1500, []int{1, 100})
 	if d.Action.Type != game.ClaimPointCard || gs.Market.PointCards[d.Action.CardIndex].Name != "golem_3200" {
 		t.Fatalf("Very Hard should claim the human's target golem_3200, chose %+v", d.Action)
 	}
 	if len(d.Intents) != 1 || d.Intents[0].TargetID != human.ID {
 		t.Fatalf("claiming the human's target should produce one intent for them, got %+v", d.Intents)
+	}
+}
+
+func TestAntiStall_MovesTowardsAGolem(t *testing.T) {
+	gs := scenario(t, []string{"golem_0050", "golem_0040", "golem_0032", "golem_0230", "golem_0222"})
+	gs.Round = 120
+	p := gs.GetCurrentPlayer()
+	p.Resources = &game.Resources{Pink: 9, Blue: 1}
+	p.Hand = append(p.Hand, game.CreateCardFromName("trade_1000_0030", 37)) // 1 pink → 3 green
+	d := decide(t, NewAgentWithProfile(testProfile(Medium), DefaultRuntime()), gs, 100, nil)
+	if d.Stats.Fallback != "anti-stall claim" {
+		t.Fatalf("past round 100 the anti-stall policy must decide, got %+v (%s)", d.Action, d.Stats.Fallback)
+	}
+	if d.Action.Type != game.PlayCard || p.Hand[d.Action.CardIndex].Name != "trade_1000_0030" {
+		t.Fatalf("expected the pink→green trade towards the green golems, got %+v", d.Action)
 	}
 }

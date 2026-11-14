@@ -97,6 +97,8 @@ docker run --rm -v "$PWD/../src/golem":/src:ro -v golem-gomod:/go/pkg -v golem-g
 ## Bẫy đã gặp
 - **AI/game loop**: mọi mutate GameState + broadcast phải dưới `gs.mu`; AI nghĩ trên `Clone()`; ⛔ gọi agent khi đang giữ
   lock. `sim.Drawer` nhận kích thước pool (truyền slice qua interface ⇒ state thoát heap ⇒ 1 alloc/nước).
+- ⛔ **Benchmark/tải nặng kéo dài trên pixel3xl khi đang chạy pin** (charger `online=0`) hoặc pin < 40%: 2026-11-14 máy
+  tắt giữa lúc bench Very Hard ở 19% ⇒ site 530. Kiểm `cat /sys/class/power_supply/{max1720x/capacity,pmi8998-charger/online}`.
 - Giải đấu AI dùng **iteration** (tất định, không phụ thuộc máy); production dùng **thời gian**. rtx 48 core làm benchmark
   "đẹp" hơn Pixel ~2.2×/core — số liệu thật ở `docs/ai/hieu-nang.md`.
 - **arm64 (pixel3xl)**: `src/golem/Dockerfile` của upstream ép `GOARCH=amd64` ⇒ compose dùng `deploy/Dockerfile.server`.

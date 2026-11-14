@@ -260,3 +260,6 @@ info/quyết định AI · tham số `AI_THINK_SCALE_PCT` để hạ tải nếu
 | Ngày | Thay đổi | Lý do |
 |---|---|---|
 | 2026-11-14 | Bản đầu tiên — được người dùng approve, archive nguyên văn từ plan mode | — |
+| 2026-11-14 | M3: simulator đặt ở `internal/ai/sim` kèm luôn chuyển đổi `ToGameAction/FromGameAction` (plan ghi `internal/ai/convert.go`) | sim cần bảng lá của engine; gom một chỗ |
+| 2026-11-14 | M4/M6: trọng số vòng 1 (CrystalLevel 0.75, Progress2 0.35, CPuct 0.8, RolloutTurns 2); thêm `endWeight` (sửa ván treo ở goal−1) và anti-stall từ vòng 100 | kết quả giải đấu — `docs/ai/tinh-chinh.md` |
+| 2026-11-14 | M8: Pixel tắt (pin 19%, không sạc) khi benchmark Very Hard; người dùng chọn **chờ cắm sạc** rồi mới deploy (không phục vụ tạm từ rtx) | sự cố — `docs/ai/hieu-nang.md` |

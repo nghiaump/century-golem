@@ -113,14 +113,14 @@ func DefaultProfile(l Level) Profile {
 		return Profile{Level: Easy, Utility: UtilityOwn, RootTemp: 1.5, RootWindow: 3}
 	case Medium:
 		return Profile{Level: Medium, Utility: UtilityOwn, Search: true, Budget: 300 * time.Millisecond,
-			Workers: 1, RootTemp: 0.4, Epsilon: 0.25, RolloutTurns: 1, CPuct: 1.25, MaxNodes: 200000}
+			Workers: 1, RootTemp: 0.4, Epsilon: 0.25, RolloutTurns: 2, CPuct: 0.8, MaxNodes: 200000}
 	case Hard:
 		return Profile{Level: Hard, Utility: UtilityBeatLeader, Search: true, Budget: 1400 * time.Millisecond,
-			Workers: 2, Epsilon: 0.15, RolloutTurns: 1, OppModel: true, CPuct: 1.25, MaxNodes: 200000}
+			Workers: 2, Epsilon: 0.15, RolloutTurns: 2, OppModel: true, CPuct: 0.8, MaxNodes: 200000}
 	case VeryHard:
 		return Profile{Level: VeryHard, Utility: UtilityCoalition, Search: true, Budget: 3000 * time.Millisecond,
-			Workers: 4, Epsilon: 0.10, RolloutTurns: 1, OppModel: true, EndgameToTerminal: true,
-			CPuct: 1.25, MaxNodes: 200000}
+			Workers: 4, Epsilon: 0.10, RolloutTurns: 2, OppModel: true, EndgameToTerminal: true,
+			CPuct: 0.8, MaxNodes: 200000}
 	}
 	return DefaultProfile(Medium)
 }

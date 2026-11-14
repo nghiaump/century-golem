@@ -238,7 +238,7 @@
 +}
 --- a/internal/ai/arena/aibench/main.go
 +++ b/internal/ai/arena/aibench/main.go
-@@ -0,0 +1,242 @@
+@@ -0,0 +1,250 @@
 +// Command aibench benchmarks and calibrates the Century Golem AI (docs/ai/tinh-chinh.md).
 +//
 +//	aibench bench      -level veryhard -n 30            # think time / iterations on THIS machine
@@ -391,7 +391,7 @@
 +
 +// ladderIters are the per-decision iteration budgets that approximate each level on the phone
 +// (see docs/ai/hieu-nang.md; measured with `aibench bench` on pixel3xl).
-+var ladderIters = map[ai.Level]int{ai.Easy: 0, ai.Medium: 3000, ai.Hard: 20000, ai.VeryHard: 60000}
++var ladderIters = map[ai.Level]int{ai.Easy: 0, ai.Medium: 5000, ai.Hard: 40000, ai.VeryHard: 200000}
 +
 +func ladder(args []string) {
 +	fs := flag.NewFlagSet("ladder", flag.ExitOnError)
@@ -402,13 +402,14 @@
 +	fs.Parse(args)
 +	it := func(l ai.Level) int { return int(float64(ladderIters[l]) * *scale) }
 +	pairs := [][2]arena.Bot{
-+		{arena.LevelBot(ai.Easy, 0, 1), arena.LegacyBot},
-+		{arena.LevelBot(ai.Easy, 0, 1), arena.GreedyBot},
-+		{arena.LevelBot(ai.Medium, it(ai.Medium), 1), arena.LevelBot(ai.Easy, 0, 1)},
-+		{arena.LevelBot(ai.Hard, it(ai.Hard), 1), arena.LevelBot(ai.Medium, it(ai.Medium), 1)},
-+		{arena.LevelBot(ai.VeryHard, it(ai.VeryHard), 1), arena.LevelBot(ai.Hard, it(ai.Hard), 1)},
-+		{arena.LevelBot(ai.Hard, it(ai.Hard), 1), arena.RusherBot},
-+		{arena.LevelBot(ai.Hard, it(ai.Hard), 1), arena.CoinChaserBot},
++		{arena.LevelBot(ai.Easy, 0, 0), arena.LegacyBot},
++		{arena.LevelBot(ai.Easy, 0, 0), arena.GreedyBot},
++		{arena.LevelBot(ai.Medium, it(ai.Medium), 0), arena.LegacyBot},
++		{arena.LevelBot(ai.Medium, it(ai.Medium), 0), arena.LevelBot(ai.Easy, 0, 0)},
++		{arena.LevelBot(ai.Hard, it(ai.Hard), 0), arena.LevelBot(ai.Medium, it(ai.Medium), 0)},
++		{arena.LevelBot(ai.VeryHard, it(ai.VeryHard), 0), arena.LevelBot(ai.Hard, it(ai.Hard), 0)},
++		{arena.LevelBot(ai.Hard, it(ai.Hard), 0), arena.RusherBot},
++		{arena.LevelBot(ai.Hard, it(ai.Hard), 0), arena.CoinChaserBot},
 +	}
 +	for _, p := range pairs {
 +		start := time.Now()
@@ -428,11 +429,12 @@
 +	players := fs.Int("players", 4, "players")
 +	parallel := fs.Int("parallel", 0, "parallel games")
 +	humanIters := fs.Int("human-iters", 2*ladderIters[ai.VeryHard], "proxy human iterations")
++	oppScale := fs.Float64("iter-scale", 1, "multiply the AI opponents' iteration budgets")
 +	fs.Parse(args)
 +	human := arena.ProfileBot("proxy-human", ai.DefaultProfile(ai.Hard), *humanIters)
 +	for _, opp := range []arena.Bot{
-+		arena.LevelBot(ai.Hard, ladderIters[ai.Hard], 1),
-+		arena.LevelBot(ai.VeryHard, ladderIters[ai.VeryHard], 1),
++		arena.LevelBot(ai.Hard, int(float64(ladderIters[ai.Hard])**oppScale), 0),
++		arena.LevelBot(ai.VeryHard, int(float64(ladderIters[ai.VeryHard])**oppScale), 0),
 +	} {
 +		start := time.Now()
 +		r := arena.Coalition(human, opp, *players, *seeds, 1, *parallel)
@@ -479,7 +481,13 @@
 +	base := ai.DefaultProfile(l)
 +	base.Workers = *workers
 +	s := arena.HeadToHead(arena.ProfileBot("variant", pv, *iters), arena.ProfileBot("default", base, *iters), *players, *seeds, 1, *parallel)
-+	fmt.Printf("%+v\n%s\n", w, s)
++	fmt.Printf("%+v\n", w)
++	for i, e := range s.Errors {
++		if i < 5 {
++			fmt.Println("  error:", e)
++		}
++	}
++	fmt.Println(s)
 +}
 --- a/internal/ai/arena/bots.go
 +++ b/internal/ai/arena/bots.go
@@ -666,7 +674,7 @@
 +}
 --- a/internal/ai/arena/match.go
 +++ b/internal/ai/arena/match.go
-@@ -0,0 +1,239 @@
+@@ -0,0 +1,243 @@
 +package arena
 +
 +import (
@@ -706,7 +714,11 @@
 +	}
 +	for step := 0; !gs.GameOver; step++ {
 +		if gs.Round > MaxRounds {
-+			res.Err = fmt.Errorf("game %d still running after %d rounds (stall)", seed, MaxRounds)
++			desc := ""
++			for _, p := range gs.Players {
++				desc += fmt.Sprintf(" [golems %d, crystals %s, hand %d, played %d]", len(p.PointCards), p.Resources, len(p.Hand), len(p.PlayedCards))
++			}
++			res.Err = fmt.Errorf("game %d still running after %d rounds (stall):%s", seed, MaxRounds, desc)
 +			res.Rounds = gs.Round
 +			return res
 +		}
@@ -908,7 +920,7 @@
 +}
 --- a/internal/ai/eval.go
 +++ b/internal/ai/eval.go
-@@ -0,0 +1,258 @@
+@@ -0,0 +1,274 @@
 +package ai
 +
 +import (
@@ -935,8 +947,9 @@
 +}
 +
 +// DefaultWeights are the starting weights (h_illes BGA guide + NikhilMittal engine.js, tuned).
++// Tuning log: docs/ai/tinh-chinh.md (round 1: CrystalLevel 0.6→0.75, Progress2 0.25→0.35).
 +var DefaultWeights = Weights{
-+	CrystalLevel: 0.6, Progress1: 0.75, Progress2: 0.25, Gamma: 0.8, Contested: 0.55, Tied: 0.8,
++	CrystalLevel: 0.75, Progress1: 0.75, Progress2: 0.35, Gamma: 0.8, Contested: 0.55, Tied: 0.8,
 +	Engine: 0.18, EngineCap: 40, CardsSoftCap: 8, ExtraCard: 0.8, Played: 0.12, MinRate: 2,
 +}
 +
@@ -977,6 +990,21 @@
 +		most = max(most, s.P[i].Golems)
 +	}
 +	return math.Min(1, float64(most)/float64(s.Goal))
++}
++
++// endWeight is how much crystals are valued at their final-scoring value (1 per non-yellow)
++// instead of their conversion value. It reaches 1 as soon as someone is one golem from the goal:
++// if it only jumped to 1 when the last round starts, triggering the end would devalue a player's
++// crystals and two AIs at goal−1 would both refuse to claim the final golem (observed stall).
++func endWeight(s *sim.State) float64 {
++	if s.LastRound || s.Over {
++		return 1
++	}
++	most := 0
++	for i := 0; i < int(s.N); i++ {
++		most = max(most, int(s.P[i].Golems))
++	}
++	return math.Max(0, math.Min(1, float64(most-(int(s.Goal)-3))/2))
 +}
 +
 +// engineRate estimates crystal levels a player gains per turn: the mean of its three best cards,
@@ -1076,7 +1104,7 @@
 +		return
 +	}
 +	ph := phase(s)
-+	lambda := math.Max(0, math.Min(1, (ph-0.6)/0.4))
++	lambda := endWeight(s)
 +
 +	var rate [sim.MaxPlayers]float64
 +	var t [sim.MaxPlayers][sim.GolemRowSize]int
@@ -2009,14 +2037,14 @@
 +		return Profile{Level: Easy, Utility: UtilityOwn, RootTemp: 1.5, RootWindow: 3}
 +	case Medium:
 +		return Profile{Level: Medium, Utility: UtilityOwn, Search: true, Budget: 300 * time.Millisecond,
-+			Workers: 1, RootTemp: 0.4, Epsilon: 0.25, RolloutTurns: 1, CPuct: 1.25, MaxNodes: 200000}
++			Workers: 1, RootTemp: 0.4, Epsilon: 0.25, RolloutTurns: 2, CPuct: 0.8, MaxNodes: 200000}
 +	case Hard:
 +		return Profile{Level: Hard, Utility: UtilityBeatLeader, Search: true, Budget: 1400 * time.Millisecond,
-+			Workers: 2, Epsilon: 0.15, RolloutTurns: 1, OppModel: true, CPuct: 1.25, MaxNodes: 200000}
++			Workers: 2, Epsilon: 0.15, RolloutTurns: 2, OppModel: true, CPuct: 0.8, MaxNodes: 200000}
 +	case VeryHard:
 +		return Profile{Level: VeryHard, Utility: UtilityCoalition, Search: true, Budget: 3000 * time.Millisecond,
-+			Workers: 4, Epsilon: 0.10, RolloutTurns: 1, OppModel: true, EndgameToTerminal: true,
-+			CPuct: 1.25, MaxNodes: 200000}
++			Workers: 4, Epsilon: 0.10, RolloutTurns: 2, OppModel: true, EndgameToTerminal: true,
++			CPuct: 0.8, MaxNodes: 200000}
 +	}
 +	return DefaultProfile(Medium)
 +}
@@ -2129,7 +2157,7 @@
 +}
 --- a/internal/ai/search_agent.go
 +++ b/internal/ai/search_agent.go
-@@ -0,0 +1,281 @@
+@@ -0,0 +1,332 @@
 +package ai
 +
 +import (
@@ -2195,6 +2223,11 @@
 +	default:
 +		if w, ok := immediateWin(&st, legal, &pv, drawer); ok {
 +			chosen = w
++			break
++		}
++		if c, ok := antiStall(&st, legal); ok {
++			chosen = c
++			stats.Fallback = "anti-stall claim"
 +			break
 +		}
 +		if !a.p.Search {
@@ -2411,9 +2444,55 @@
 +	}
 +	return out
 +}
++
++// antiStallRound: past this round the AI stops "investing": it takes the best available claim,
++// else the move that brings it closest to its most reachable golem. Real games end around rounds
++// 35–70; this only guards against AIs waiting each other out (observed ~1 in 2000 AI-only games,
++// e.g. caravans full of pink while the golem row wants green and yellow).
++const antiStallRound = 100
++
++func antiStall(st *sim.State, legal []sim.Action) (sim.Action, bool) {
++	if st.Round < antiStallRound {
++		return sim.Action{}, false
++	}
++	best, bestPts, found := sim.Action{}, -1, false
++	for _, a := range legal {
++		if a.Kind == sim.AClaim {
++			if p := int(sim.Golems[st.Row[a.Card]].Points); p > bestPts {
++				best, bestPts, found = a, p, true
++			}
++		}
++	}
++	if found {
++		return best, true
++	}
++	seat := st.Seat()
++	bestCost := 1 << 30
++	for _, a := range legal {
++		c := *st
++		c.Apply(a, noDraw{})
++		if a.Kind == sim.ARest && st.P[seat].Played == 0 {
++			continue
++		}
++		cost := 1 << 30
++		for j := 0; j < int(c.NRow); j++ {
++			cost = min(cost, deficit(c.P[seat].Res, sim.Golems[c.Row[j]].Req))
++		}
++		if cost < bestCost {
++			best, bestCost, found = a, cost, true
++		}
++	}
++	return best, found
++}
++
++// deficit is the crystal-level cost still missing for a golem (spare crystals upgraded first),
++// i.e. the numerator of turnsToAfford.
++func deficit(res, req sim.Crystals) int {
++	return turnsToAfford(res, req, 1) - 1
++}
 --- a/internal/ai/search_test.go
 +++ b/internal/ai/search_test.go
-@@ -0,0 +1,214 @@
+@@ -0,0 +1,231 @@
 +package ai
 +
 +import (
@@ -2576,8 +2655,8 @@
 +	for _, l := range []Level{Hard, VeryHard} {
 +		gs := scenario(t, []string{"golem_0022", "golem_0230", "golem_3200", "golem_0040", "golem_2003"})
 +		ai, human := gs.Players[0], gs.Players[1]
-+		ai.Resources = &game.Resources{Blue: 2, Pink: 3}               // can claim golem_3200 (18 pts) now
-+		human.Resources = &game.Resources{Blue: 2, Pink: 2, Yellow: 1} // one pink short of it
++		ai.Resources = &game.Resources{Blue: 2, Pink: 3}    // can claim golem_3200 (18 pts) now
++		human.Resources = &game.Resources{Blue: 2, Pink: 3} // …and so can the human, on their next turn
 +		human.PointCards = []*game.Card{{ID: 9901, Type: game.PointCard, Points: 14}}
 +		human.Points = 14
 +		teams := []int{1, 100}
@@ -2619,13 +2698,30 @@
 +	gs := scenario(t, []string{"golem_0022", "golem_0230", "golem_3200", "golem_0040", "golem_2003"})
 +	ai, human := gs.Players[0], gs.Players[1]
 +	ai.Resources = &game.Resources{Blue: 2, Pink: 3}
-+	human.Resources = &game.Resources{Blue: 2, Pink: 2, Green: 1} // upgrade_2 (G→P) then claim: 2 turns
++	// The human can claim golem_3200 on their very next turn, so waiting would lose it. (With a
++	// 2-turn human the AI may correctly take a free card first and still claim in time.)
++	human.Resources = &game.Resources{Blue: 2, Pink: 3}
 +	d := decide(t, NewAgentWithProfile(testProfile(VeryHard), DefaultRuntime()), gs, 1500, []int{1, 100})
 +	if d.Action.Type != game.ClaimPointCard || gs.Market.PointCards[d.Action.CardIndex].Name != "golem_3200" {
 +		t.Fatalf("Very Hard should claim the human's target golem_3200, chose %+v", d.Action)
 +	}
 +	if len(d.Intents) != 1 || d.Intents[0].TargetID != human.ID {
 +		t.Fatalf("claiming the human's target should produce one intent for them, got %+v", d.Intents)
++	}
++}
++
++func TestAntiStall_MovesTowardsAGolem(t *testing.T) {
++	gs := scenario(t, []string{"golem_0050", "golem_0040", "golem_0032", "golem_0230", "golem_0222"})
++	gs.Round = 120
++	p := gs.GetCurrentPlayer()
++	p.Resources = &game.Resources{Pink: 9, Blue: 1}
++	p.Hand = append(p.Hand, game.CreateCardFromName("trade_1000_0030", 37)) // 1 pink → 3 green
++	d := decide(t, NewAgentWithProfile(testProfile(Medium), DefaultRuntime()), gs, 100, nil)
++	if d.Stats.Fallback != "anti-stall claim" {
++		t.Fatalf("past round 100 the anti-stall policy must decide, got %+v (%s)", d.Action, d.Stats.Fallback)
++	}
++	if d.Action.Type != game.PlayCard || p.Hand[d.Action.CardIndex].Name != "trade_1000_0030" {
++		t.Fatalf("expected the pink→green trade towards the green golems, got %+v", d.Action)
 +	}
 +}
 --- a/internal/ai/sim/actions.go
@@ -6756,6 +6852,28 @@
  		logger:        logger,
  		maxChatMsgs:   10, // Default, will be set from config
  
+@@ -162,8 +188,8 @@
+ 			existingPlayer.Avatar = avatar
+ 		}
+ 		// Start new read and write handlers
+-		go gs.runPlayerWriteHandler(existingPlayer)
+-		go gs.runPlayerReadHandler(existingPlayer)
++		go gs.runPlayerWriteHandler(existingPlayer, existingPlayer.Conn, existingPlayer.WriteChan, existingPlayer.Done)
++		go gs.runPlayerReadHandler(existingPlayer, existingPlayer.Conn)
+ 
+ 		// Send playerAssigned message first so client knows its player ID
+ 		assignedMsg := map[string]interface{}{
+@@ -208,8 +234,8 @@
+ 	// Start read and write handlers in other goroutines
+ 	player := gs.connectedPlayers[clientID]
+ 	if player != nil { // player should never be nil, if it is, it means our code has a bug :)
+-		go gs.runPlayerWriteHandler(player)
+-		go gs.runPlayerReadHandler(player)
++		go gs.runPlayerWriteHandler(player, player.Conn, player.WriteChan, player.Done)
++		go gs.runPlayerReadHandler(player, player.Conn)
+ 	}
+ 
+ 	// Send assigned player ID back to client -> only after the game is started
 @@ -257,7 +283,7 @@
  		return fmt.Errorf("game is not in waiting status")
  	}
@@ -6880,7 +6998,127 @@
  		gs.logger.Warn("playerID is in use by another player", zap.Int("playerID", playerID))
  		playerID = 0 // auto-assign next available player ID
  	}
-@@ -728,16 +732,17 @@
+@@ -465,26 +469,28 @@
+ 	return nil
+ }
+ 
+-// runPlayerWriteHandler handles writes to the player's websocket connection
+-// Should be invoked in a goroutine by the caller
+-func (gs *GameSession) runPlayerWriteHandler(player *PlayerInfo) {
++// runPlayerWriteHandler handles writes to the player's websocket connection.
++// Should be invoked in a goroutine by the caller, with the connection and channels captured under
++// gs.mu: the PlayerInfo fields are replaced on reconnection and cleared on removal, so reading
++// them here would race (and could write to the wrong connection).
++func (gs *GameSession) runPlayerWriteHandler(player *PlayerInfo, conn *websocket.Conn, writeChan chan []byte, done chan struct{}) {
+ 	// Start ping ticker to keep connection alive
+ 	ticker := time.NewTicker(gs.pingInterval)
+ 	defer ticker.Stop()
+ 
+ 	for {
+ 		select {
+-		case <-player.Done:
++		case <-done:
+ 			// Stop signal received, exit goroutine
+ 			return
+-		case msg, ok := <-player.WriteChan:
++		case msg, ok := <-writeChan:
+ 			if !ok {
+ 				// Channel closed, exit goroutine
+ 				return
+ 			}
+-			if player.Conn != nil {
+-				player.Conn.SetWriteDeadline(time.Now().Add(gs.writeTimeout))
+-				err := player.Conn.WriteMessage(websocket.TextMessage, msg)
++			if conn != nil {
++				conn.SetWriteDeadline(time.Now().Add(gs.writeTimeout))
++				err := conn.WriteMessage(websocket.TextMessage, msg)
+ 
+ 				if err != nil {
+ 					// Check if this is a connection closed error
+@@ -511,9 +517,9 @@
+ 			}
+ 		case <-ticker.C:
+ 			// Send ping message to keep connection alive
+-			if player.Conn != nil {
+-				player.Conn.SetWriteDeadline(time.Now().Add(gs.writeTimeout))
+-				err := player.Conn.WriteMessage(websocket.PingMessage, nil)
++			if conn != nil {
++				conn.SetWriteDeadline(time.Now().Add(gs.writeTimeout))
++				err := conn.WriteMessage(websocket.PingMessage, nil)
+ 
+ 				if err != nil {
+ 					// Check if this is a connection closed error
+@@ -607,6 +613,13 @@
+ }
+ 
+ func (gs *GameSession) handleRemovePlayer(clientID string) {
++	gs.handleRemovePlayerConn(clientID, nil)
++}
++
++// handleRemovePlayerConn removes a player whose connection `conn` failed. A read handler of an old
++// connection (the player has since reconnected) must not tear down the new one: then it is a no-op.
++// conn == nil removes unconditionally.
++func (gs *GameSession) handleRemovePlayerConn(clientID string, conn *websocket.Conn) {
+ 	gs.mu.Lock()
+ 	defer gs.mu.Unlock()
+ 
+@@ -614,6 +627,9 @@
+ 	if p == nil {
+ 		return
+ 	}
++	if conn != nil && p.Conn != conn {
++		return // stale handler: the player already reconnected (or was removed) on another connection
++	}
+ 
+ 	if p.Conn != nil {
+ 		p.Conn.Close()
+@@ -657,28 +673,28 @@
+ 	gs.broadcastState()
+ }
+ 
+-func (gs *GameSession) runPlayerReadHandler(player *PlayerInfo) {
++func (gs *GameSession) runPlayerReadHandler(player *PlayerInfo, conn *websocket.Conn) {
+ 	log := gs.logger.With(zap.String("clientID", player.ClientID)).With(zap.String("name", player.Name))
+ 
+ 	// Set up pong handler to reset read deadline when receiving pong messages
+-	player.Conn.SetPongHandler(func(string) error {
+-		player.Conn.SetReadDeadline(time.Now().Add(gs.readTimeout))
++	conn.SetPongHandler(func(string) error {
++		conn.SetReadDeadline(time.Now().Add(gs.readTimeout))
+ 		log.Debug("received pong from player")
+ 		return nil
+ 	})
+ 
+ 	// Set initial read deadline
+-	player.Conn.SetReadDeadline(time.Now().Add(gs.readTimeout))
++	conn.SetReadDeadline(time.Now().Add(gs.readTimeout))
+ 
+ 	for {
+-		_, message, err := player.Conn.ReadMessage()
++		_, message, err := conn.ReadMessage()
+ 		if err != nil {
+ 			log.Error("read error", zap.Error(err))
+ 			break
+ 		}
+ 
+ 		// Reset read deadline on each message
+-		player.Conn.SetReadDeadline(time.Now().Add(gs.readTimeout))
++		conn.SetReadDeadline(time.Now().Add(gs.readTimeout))
+ 
+ 		var req map[string]interface{}
+ 		if err := json.Unmarshal(message, &req); err != nil {
+@@ -699,8 +715,8 @@
+ 		}
+ 	}
+ 
+-	// connection error, remove player from session
+-	gs.handleRemovePlayer(player.ClientID)
++	// connection error, remove player from session (unless they already reconnected on a new conn)
++	gs.handleRemovePlayerConn(player.ClientID, conn)
+ }
+ 
+ func (gs *GameSession) handleChatMessage(clientID string, req map[string]any) {
+@@ -728,16 +744,17 @@
  
  func (gs *GameSession) handlePlayerAction(clientID string, req map[string]any) {
  	gs.mu.RLock()
@@ -6903,7 +7141,7 @@
  
  	actionTypeStr, _ := req["actionType"].(string)
  	cardIndex, _ := req["cardIndex"].(float64)
-@@ -865,10 +870,17 @@
+@@ -865,10 +882,17 @@
  	default:
  		return
  	}
@@ -6922,7 +7160,7 @@
  	}
  }
  
-@@ -1188,169 +1200,6 @@
+@@ -1188,169 +1212,6 @@
  	return nil
  }
  
@@ -7092,7 +7330,7 @@
  // broadcastState broadcasts the current game state to all players
  func (gs *GameSession) broadcastState() {
  	gs.broadcast(gs.serializeState())
-@@ -1404,6 +1253,8 @@
+@@ -1404,6 +1265,8 @@
  			bJoinedAt, _ := b["joinedAt"].(string)
  			return strings.Compare(aJoinedAt, bJoinedAt)
  		})
@@ -7101,7 +7339,7 @@
  
  		return map[string]interface{}{
  			"type": "state",
-@@ -1416,7 +1267,10 @@
+@@ -1416,7 +1279,10 @@
  			"players":         waitingPlayers,
  			"maxChatMessages": gs.maxChatMsgs,
  			// "market":          map[string]interface{}{},
@@ -7113,7 +7351,7 @@
  		}
  	}
  
-@@ -1453,9 +1307,10 @@
+@@ -1453,9 +1319,10 @@
  			"coins":          serializeCards(p.Coins),
  			"hasRested":      p.HasRested,
  			"isAI":           p.IsAI,
@@ -7125,7 +7363,7 @@
  		}
  	}
  
-@@ -1463,6 +1318,7 @@
+@@ -1463,6 +1330,7 @@
  	for i, card := range gs.GameState.Market.ActionCards {
  		cost := gs.GameState.Market.GetActionCardCost(i)
  		serialized := serializeCardWithCost(card, cost)
@@ -7133,7 +7371,7 @@
  		// Ensure deposits field exists
  		if _, exists := serialized["deposits"]; !exists {
  			serialized["deposits"] = make(map[string]string)
-@@ -1494,7 +1350,12 @@
+@@ -1494,7 +1362,12 @@
  			"pointDeck":   len(gs.GameState.Market.PointDeck),
  			"coins":       marketCoins,
  		},
@@ -7147,7 +7385,7 @@
  	}
  }
  
-@@ -1589,6 +1450,12 @@
+@@ -1589,6 +1462,12 @@
  
  // Close gracefully closes the game session, disconnecting all players and spectators
  func (gs *GameSession) Close() error {
@@ -7160,7 +7398,7 @@
  	gs.mu.Lock()
  	defer gs.mu.Unlock()
  
-@@ -1645,8 +1512,10 @@
+@@ -1645,8 +1524,10 @@
  	gs.assignedPlayers = make(map[int]string)
  	gs.spectators = make(map[string]*Spectator)
  

@@ -24,8 +24,9 @@ type Weights struct {
 }
 
 // DefaultWeights are the starting weights (h_illes BGA guide + NikhilMittal engine.js, tuned).
+// Tuning log: docs/ai/tinh-chinh.md (round 1: CrystalLevel 0.6→0.75, Progress2 0.25→0.35).
 var DefaultWeights = Weights{
-	CrystalLevel: 0.6, Progress1: 0.75, Progress2: 0.25, Gamma: 0.8, Contested: 0.55, Tied: 0.8,
+	CrystalLevel: 0.75, Progress1: 0.75, Progress2: 0.35, Gamma: 0.8, Contested: 0.55, Tied: 0.8,
 	Engine: 0.18, EngineCap: 40, CardsSoftCap: 8, ExtraCard: 0.8, Played: 0.12, MinRate: 2,
 }
 
@@ -66,6 +67,21 @@ func phase(s *sim.State) float64 {
 		most = max(most, s.P[i].Golems)
 	}
 	return math.Min(1, float64(most)/float64(s.Goal))
+}
+
+// endWeight is how much crystals are valued at their final-scoring value (1 per non-yellow)
+// instead of their conversion value. It reaches 1 as soon as someone is one golem from the goal:
+// if it only jumped to 1 when the last round starts, triggering the end would devalue a player's
+// crystals and two AIs at goal−1 would both refuse to claim the final golem (observed stall).
+func endWeight(s *sim.State) float64 {
+	if s.LastRound || s.Over {
+		return 1
+	}
+	most := 0
+	for i := 0; i < int(s.N); i++ {
+		most = max(most, int(s.P[i].Golems))
+	}
+	return math.Max(0, math.Min(1, float64(most-(int(s.Goal)-3))/2))
 }
 
 // engineRate estimates crystal levels a player gains per turn: the mean of its three best cards,
@@ -165,7 +181,7 @@ func (e evaluator) values(s *sim.State, v *[sim.MaxPlayers]float64) {
 		return
 	}
 	ph := phase(s)
-	lambda := math.Max(0, math.Min(1, (ph-0.6)/0.4))
+	lambda := endWeight(s)
 
 	var rate [sim.MaxPlayers]float64
 	var t [sim.MaxPlayers][sim.GolemRowSize]int

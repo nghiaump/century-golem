@@ -188,8 +188,8 @@ func (gs *GameSession) AddPlayer(playerID int, clientID string, name string, ava
 			existingPlayer.Avatar = avatar
 		}
 		// Start new read and write handlers
-		go gs.runPlayerWriteHandler(existingPlayer)
-		go gs.runPlayerReadHandler(existingPlayer)
+		go gs.runPlayerWriteHandler(existingPlayer, existingPlayer.Conn, existingPlayer.WriteChan, existingPlayer.Done)
+		go gs.runPlayerReadHandler(existingPlayer, existingPlayer.Conn)
 
 		// Send playerAssigned message first so client knows its player ID
 		assignedMsg := map[string]interface{}{
@@ -234,8 +234,8 @@ func (gs *GameSession) AddPlayer(playerID int, clientID string, name string, ava
 	// Start read and write handlers in other goroutines
 	player := gs.connectedPlayers[clientID]
 	if player != nil { // player should never be nil, if it is, it means our code has a bug :)
-		go gs.runPlayerWriteHandler(player)
-		go gs.runPlayerReadHandler(player)
+		go gs.runPlayerWriteHandler(player, player.Conn, player.WriteChan, player.Done)
+		go gs.runPlayerReadHandler(player, player.Conn)
 	}
 
 	// Send assigned player ID back to client -> only after the game is started
@@ -469,26 +469,28 @@ func (gs *GameSession) addToWaitingList(clientID string, name string, avatar str
 	return nil
 }
 
-// runPlayerWriteHandler handles writes to the player's websocket connection
-// Should be invoked in a goroutine by the caller
-func (gs *GameSession) runPlayerWriteHandler(player *PlayerInfo) {
+// runPlayerWriteHandler handles writes to the player's websocket connection.
+// Should be invoked in a goroutine by the caller, with the connection and channels captured under
+// gs.mu: the PlayerInfo fields are replaced on reconnection and cleared on removal, so reading
+// them here would race (and could write to the wrong connection).
+func (gs *GameSession) runPlayerWriteHandler(player *PlayerInfo, conn *websocket.Conn, writeChan chan []byte, done chan struct{}) {
 	// Start ping ticker to keep connection alive
 	ticker := time.NewTicker(gs.pingInterval)
 	defer ticker.Stop()
 
 	for {
 		select {
-		case <-player.Done:
+		case <-done:
 			// Stop signal received, exit goroutine
 			return
-		case msg, ok := <-player.WriteChan:
+		case msg, ok := <-writeChan:
 			if !ok {
 				// Channel closed, exit goroutine
 				return
 			}
-			if player.Conn != nil {
-				player.Conn.SetWriteDeadline(time.Now().Add(gs.writeTimeout))
-				err := player.Conn.WriteMessage(websocket.TextMessage, msg)
+			if conn != nil {
+				conn.SetWriteDeadline(time.Now().Add(gs.writeTimeout))
+				err := conn.WriteMessage(websocket.TextMessage, msg)
 
 				if err != nil {
 					// Check if this is a connection closed error
@@ -515,9 +517,9 @@ func (gs *GameSession) runPlayerWriteHandler(player *PlayerInfo) {
 			}
 		case <-ticker.C:
 			// Send ping message to keep connection alive
-			if player.Conn != nil {
-				player.Conn.SetWriteDeadline(time.Now().Add(gs.writeTimeout))
-				err := player.Conn.WriteMessage(websocket.PingMessage, nil)
+			if conn != nil {
+				conn.SetWriteDeadline(time.Now().Add(gs.writeTimeout))
+				err := conn.WriteMessage(websocket.PingMessage, nil)
 
 				if err != nil {
 					// Check if this is a connection closed error
@@ -611,12 +613,22 @@ func (gs *GameSession) runSpectatorWriteHandler(spectator *Spectator) {
 }
 
 func (gs *GameSession) handleRemovePlayer(clientID string) {
+	gs.handleRemovePlayerConn(clientID, nil)
+}
+
+// handleRemovePlayerConn removes a player whose connection `conn` failed. A read handler of an old
+// connection (the player has since reconnected) must not tear down the new one: then it is a no-op.
+// conn == nil removes unconditionally.
+func (gs *GameSession) handleRemovePlayerConn(clientID string, conn *websocket.Conn) {
 	gs.mu.Lock()
 	defer gs.mu.Unlock()
 
 	p := gs.connectedPlayers[clientID]
 	if p == nil {
 		return
+	}
+	if conn != nil && p.Conn != conn {
+		return // stale handler: the player already reconnected (or was removed) on another connection
 	}
 
 	if p.Conn != nil {
@@ -661,28 +673,28 @@ func (gs *GameSession) handleRemovePlayer(clientID string) {
 	gs.broadcastState()
 }
 
-func (gs *GameSession) runPlayerReadHandler(player *PlayerInfo) {
+func (gs *GameSession) runPlayerReadHandler(player *PlayerInfo, conn *websocket.Conn) {
 	log := gs.logger.With(zap.String("clientID", player.ClientID)).With(zap.String("name", player.Name))
 
 	// Set up pong handler to reset read deadline when receiving pong messages
-	player.Conn.SetPongHandler(func(string) error {
-		player.Conn.SetReadDeadline(time.Now().Add(gs.readTimeout))
+	conn.SetPongHandler(func(string) error {
+		conn.SetReadDeadline(time.Now().Add(gs.readTimeout))
 		log.Debug("received pong from player")
 		return nil
 	})
 
 	// Set initial read deadline
-	player.Conn.SetReadDeadline(time.Now().Add(gs.readTimeout))
+	conn.SetReadDeadline(time.Now().Add(gs.readTimeout))
 
 	for {
-		_, message, err := player.Conn.ReadMessage()
+		_, message, err := conn.ReadMessage()
 		if err != nil {
 			log.Error("read error", zap.Error(err))
 			break
 		}
 
 		// Reset read deadline on each message
-		player.Conn.SetReadDeadline(time.Now().Add(gs.readTimeout))
+		conn.SetReadDeadline(time.Now().Add(gs.readTimeout))
 
 		var req map[string]interface{}
 		if err := json.Unmarshal(message, &req); err != nil {
@@ -703,8 +715,8 @@ func (gs *GameSession) runPlayerReadHandler(player *PlayerInfo) {
 		}
 	}
 
-	// connection error, remove player from session
-	gs.handleRemovePlayer(player.ClientID)
+	// connection error, remove player from session (unless they already reconnected on a new conn)
+	gs.handleRemovePlayerConn(player.ClientID, conn)
 }
 
 func (gs *GameSession) handleChatMessage(clientID string, req map[string]any) {

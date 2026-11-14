@@ -2003,7 +2003,7 @@
          if (get().onChatMessage) {
 --- a/web/react-frontend/src/theme-xp.css
 +++ b/web/react-frontend/src/theme-xp.css
-@@ -0,0 +1,347 @@
+@@ -0,0 +1,349 @@
 +/*
 + * Windows XP × brutalism theme for the pre-game screens: mode menu, lobbies, connecting dialog, waiting room.
 + * XP: Luna blue title bars, beige window face, Tahoma, green "go" buttons, marquee progress bar.
@@ -2314,6 +2314,8 @@
 +.xp-badge--blue { background: #cfe0ff; }
 +.xp-badge--orange { background: #ffe2a8; }
 +.xp-badge--red { background: #ffc9bd; }
++/* badges keep dark text inside a selected (blue, white-text) list row — difficulty picker */
++.xp-list-item .xp-badge { color: var(--xp-ink); }
 +
 +/* XP marquee progress bar */
 +.xp-progress {
