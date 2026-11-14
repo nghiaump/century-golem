@@ -115,15 +115,40 @@ func (r *Resources) Has(crystal CrystalType, count int) bool {
 	return r.Get(crystal) >= count
 }
 
-// HasAll checks if the resources have all the required crystals
+// HasAll checks if the resources have all the required crystals, `multiplier` times over
+// (multiplier <= 0 is treated as 1). Upstream ignored the multiplier, which let a trade with a
+// large multiplier drive crystals negative.
 func (r *Resources) HasAll(required *Resources, multiplier int) bool {
+	if required == nil {
+		return true
+	}
 	if multiplier <= 0 {
 		multiplier = 1
 	}
-	return r.Yellow >= required.Yellow &&
-		r.Green >= required.Green &&
-		r.Blue >= required.Blue &&
-		r.Pink >= required.Pink
+	return r.Yellow >= required.Yellow*multiplier &&
+		r.Green >= required.Green*multiplier &&
+		r.Blue >= required.Blue*multiplier &&
+		r.Pink >= required.Pink*multiplier
+}
+
+// NonNegative reports whether every crystal count is >= 0 (a nil Resources counts as valid).
+// Client-supplied resources must pass this before use: a negative count would turn a
+// subtraction into an addition.
+func (r *Resources) NonNegative() bool {
+	return r == nil || (r.Yellow >= 0 && r.Green >= 0 && r.Blue >= 0 && r.Pink >= 0)
+}
+
+// Vec returns the counts as [yellow, green, blue, pink].
+func (r *Resources) Vec() [4]int {
+	if r == nil {
+		return [4]int{}
+	}
+	return [4]int{r.Yellow, r.Green, r.Blue, r.Pink}
+}
+
+// ResourcesFromVec builds Resources from [yellow, green, blue, pink].
+func ResourcesFromVec(v [4]int) *Resources {
+	return &Resources{Yellow: v[0], Green: v[1], Blue: v[2], Pink: v[3]}
 }
 
 // GetMaxMultiplier returns the maximum multiplier that can be applied with current resources

@@ -99,11 +99,6 @@ func (p *Player) CanClaimAny(pointCards []*Card) *Card {
 	return nil
 }
 
-// CheckLastRound checks if player has won (5 point cards)
-func (p *Player) CheckLastRound() bool {
-	return len(p.PointCards) >= 5
-}
-
 // GetHandString returns a string representation of the hand
 func (p *Player) GetHandString() string {
 	if len(p.Hand) == 0 {

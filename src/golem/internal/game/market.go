@@ -52,12 +52,32 @@ func NewMarket(actionCards, pointCards []*Card, coins []*Card, maxActionVisible 
 	return market
 }
 
-// RefillActionCards refills the action card market up to MaxVisible
+// RefillActionCards refills the action card market up to MaxVisible.
+//
+// A card entering the market is copied so the market OWNS it: deposits are then mutated only on
+// market-owned cards, never on deck cards. This keeps deck, hand and golem cards immutable after
+// setup, which is what lets GameState.Clone share them between clones.
 func (m *Market) RefillActionCards() {
 	for len(m.ActionCards) < m.MaxActionVisible && len(m.ActionDeck) > 0 {
-		m.ActionCards = append(m.ActionCards, m.ActionDeck[0])
+		m.ActionCards = append(m.ActionCards, ownMarketCard(m.ActionDeck[0]))
 		m.ActionDeck = m.ActionDeck[1:]
 	}
+}
+
+// ownMarketCard returns a copy of c with its own (empty) deposits.
+func ownMarketCard(c *Card) *Card {
+	cp := *c
+	cp.Deposits = NewResources()
+	return &cp
+}
+
+// CrystalsToPlace returns how many crystals (any colour, one per card) must be placed on the cards
+// to the left of position `pos` to acquire the card there (official rule: one per skipped card).
+func (m *Market) CrystalsToPlace(pos int) int {
+	if pos < 0 {
+		return 0
+	}
+	return pos
 }
 
 // RefillPointCards refills the point card market up to MaxVisible
@@ -74,8 +94,11 @@ func (m *Market) RefillCoins(numPlayers int) {
 	}
 }
 
-// GetActionCardCost returns the cost to acquire an action card at a given position
-// Cost increases with position (0 = cheapest, higher = more expensive)
+// GetActionCardCost returns the legacy "cost" of a market position as `position` yellow.
+//
+// Deprecated: under the official rule the price is CrystalsToPlace(position) crystals of ANY
+// colour, placed on the cards to the left. Kept only because the serializer still emits `cost`
+// for older clients.
 func (m *Market) GetActionCardCost(position int) *Resources {
 	if position < 0 || position >= len(m.ActionCards) {
 		return nil

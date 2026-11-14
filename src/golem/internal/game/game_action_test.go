@@ -511,44 +511,48 @@ func TestExecuteAction_ClaimPointCard_WithCoin(t *testing.T) {
 	}
 }
 
-// TestExecuteAction_ClaimPointCard_TriggerLastRound tests claiming 5th point card triggers last round
+// TestExecuteAction_ClaimPointCard_TriggerLastRound tests that claiming the threshold golem
+// (6th with 2–3 players, 5th with 4–5) triggers the last round, and one fewer does not.
 func TestExecuteAction_ClaimPointCard_TriggerLastRound(t *testing.T) {
+	for _, numPlayers := range []int{2, 3, 4, 5} {
+		gs := NewGameState(numPlayers, 42)
+		player := gs.GetCurrentPlayer()
+		need := gs.GolemsToEnd()
+
+		// Give the player need-1 golems already claimed
+		for i := 0; i < need-1; i++ {
+			player.PointCards = append(player.PointCards, &Card{ID: 9000 + i, Type: PointCard, Points: 5})
+		}
+
+		// Give resources to claim one more
+		pointCard := gs.Market.PointCards[0]
+		player.Resources = NewResources()
+		player.Resources.AddAll(pointCard.Requirement, 1)
+
+		if err := gs.ExecuteAction(Action{Type: ClaimPointCard, CardIndex: 0}); err != nil {
+			t.Fatalf("%d players: ExecuteAction failed: %v", numPlayers, err)
+		}
+		if len(player.PointCards) != need {
+			t.Errorf("%d players: expected %d point cards, got %d", numPlayers, need, len(player.PointCards))
+		}
+		if !gs.LastRound {
+			t.Errorf("%d players: expected LastRound after golem #%d", numPlayers, need)
+		}
+	}
+
+	// One below the threshold must NOT trigger it (2 players: 5th golem).
 	gs := NewGameState(2, 42)
 	player := gs.GetCurrentPlayer()
-
-	// Give player 4 point cards
 	for i := 0; i < 4; i++ {
-		player.PointCards = append(player.PointCards, &Card{
-			ID:     i,
-			Type:   PointCard,
-			Points: 5,
-		})
+		player.PointCards = append(player.PointCards, &Card{ID: 9100 + i, Type: PointCard, Points: 5})
 	}
-
-	// Give resources to claim 5th card
-	pointCard := gs.Market.PointCards[0]
-	player.Resources.AddAll(pointCard.Requirement, 1)
-
-	// Execute claim action
-	action := Action{
-		Type:      ClaimPointCard,
-		CardIndex: 0,
-	}
-
-	err := gs.ExecuteAction(action)
-	if err != nil {
+	player.Resources = NewResources()
+	player.Resources.AddAll(gs.Market.PointCards[0].Requirement, 1)
+	if err := gs.ExecuteAction(Action{Type: ClaimPointCard, CardIndex: 0}); err != nil {
 		t.Fatalf("ExecuteAction failed: %v", err)
 	}
-
-	// Validate state changes
-	// 1. Should have 5 point cards
-	if len(player.PointCards) != 5 {
-		t.Errorf("Expected 5 point cards, got %d", len(player.PointCards))
-	}
-
-	// 2. Last round should be triggered
-	if !gs.LastRound {
-		t.Error("Expected LastRound to be true")
+	if gs.LastRound {
+		t.Error("2 players: the 5th golem must not trigger the last round (official threshold is 6)")
 	}
 }
 

@@ -45,18 +45,14 @@ func (e *Engine) Run() {
 		actionStr := e.getActionString(action, player)
 		lg.Sugar().Infof("\n>>> Action: %s", actionStr)
 
-		if err := e.GameState.ExecuteAction(action); err != nil {
+		if _, err := e.GameState.Step(action); err != nil {
 			lg.Sugar().Errorf("ERROR: %v", err)
-			// If action fails, force rest
-			player.Rest()
-		}
-
-		// Check for game over
-		e.GameState.CheckGameOver()
-
-		// Advance to next turn
-		if !e.GameState.GameOver {
-			e.GameState.NextTurn()
+			// If the action fails: discard the cheapest crystals if a discard is pending, else rest.
+			if player.PendingDiscard > 0 {
+				e.GameState.Step(Action{Type: Discard, DiscardResources: AutoDiscard(player.Resources, player.PendingDiscard)})
+			} else {
+				e.GameState.Step(Action{Type: Rest})
+			}
 		}
 
 		// Small delay for readability (optional)

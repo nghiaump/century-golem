@@ -418,28 +418,14 @@ func TestGameRules_ClaimPointCard(t *testing.T) {
 	}
 }
 
-// TestGameRules_WinCondition tests the game end condition
+// TestGameRules_WinCondition tests the official last-round threshold:
+// 6 golems with 2–3 players, 5 golems with 4–5 players.
 func TestGameRules_WinCondition(t *testing.T) {
-	gs := NewGameState(2, 12345)
-	player := gs.GetCurrentPlayer()
-
-	// Simulate claiming 5 point cards
-	for i := 0; i < 5; i++ {
-		player.PointCards = append(player.PointCards, &Card{
-			ID:     3000 + i,
-			Name:   "Test Point",
-			Type:   PointCard,
-			Points: 10,
-		})
-	}
-
-	// Check last round trigger
-	if player.CheckLastRound() {
-		gs.LastRound = true
-	}
-
-	if !gs.LastRound {
-		t.Error("Expected last round to be triggered after 5 point cards")
+	for _, tc := range []struct{ players, want int }{{2, 6}, {3, 6}, {4, 5}, {5, 5}} {
+		gs := NewGameState(tc.players, 12345)
+		if got := gs.GolemsToEnd(); got != tc.want {
+			t.Errorf("%d players: GolemsToEnd() = %d, want %d", tc.players, got, tc.want)
+		}
 	}
 }
 
