@@ -14,3 +14,5 @@ node_modules/
 __pycache__/
 *.pyc
 .DS_Store
+# artifact build ở rtx cho ship.sh (binary arm64, dist) — sinh lại được
+/deploy/build/

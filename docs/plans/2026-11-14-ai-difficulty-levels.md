@@ -269,4 +269,6 @@ info/quyết định AI · tham số `AI_THINK_SCALE_PCT` để hạ tải nếu
 | 2026-11-15 | UI theo phản hồi: badge chỉ ghi mức; hàng người chơi 5 người không bị nút nổi đè (desktop + mobile); sửa dòng ma ở thanh người chơi mobile; nút âm thanh mobile dời xuống dưới nút chat; lưới avatar nhỏ 50% (10 cột desktop, 8 cột mobile, 3 hàng); chọn số AI gọn 1 hàng; **bỏ dòng công bố liên minh ở lobby** (ADR 0004 cập nhật) | yêu cầu người dùng |
 | 2026-11-15 | Bỏ badge độ khó trong từng ô người chơi ⇒ một `DifficultyBadge` dưới nút ✨; avatar ô người chơi desktop cao bằng 2 hàng | yêu cầu người dùng |
 | 2026-11-15 | Play Again ở ván 1 người tạo ván mới cùng thiết lập (trước: reload ⇒ lobby Multiplayer); Back to Menu về màn chính | phản hồi người dùng |
+| 2026-11-15 | **Very Hard bỏ liên minh** ⇒ utility Rival: mỗi AI tự chơi để thắng, coi người mạnh hơn 3 điểm; bỏ `coalition` khỏi API/state, intent `sacrifice`; `Teams` → `Humans`; `aibench coalition` → `vshuman`. Mục tiêu "≤10% ở coalition test" thay bằng "thấp hơn so với 3 Hard, không thông đồng" (đo được 21% so với 29%; trước đó 0%) | phản hồi người dùng: AI "biếu" ngọc to cho AI đi sau — ADR 0008 |
+| 2026-11-15 | Deploy: **build nặng ở rtx, Pixel chỉ deploy** (`deploy/ship.sh`, `Dockerfile.*.prebuilt`) | quy ước người dùng |
 

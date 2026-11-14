@@ -1,0 +1,12 @@
+# Đóng gói backend từ binary arm64 ĐÃ BUILD SẴN ở rtx (deploy/ship.sh) — pixel3xl không compile gì (ý người dùng:
+# build nặng ở rtx, Pixel chỉ deploy). Build context = deploy/build/server/ (server + static/).
+# Runtime giống hệt stage cuối của Dockerfile.server (bản build-tại-chỗ vẫn giữ để dự phòng).
+FROM alpine:latest
+RUN apk --no-cache add ca-certificates wget
+WORKDIR /root/
+COPY server .
+COPY static ./web/static
+EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD wget --quiet --tries=1 --spider http://localhost:8080/ || exit 1
+CMD ["./server", "-port", "8080"]

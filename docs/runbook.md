@@ -24,6 +24,8 @@ curl -s http://127.0.0.1:8400/api/list      # các phòng đang có (ai đang ch
 Trước khi đụng `server`: `curl -s http://127.0.0.1:8400/api/list` — nếu `count > 0` và có `connectedPlayers`, báo trước.
 
 ## 3. Deploy lại sau khi sửa code trong `../src/golem`
+> **Production (pixel3xl): dùng `./ship.sh server|web|all` từ rtx** — build nặng ở rtx, Pixel chỉ đóng gói + restart (§11).
+> Các lệnh `--build` dưới đây compile tại chỗ: chỉ dùng trên rtx (khi rollback về rtx) — ⛔ chạy trên Pixel.
 ```bash
 # Chỉ frontend (web/react-frontend/**, ảnh, âm thanh, nginx.conf):
 DOCKER_BUILDKIT=1 docker compose up -d --build --no-deps web
@@ -129,12 +131,19 @@ docker compose up -d --no-deps server                                 # ⚠ kế
 trên máy đó (đổi `/home/nghia` → `/home/ubuntu`). Chỉ MỘT máy được chạy tunnel `century` — kiểm từ rtx (có cert.pem):
 `cloudflared tunnel info century` phải chỉ có 1 connector (`linux_arm64`).
 
-Sửa code ở rtx rồi đẩy sang (chỉ sửa ở MỘT nơi; rsync đè bản bên kia; không đè log tunnel của pixel3xl):
+**Quy ước (người dùng, 2026-11-15): build nặng ở rtx, pixel3xl chỉ deploy.** Sửa code ở rtx (chỉ sửa ở MỘT nơi), rồi:
 ```bash
-rsync -a --exclude deploy/tunnel.log /home/nghia/ai/rename-game/ ubuntu@100.71.99.38:ai/rename-game/
-ssh ubuntu@100.71.99.38 'cd ~/ai/rename-game/deploy && DOCKER_BUILDKIT=1 docker compose up -d --build --no-deps web'
-#   backend: thay `web` bằng `server` (⚠ mất ván) — xem /api/list trước; build trên máy ~4 phút, build từng service một cho đỡ RAM
+cd /home/nghia/ai/rename-game/deploy
+./ship.sh web        # vite build ở rtx (node:18-alpine, npm ci trên bản sao) → Pixel đóng gói nginx + restart web
+./ship.sh server     # go build GOARCH=arm64 ở rtx → Pixel đóng gói alpine + restart server (⚠ mất ván)
+ssh ubuntu@100.71.99.38 'cd ~/ai/rename-game/deploy && ./smoke-test.sh http://127.0.0.1:8400' && ./smoke-test.sh
 ```
+`ship.sh`: build vào `deploy/build/` (gitignore) → rsync cả repo (trừ `deploy/tunnel.log`) → trên Pixel chỉ
+`docker build -f Dockerfile.{server,web}.prebuilt build/<svc>` (COPY, không compile) + `docker compose up -d --no-deps <svc>`.
+Với `server` script tự chặn nếu `/api/list` có phòng hoặc log 10 phút qua có hoạt động (`FORCE=1` để bỏ qua).
+Image đang chạy được giữ là `century-golem-<svc>:prev` ⇒ rollback nhanh:
+`docker tag century-golem-server:prev century-golem-server:latest && docker compose up -d --no-deps server`.
+⛔ `docker compose up --build` trên Pixel (compile Go/npm tại chỗ ~4 phút CPU nặng, máy hay chạy pin) — chỉ khi rtx hỏng.
 Khác biệt arm64: server build bằng `deploy/Dockerfile.server` (upstream ép GOARCH=amd64); mongo cache 0.25 GB.
 
 Rollback về rtx (gián đoạn ~10 s):
@@ -153,10 +162,10 @@ Tổng quan: `docs/ai/README.md` · hiệu năng đo được: `docs/ai/hieu-nan
 | Muốn | Làm |
 |---|---|
 | Máy nóng / pin yếu | `AI_THINK_SCALE_PCT=60` (hoặc `AI_MAX_THREADS=2`) trong `deploy/docker-compose.yml` ⇒ `docker compose up -d --no-deps server` (⚠ mất ván) |
-| AI nghĩ chậm hơn ngân sách | `docker compose logs --since 10m server \| grep '"AI move"'` — xem `elapsed`, `iterations`, `workers` |
+| AI nghĩ chậm hơn ngân sách | `docker compose logs --since 10m server \| grep 'AI move'` — xem `elapsed`, `iterations`, `workers` |
 | Xem AI có đang chạy khi phòng trống | không nên: `AI_PAUSE_WHEN_EMPTY=1` (mặc định) dừng AI khi không còn kết nối |
 | Bật lại toast ý đồ AI ("… took the golem you were going for") | `AI_INTENT_MESSAGES=1` (mặc định 0 — người dùng tắt) ⇒ `docker compose up -d --no-deps server` |
 | Đo lại hiệu năng trên Pixel | lệnh ở `docs/ai/hieu-nang.md` §Đo lại (binary `aibench` arm64) |
 | Nhiệt độ / CPU | `cat /sys/class/thermal/thermal_zone0/temp` · `docker stats --no-stream` · pin: `cat /sys/class/power_supply/{max1720x/capacity,pmi8998-charger/online}` |
 
-`smoke-test.sh` kiểm thêm `/api/single` với `difficulty` (veryhard ⇒ `coalition:true`, giá trị lạ ⇒ 400).
+`smoke-test.sh` kiểm thêm `/api/single` với `difficulty` (veryhard ⇒ echo `difficulty` + `aiLevels`, giá trị lạ ⇒ 400).

@@ -1,0 +1,7 @@
+# Đóng gói frontend từ dist ĐÃ BUILD SẴN ở rtx (deploy/ship.sh) — pixel3xl không chạy npm/vite.
+# Build context = deploy/build/web/ (dist/ + static/). Giống stage cuối của Dockerfile.web.
+FROM nginx:1.27-alpine
+COPY dist /usr/share/nginx/html
+COPY static/images /usr/share/nginx/html/assets/images
+COPY static/sounds /usr/share/nginx/html/assets/sounds
+EXPOSE 80

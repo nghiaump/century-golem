@@ -7,7 +7,7 @@ Tổng quan + quy tắc: [../CLAUDE.md](../CLAUDE.md).
 
 ```bash
 docker compose ps                                              # trạng thái
-DOCKER_BUILDKIT=1 docker compose up -d --build --no-deps web   # deploy lại frontend
+./ship.sh web | server | all                                   # PROD (pixel3xl): build ở rtx, Pixel chỉ đóng gói + restart
 ./smoke-test.sh && ./privacy-audit.sh                          # kiểm sau mỗi thay đổi (exit 0)
 systemctl --user status century-tunnel                         # tunnel (log: ./tunnel.log)
 ```
@@ -16,7 +16,8 @@ systemctl --user status century-tunnel                         # tunnel (log: ./
 |---|---|
 | `docker-compose.yml` | mongodb, redis, server (mạng `backend` internal), web (`127.0.0.1:8400`) |
 | `Dockerfile.web`, `nginx.conf` | build frontend + phục vụ/proxy |
-| `Dockerfile.server` | build backend theo kiến trúc máy build (amd64 / arm64) |
+| `Dockerfile.server` | build backend theo kiến trúc máy build (amd64 / arm64) — build tại chỗ, dùng trên rtx |
+| `ship.sh`, `Dockerfile.server.prebuilt`, `Dockerfile.web.prebuilt` | deploy prod: build nặng ở rtx (`build/`, gitignore) → Pixel chỉ COPY artifact + restart (runbook §11) |
 | `patches/`, `regen-patches.sh` | sửa code upstream (0001 auth, 0002-frontend, 0003-backend: dọn phòng + luật + AI); script sinh lại + kiểm tái lập |
 | `sanitize-src.sh` | làm sạch source mới (idempotent) |
 | `make-avatars.py` | sinh avatar 1..23 từ `../assets-src/smb-enemies-sheet.png` (12 nhân vật + tối đa 1 biến thể) |

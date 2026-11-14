@@ -9,7 +9,8 @@ Tuỳ biến của người dùng so với upstream: tắt đăng nhập Google 
 AI mang avatar ngẫu nhiên và tên nhân vật đó) · theme **Windows XP × brutalism** cho màn chính + màn tạo/vào phòng (+ hộp thoại kết
 nối, phòng chờ) — **bàn chơi giữ style upstream**: người dùng đã thử XP trong ván và thấy xấu · tự dọn phòng ma ·
 **luật chính thức** (hoà ⇒ ghế sau thắng, mua lá = đặt crystal bất kỳ lên lá bên trái, golem 6/5) · **AI 4 mức**
-(Easy/Medium/Hard/Very Hard; Very Hard = các AI liên minh chống người chơi; lobby KHÔNG ghi điều này — ý người dùng) — `docs/ai/`.
+(Easy/Medium/Hard/Very Hard; Very Hard = mỗi AI tự chơi để thắng, coi người chơi mạnh hơn vài điểm nên chặn người trước —
+**không liên minh/không "biếu" nhau**, ADR 0008) — `docs/ai/`.
 
 > **Máy chạy từ 2026-11-14: `pixel3xl`** — Pixel 3 XL, Ubuntu 24.04 **aarch64**, 3.5 GB RAM, Wi-Fi; `ssh ubuntu@100.71.99.38`
 > (Tailscale), repo `/home/ubuntu/ai/rename-game`, tunnel `century-tunnel` (systemd --user, linger bật), `sudo` không cần mật khẩu.
@@ -25,8 +26,8 @@ nối, phòng chờ) — **bàn chơi giữ style upstream**: người dùng đ�
 - `docs/privacy.md` — đã gỡ/tắt gì, đã kiểm gì, rủi ro còn lại
 - `docs/upstream-changes.md` — mọi thay đổi so với upstream (patch 0001–0003), kết quả test
 - `docs/ai/` — AI: `README.md` (EN, tổng quan), `thiet-ke.md`, `tinh-chinh.md`, `hieu-nang.md`, `research.md` (EN)
-- `docs/adr/` — quyết định kiến trúc (0001 luật · 0002 simulator · 0003 MCTS · 0004 utility/liên minh · 0005 luồng ·
-  0006 patch · 0007 ghế/ẩn deck) · `docs/plans/` — plan đã duyệt (lưu nguyên văn + revision log)
+- `docs/adr/` — quyết định kiến trúc (0001 luật · 0002 simulator · 0003 MCTS · 0004 utility · 0005 luồng ·
+  0006 patch · 0007 ghế/ẩn deck · 0008 VH đối thủ cạnh tranh) · `docs/plans/` — plan đã duyệt (lưu nguyên văn + revision log)
 
 ## Bố cục
 ```
@@ -36,6 +37,7 @@ rename-game/
 │   │                             + env dọn phòng SESSION_IDLE_*_SECONDS, MAX_SESSIONS
 │   ├── Dockerfile.web, nginx.conf   build React (base "/", API cùng origin) → nginx (conf mount ro)
 │   ├── Dockerfile.server         build Go theo kiến trúc máy build (upstream Dockerfile ép GOARCH=amd64 ⇒ hỏng trên arm64)
+│   ├── ship.sh, Dockerfile.*.prebuilt   ★ deploy prod: build nặng ở rtx (deploy/build/, gitignore), Pixel chỉ COPY + restart
 │   ├── patches/                  0001 auth-404 · 0002-frontend (XP, avatar, UI AI) · 0003-backend (dọn phòng, luật, AI, loop)
 │   │   └── attic/                bản thử bị bỏ (không được áp): ingame-xp-theme.patch
 │   ├── regen-patches.sh          sinh lại 0002/0003 từ src/golem + kiểm tái lập — chạy sau MỌI lần sửa src
@@ -60,8 +62,9 @@ Ngoài thư mục: `~/.config/century-golem/{tunnel.yml,tunnel-creds.json}` (cre
 cd /home/nghia/ai/rename-game/deploy
 docker compose ps
 curl -s http://127.0.0.1:8400/api/list                            # phòng nhiều người đang mở (ván đơn bị ẩn)
-DOCKER_BUILDKIT=1 docker compose up -d --build --no-deps web      # deploy lại frontend (an toàn)
-DOCKER_BUILDKIT=1 docker compose up -d --build --no-deps server   # backend — ⚠ kết thúc mọi ván đang chơi
+./ship.sh web                                                     # PROD: vite build ở rtx → Pixel đóng gói + restart web (an toàn)
+./ship.sh server                                                  # PROD: go build arm64 ở rtx → Pixel restart server — ⚠ mất ván
+# (`docker compose up -d --build --no-deps web|server` = compile tại chỗ: chỉ trên rtx; ⛔ trên Pixel — runbook §11)
 ./regen-patches.sh && ./smoke-test.sh && ./privacy-audit.sh       # BẮT BUỘC sau mỗi thay đổi; tất cả exit 0
 # AI: benchmark / giải đấu (trong container golang:1.24, từ src/golem) — xem docs/ai/tinh-chinh.md
 go run ./internal/ai/arena/aibench bench -level veryhard -n 20      # thời gian nghĩ + iteration trên máy hiện tại
@@ -89,6 +92,8 @@ docker run --rm -v "$PWD/../src/golem":/src:ro -v golem-gomod:/go/pkg -v golem-g
   ⛔ Áp theme XP vào bàn chơi (đã bị người dùng từ chối; bản thử ở `deploy/patches/attic/`).
   `theme-xp.css` nạp SAU Tailwind ⇒ cùng thuộc tính thì `xp-*` thắng; muốn đè dùng inline style hoặc `!` (vd `!p-1`).
 - Bật đăng nhập Google: chỉ với Firebase project + OAuth client CỦA NGƯỜI DÙNG.
+- ⛔ Build nặng trên pixel3xl (`compose up --build`, npm, go build): **build ở rtx, Pixel chỉ deploy** bằng `deploy/ship.sh`
+  (quy ước người dùng 2026-11-15).
 - Restart/rebuild `server` = mất mọi ván đang chơi (state trong RAM) ⇒ xem `/api/list` trước (ván đơn KHÔNG hiện ở
   đó — xem log/`docker compose logs server` nếu cần biết có ván đơn đang chạy).
 - ⛔ Đổi `go.mod`/`package.json` hay sửa `cmd/` (regen-patches không bắt ⇒ hết REPRODUCIBLE). AI chỉ dùng stdlib (ADR 0006).
