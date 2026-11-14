@@ -13,7 +13,7 @@
 +      className={`inline-block align-middle ml-1 px-1.5 py-px rounded text-[10px] leading-4 font-bold text-white ${info.board} ${className}`}
 +      title={`Computer opponent · ${info.label}`}
 +    >
-+      AI · {info.label}
++      {info.label}
 +    </span>
 +  )
 +}
@@ -1540,7 +1540,7 @@
                <button
 --- a/web/react-frontend/src/components/XpWaitingRoom.jsx
 +++ b/web/react-frontend/src/components/XpWaitingRoom.jsx
-@@ -0,0 +1,49 @@
+@@ -0,0 +1,52 @@
 +import React from 'react'
 +import XpWindow from './XpWindow'
 +import PlayerAvatar from './PlayerAvatar'
@@ -1567,8 +1567,11 @@
 +            <PlayerAvatar player={player} className="w-8 h-8 text-xs border-2 border-black bg-white" />
 +            <span className="font-bold truncate">{player.name || 'Player'}</span>
 +            {player.isAI && (
-+              <span className={`xp-badge xp-badge--${aiLevelInfo(player.aiLevel)?.badge || 'blue'} ml-auto`}>
-+                AI{aiLevelInfo(player.aiLevel) ? ` · ${aiLevelInfo(player.aiLevel).label}` : ''}
++              <span
++                className={`xp-badge xp-badge--${aiLevelInfo(player.aiLevel)?.badge || 'blue'} ml-auto`}
++                title="Computer opponent"
++              >
++                {aiLevelInfo(player.aiLevel)?.label || 'AI'}
 +              </span>
 +            )}
 +          </div>

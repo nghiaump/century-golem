@@ -10,7 +10,7 @@ const AiLevelBadge = ({ level, className = '' }) => {
       className={`inline-block align-middle ml-1 px-1.5 py-px rounded text-[10px] leading-4 font-bold text-white ${info.board} ${className}`}
       title={`Computer opponent · ${info.label}`}
     >
-      AI · {info.label}
+      {info.label}
     </span>
   )
 }

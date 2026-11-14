@@ -24,8 +24,11 @@ const XpWaitingRoom = ({ players = [], isSpectator, onStart, className = '', mod
             <PlayerAvatar player={player} className="w-8 h-8 text-xs border-2 border-black bg-white" />
             <span className="font-bold truncate">{player.name || 'Player'}</span>
             {player.isAI && (
-              <span className={`xp-badge xp-badge--${aiLevelInfo(player.aiLevel)?.badge || 'blue'} ml-auto`}>
-                AI{aiLevelInfo(player.aiLevel) ? ` · ${aiLevelInfo(player.aiLevel).label}` : ''}
+              <span
+                className={`xp-badge xp-badge--${aiLevelInfo(player.aiLevel)?.badge || 'blue'} ml-auto`}
+                title="Computer opponent"
+              >
+                {aiLevelInfo(player.aiLevel)?.label || 'AI'}
               </span>
             )}
           </div>
