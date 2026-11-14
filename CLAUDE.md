@@ -5,8 +5,8 @@ public qua Cloudflare Tunnel tại **https://century.pentium.ink**. Nguồn: `go
 thứ ba). Yêu cầu cứng: **chạy độc lập, không dính/không gửi gì về deployment gốc** (game.anhtran.dev, 157.66.101.66,
 Jenkins, Telegram, Firebase của tác giả) và không mang dấu vết định danh tác giả.
 
-Tuỳ biến của người dùng so với upstream: tắt đăng nhập Google · 15 avatar sprite Super Mario Bros. (màn khởi tạo +
-trong ván, AI không trùng avatar) · theme **Windows XP × brutalism** cho màn chính + màn tạo/vào phòng (+ hộp thoại kết
+Tuỳ biến của người dùng so với upstream: tắt đăng nhập Google · 23 avatar sprite Super Mario Bros. (12 nhân vật + tối đa 1 biến thể;
+AI mang avatar ngẫu nhiên và tên nhân vật đó) · theme **Windows XP × brutalism** cho màn chính + màn tạo/vào phòng (+ hộp thoại kết
 nối, phòng chờ) — **bàn chơi giữ style upstream**: người dùng đã thử XP trong ván và thấy xấu · tự dọn phòng ma ·
 **luật chính thức** (hoà ⇒ ghế sau thắng, mua lá = đặt crystal bất kỳ lên lá bên trái, golem 6/5) · **AI 4 mức**
 (Easy/Medium/Hard/Very Hard; Very Hard = các AI liên minh chống người chơi, công bố ở lobby) — `docs/ai/`.
@@ -40,7 +40,7 @@ rename-game/
 │   │   └── attic/                bản thử bị bỏ (không được áp): ingame-xp-theme.patch
 │   ├── regen-patches.sh          sinh lại 0002/0003 từ src/golem + kiểm tái lập — chạy sau MỌI lần sửa src
 │   ├── sanitize-src.sh           làm sạch source mới: gỡ .env máy khác → áp patch → sinh avatar → xoá metadata ảnh
-│   ├── make-avatars.py           cắt sprite SMB → avatar 1..15.webp (cần Pillow: PY=/home/nghia/ai/venvs/mda5-asr/bin/python)
+│   ├── make-avatars.py           cắt sprite SMB → avatar 1..23.webp (cần Pillow: PY=/home/nghia/ai/venvs/mda5-asr/bin/python)
 │   ├── strip-image-metadata.py   xoá EXIF/XMP PNG/JPEG (stdlib, python3 -I)
 │   ├── smoke-test.sh             kiểm chức năng (mặc định qua domain; tham số http://127.0.0.1:8400 để local)
 │   ├── privacy-audit.sh          kiểm riêng tư/không rò rỉ
@@ -82,7 +82,9 @@ docker run --rm -v "$PWD/../src/golem":/src:ro -v golem-gomod:/go/pkg -v golem-g
 - ⛔ Sửa tunnel `homelab` (`/etc/cloudflared`, root) — century có tunnel RIÊNG; ⛔ wildcard ingress.
 - ⛔ Thêm dịch vụ ngoài (CDN, **web font**, analytics, OAuth, telemetry) mà không hỏi người dùng. Theme XP dùng font hệ thống.
 - Sửa code trong `src/golem` ⇒ `./regen-patches.sh` (phải in REPRODUCIBLE) + cập nhật `docs/upstream-changes.md`.
-- Đổi ảnh avatar ⇒ bump `AVATAR_VERSION` (`src/golem/web/react-frontend/src/utils/avatar.js`); đổi số lượng ⇒ `AVATAR_IDS`.
+- Đổi ảnh avatar ⇒ bump `AVATAR_VERSION` (`src/golem/web/react-frontend/src/utils/avatar.js`); đổi số lượng ⇒ `AVATAR_IDS`
+  **và** `avatarNames` (`internal/session/ai_turns.go`, AI mang tên nhân vật). Mỗi nhân vật tối đa 1 biến thể (ý người dùng).
+- Toast ý đồ AI tắt mặc định (`AI_INTENT_MESSAGES=0`) — người dùng không muốn thông báo tường minh.
 - Style màn khởi tạo: class `xp-*` trong `theme-xp.css` (+ `XpWindow`); ⛔ glass/gradient tím-hồng ở đó.
   ⛔ Áp theme XP vào bàn chơi (đã bị người dùng từ chối; bản thử ở `deploy/patches/attic/`).
   `theme-xp.css` nạp SAU Tailwind ⇒ cùng thuộc tính thì `xp-*` thắng; muốn đè dùng inline style hoặc `!` (vd `!p-1`).
@@ -114,7 +116,8 @@ docker run --rm -v "$PWD/../src/golem":/src:ro -v golem-gomod:/go/pkg -v golem-g
   dùng URL có version. Không có API token Cloudflare để purge (cert.pem chỉ quản tunnel/DNS).
 - `web/react-frontend/public/{images,sounds}` là **symlink** tới `web/static/*` — một bộ ảnh duy nhất.
 - Vite đọc `.env.local` ở MỌI mode; `.env.production` gốc trỏ `game.anhtran.dev` ⇒ `Dockerfile.web` xoá và tự sinh env.
-- Server gán avatar AI = player ID ⇒ trùng người thật; frontend `resolveAvatarId` xử lý (không sửa server).
+- Avatar AI do server chọn ngẫu nhiên (`aiAvatar: true`); frontend `resolveAvatarId` chỉ dùng luật cũ theo ghế khi thiếu cờ.
+  `PlayerAvatar` ⛔ tra người chơi theo `id 0` (phòng chờ: mọi dòng chưa có ghế đều id 0).
 - Code chết (không render): `OpponentArea`, `Simple*`, `CollectModal`, `Chat`, `MarketArea`, `PlayerHand`, `ResourcePanel`,
   `ActionLog`, `PlayedCardsView`, `Mobile{NavBar,HistoryButton}`. Skin `FantasyGameLayout` (nút ✨) là style upstream.
 - vitest cần `--environment jsdom` (cấu hình upstream không bật DOM).

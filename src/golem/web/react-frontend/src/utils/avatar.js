@@ -1,10 +1,11 @@
 // Player avatars: /assets/images/avatar/<id>.webp, generated from a Super Mario Bros. sprite sheet
-// (deploy/make-avatars.py). Ids 1..5 are also the AI defaults (avatar = player ID, max 5 players).
-export const AVATAR_IDS = Array.from({ length: 15 }, (_, i) => String(i + 1))
+// (deploy/make-avatars.py): 12 different characters, then at most one variant each. The count must
+// match `avatarCount` in internal/session/ai_turns.go (the server picks random AI avatars).
+export const AVATAR_IDS = Array.from({ length: 23 }, (_, i) => String(i + 1))
 
 // Bump AVATAR_VERSION whenever the avatar images change: Cloudflare/browsers cache /assets for 7 days,
 // and the query string makes them fetch the new files.
-const AVATAR_VERSION = 'smb1'
+const AVATAR_VERSION = 'smb2'
 
 export function avatarSrc(id) {
   return `/assets/images/avatar/${id}.webp?v=${AVATAR_VERSION}`
@@ -16,6 +17,9 @@ export function avatarSrc(id) {
 export function resolveAvatarId(player, players = []) {
   if (!player) return AVATAR_IDS[0]
   if (!player.isAI) return String(player.avatar || AVATAR_IDS[0])
+  // Current servers pick a random avatar for every AI (distinct, never a human's pick) and flag it.
+  if (player.aiAvatar && AVATAR_IDS.includes(String(player.avatar))) return String(player.avatar)
+  // Older servers sent avatar = player ID: fall back to the deterministic seat-order assignment.
   const taken = new Set(players.filter((p) => !p.isAI).map((p) => String(p.avatar)))
   const free = AVATAR_IDS.filter((id) => !taken.has(id))
   const aiIndex = typeof player.aiIndex === 'number'

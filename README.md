@@ -54,7 +54,6 @@ Play solo against 1–4 AI opponents or with up to 5 friends, right in the brows
 - **Online multiplayer** for 2–5 players: create a room (optional custom ID) or join one from the open-room list
 - **Spectate** rooms that are already in progress
 - **Turn timer** (60 s by default); when it runs out, an AI plays the turn for you
-- **AI intent toasts**: "AI 2 took the golem you were going for" — learn why the AI did what it did
 - **Official rules engine**: market deposits (any colour, they stay on the cards), crystal upgrades, multi-trades, the 10-crystal limit, copper and silver coin bonuses, 6/5-golem end, later-seat tie-break
 
 </td>
@@ -65,7 +64,7 @@ Play solo against 1–4 AI opponents or with up to 5 friends, right in the brows
 - **Reconnect** to your seat after a dropped connection (30-day client cookie)
 - **Responsive** desktop and mobile layouts
 - **Sound effects** for your turn, plays, purchases, golem claims, the last round and game over
-- **Retro lobby** with a Windows XP × brutalism theme and 15 pixel-art avatars
+- **Retro lobby** with a Windows XP × brutalism theme and 23 pixel-art avatars; AI opponents wear random ones and are named after their character
 
 </td>
 </tr>
@@ -187,6 +186,7 @@ Server settings are environment variables. Set them in [`deploy/docker-compose.y
 | `AI_MIN_DELAY_MS` | `800` | Minimum visible "thinking" time per AI move |
 | `AI_MAX_NODES` | `200000` | Node cap per search tree (memory bound) |
 | `AI_PAUSE_WHEN_EMPTY` | `1` | AI turns pause while nobody is connected to the room |
+| `AI_INTENT_MESSAGES` | `0` | Show "AI intent" toasts ("… took the golem you were going for"); off by default |
 | `TELEGRAM_*` `FIREBASE_*` `GOOGLE_OAUTH_*` | *(empty)* | **Must stay empty**: these integrations are deliberately disabled |
 
 ## 🧰 Operations
@@ -209,7 +209,7 @@ DOCKER_BUILDKIT=1 docker compose up -d --build --no-deps server    # redeploy ba
 | [`privacy-audit.sh`](deploy/privacy-audit.sh) | Checks for trackers or foreign hosts in the bundle, secrets in the source, and confirms the backend has no internet |
 | [`regen-patches.sh`](deploy/regen-patches.sh) | Regenerates patches `0002`/`0003` from `src/golem` and proves the tree can be rebuilt from the original download |
 | [`sanitize-src.sh`](deploy/sanitize-src.sh) | Cleans a new upstream drop: strips foreign config, applies patches, builds avatars, removes image metadata |
-| [`make-avatars.py`](deploy/make-avatars.py) | Cuts the 15 pixel avatars from the sprite sheet |
+| [`make-avatars.py`](deploy/make-avatars.py) | Cuts the 23 pixel avatars from the sprite sheet (12 characters + at most one variant each) |
 | [`strip-image-metadata.py`](deploy/strip-image-metadata.py) | Removes EXIF/XMP metadata from images |
 
 📖 Full operations guide (backup and restore, tunnel, troubleshooting, rollback): [`docs/runbook.md`](docs/runbook.md). The docs are written in Vietnamese.

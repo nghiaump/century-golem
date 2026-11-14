@@ -56,11 +56,12 @@ Không còn liên tục quá ngưỡng ⇒ xoá khỏi map + `Close()` (dừng v
 - Ước lượng tải: phòng rảnh ~vài KB RAM + 1 goroutine ngủ; ván bị bỏ chạy AI tối đa 10 phút rồi bị dọn.
 
 ## Avatar
-- Người chơi chọn 1 trong 15 avatar (sprite Super Mario Bros.) ở màn create/join room và single player; id gửi
-  qua WS `&avatar=<id>` (server nhận chuỗi tuỳ ý, không kiểm). AI nhận `avatar = player ID` (1..5, tối đa 5 người).
+- Người chơi chọn 1 trong 23 avatar (sprite Super Mario Bros.: 12 nhân vật + tối đa 1 biến thể/nhân vật) ở màn
+  create/join room và single player; id gửi qua WS `&avatar=<id>` (server nhận chuỗi tuỳ ý, không kiểm).
+- AI: server chọn avatar **ngẫu nhiên** cho từng ghế AI (thứ tự ngẫu nhiên cố định theo phòng, bỏ qua avatar người chơi đã
+  chọn, không trùng nhau) và **đặt tên AI theo nhân vật** (Goomba, Koopa Troopa, …; bảng `avatarNames` trong
+  `session/ai_turns.go`). State gửi `aiAvatar: true` cho các avatar này; phòng chờ và trong ván dùng cùng một avatar.
 - Ảnh: `/assets/images/avatar/<id>.webp?v=<AVATAR_VERSION>` — query version để vượt cache 7 ngày.
-- Trong ván: `PlayerAvatar` hiện ảnh avatar ở thanh người chơi, thẻ người chơi, khung "của tôi" (desktop/mobile),
-  màn kết thúc. AI lấy avatar chưa ai chọn (`resolveAvatarId`) nên không trùng người thật.
 
 ## Giao diện màn khởi tạo
 Màn chính, lobby đơn/nhiều người, hộp thoại kết nối và phòng chờ dùng theme Windows XP × brutalism (`theme-xp.css`,

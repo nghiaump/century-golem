@@ -48,7 +48,9 @@ cd .. && $PY -I deploy/make-avatars.py assets-src/smb-enemies-sheet.png src/gole
 # 3. cd deploy && ./regen-patches.sh   (phải in REPRODUCIBLE), rồi:
 cd deploy && DOCKER_BUILDKIT=1 docker compose up -d --build --no-deps web && ./smoke-test.sh && ./privacy-audit.sh
 ```
-1..5 là avatar mặc định của AI (avatar = player ID; ván tối đa 5 người) — giữ 5 nhân vật dễ phân biệt ở đầu.
+Hiện có 23 avatar: 1..12 là 12 nhân vật khác nhau, 13..23 là **tối đa 1 biến thể** cho mỗi nhân vật. AI được server chọn
+avatar ngẫu nhiên và mang tên nhân vật ⇒ đổi/thêm avatar phải sửa **cả** `SPRITES` (make-avatars.py), `AVATAR_IDS`
+(frontend `utils/avatar.js`, bump `AVATAR_VERSION`) và `avatarNames` (`internal/session/ai_turns.go`).
 
 ## 5. Nhận mã nguồn mới từ upstream (zip/clone mới)
 ```bash
@@ -153,6 +155,7 @@ Tổng quan: `docs/ai/README.md` · hiệu năng đo được: `docs/ai/hieu-nan
 | Máy nóng / pin yếu | `AI_THINK_SCALE_PCT=60` (hoặc `AI_MAX_THREADS=2`) trong `deploy/docker-compose.yml` ⇒ `docker compose up -d --no-deps server` (⚠ mất ván) |
 | AI nghĩ chậm hơn ngân sách | `docker compose logs --since 10m server \| grep '"AI move"'` — xem `elapsed`, `iterations`, `workers` |
 | Xem AI có đang chạy khi phòng trống | không nên: `AI_PAUSE_WHEN_EMPTY=1` (mặc định) dừng AI khi không còn kết nối |
+| Bật lại toast ý đồ AI ("… took the golem you were going for") | `AI_INTENT_MESSAGES=1` (mặc định 0 — người dùng tắt) ⇒ `docker compose up -d --no-deps server` |
 | Đo lại hiệu năng trên Pixel | lệnh ở `docs/ai/hieu-nang.md` §Đo lại (binary `aibench` arm64) |
 | Nhiệt độ / CPU | `cat /sys/class/thermal/thermal_zone0/temp` · `docker stats --no-stream` · pin: `cat /sys/class/power_supply/{max1720x/capacity,pmi8998-charger/online}` |
 

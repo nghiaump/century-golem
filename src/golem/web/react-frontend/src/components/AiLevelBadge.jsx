@@ -8,9 +8,9 @@ const AiLevelBadge = ({ level, className = '' }) => {
   return (
     <span
       className={`inline-block align-middle ml-1 px-1.5 py-px rounded text-[10px] leading-4 font-bold text-white ${info.board} ${className}`}
-      title={`AI · ${info.label}`}
+      title={`Computer opponent · ${info.label}`}
     >
-      {info.label}
+      AI · {info.label}
     </span>
   )
 }

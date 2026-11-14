@@ -37,6 +37,7 @@ type Config struct {
 	AIMinDelayMs     int  // minimum visible thinking time per AI move (default 800)
 	AIMaxNodes       int  // node cap per search tree (default 200000)
 	AIPauseWhenEmpty bool // no AI moves while nobody is connected to the room (default true)
+	AIIntentMessages bool // send "AI intent" toasts ("AI 2 took the golem you were going for") (default false)
 
 	// Firebase authentication
 	FirebaseCredentialsFile string // Path to Firebase service account JSON
@@ -77,6 +78,7 @@ func LoadConfig() Config {
 		AIMinDelayMs:     clamp(getEnvInt("AI_MIN_DELAY_MS", 800), 0, 10000),
 		AIMaxNodes:       getEnvInt("AI_MAX_NODES", 200000),
 		AIPauseWhenEmpty: getEnvInt("AI_PAUSE_WHEN_EMPTY", 1) != 0,
+		AIIntentMessages: getEnvInt("AI_INTENT_MESSAGES", 0) != 0,
 
 		// Firebase authentication
 		FirebaseCredentialsFile: getEnv("FIREBASE_CREDENTIALS_FILE", ""),

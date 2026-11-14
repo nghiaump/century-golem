@@ -35,6 +35,7 @@ type GameServer struct {
 	cleanupInterval  time.Duration // how often each room checks whether it is idle (30s; tests shorten it)
 	aiRuntime        *ai.Runtime   // server-wide AI thread pool and budgets, shared by all rooms
 	aiPauseWhenEmpty bool
+	aiIntents        bool // send "AI intent" messages to humans (AI_INTENT_MESSAGES, default off)
 }
 
 // NewGameServerRequest represents request to create a new game server
@@ -66,6 +67,7 @@ func NewGameServer(req NewGameServerRequest) *GameServer {
 		cleanupInterval:  30 * time.Second,
 		aiRuntime:        newAIRuntime(req.Config),
 		aiPauseWhenEmpty: req.Config.AIPauseWhenEmpty,
+		aiIntents:        req.Config.AIIntentMessages,
 	}
 }
 
@@ -97,7 +99,7 @@ func (gs *GameServer) createSession(sessionID string, maxPlayers int, turnTimeou
 	defer gs.mu.Unlock()
 
 	session := session.NewGameSession(sessionID, maxPlayers, turnTimeoutInSeconds, gs.EventStore, gs.Logger)
-	session.ApplyOptions(append([]sessionOption{sessionWithAI(gs)}, opts...)...)
+	session.ApplyOptions(append([]sessionOption{sessionWithAI(gs), sessionIntents(gs)}, opts...)...)
 	gs.SessionsV2[sessionID] = session
 
 	gs.Logger.Info("Session V2 created",
@@ -232,6 +234,8 @@ type sessionOption = session.Option
 func sessionWithAI(gs *GameServer) session.Option {
 	return session.WithAIRuntime(gs.aiRuntime, gs.aiPauseWhenEmpty)
 }
+
+func sessionIntents(gs *GameServer) session.Option { return session.WithAIIntents(gs.aiIntents) }
 
 // isLiveGame reports whether a game is still being played in memory (deck order must stay hidden).
 func (gs *GameServer) isLiveGame(gameID string) bool {

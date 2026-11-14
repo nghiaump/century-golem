@@ -45,6 +45,12 @@ func WithAIRuntime(rt *ai.Runtime, pauseWhenEmpty bool) Option {
 	}
 }
 
+// WithAIIntents turns the "AI intent" messages (aiIntent over WebSocket, shown as toasts) on or
+// off. Off by default: the user found explicit "AI 2 took the golem you were going for" too much.
+func WithAIIntents(enabled bool) Option {
+	return func(gs *GameSession) { gs.intentMessages = enabled }
+}
+
 // WithAgentFactory replaces how agents are built (tests).
 func WithAgentFactory(f func(ai.Level, *ai.Runtime) ai.Agent) Option {
 	return func(gs *GameSession) { gs.agentFactory = f }
@@ -99,7 +105,7 @@ func (gs *GameSession) newAgent(l ai.Level) ai.Agent {
 
 // assignSeats seats the waiting humans and creates the AI seats. Caller holds gs.mu.
 // Single-player: humans get random seats (official rule: random start player), AIs the rest,
-// named "AI 1..n" in seat order. Multiplayer: humans fill seats 1..n in random order.
+// each wearing a random avatar and named after its character (Goomba, Koopa Troopa, …). Multiplayer: humans fill seats 1..n in random order.
 func (gs *GameSession) assignSeats(rng *rand.Rand) {
 	n := len(gs.GameState.Players)
 	clientIDs := gs.getShuffledClientIDs(gs.connectedPlayers)
@@ -126,6 +132,8 @@ func (gs *GameSession) assignSeats(rng *rand.Rand) {
 
 	gs.agents = map[int]ai.Agent{}
 	gs.timeoutAgents = map[int]ai.Agent{}
+	gs.aiAvatars = map[int]string{}
+	avatars := gs.aiAvatarsLocked(n)
 	gs.teams = make([]int, n)
 	levels := make([]ai.Level, 0, n)
 	k := 0
@@ -142,7 +150,8 @@ func (gs *GameSession) assignSeats(rng *rand.Rand) {
 		level := gs.aiLevelAt(k)
 		k++
 		p.IsAI = true
-		p.Name = fmt.Sprintf("AI %d", k)
+		gs.aiAvatars[p.ID] = avatars[k-1]
+		p.Name = aiName(avatars[k-1], k)
 		gs.agents[p.ID] = gs.newAgent(level)
 		levels = append(levels, level)
 	}
@@ -401,7 +410,9 @@ func (gs *GameSession) onAIResult(r aiResult) []pendingEvent {
 	}
 
 	if !r.timeout {
-		gs.sendIntentsLocked(cur, r.decision.Intents)
+		if gs.intentMessages {
+			gs.sendIntentsLocked(cur, r.decision.Intents)
+		}
 		st := r.decision.Stats
 		gs.logger.Info("AI move",
 			zap.String("sessionID", gs.ID), zap.Int("playerID", cur.ID),
@@ -517,22 +528,75 @@ func intentMessage(aiName string, it ai.Intent) string {
 	return aiName + " made a move"
 }
 
+// avatarNames[i] is the character on avatar i+1; an AI is named after the avatar it wears.
+// Keep in sync with AVATAR_IDS in web/react-frontend/src/utils/avatar.js and SPRITES in
+// deploy/make-avatars.py (12 characters, then at most one variant each).
+var avatarNames = []string{
+	"Goomba", "Koopa Troopa", "Lakitu", "Bowser", "Hammer Bro", "Piranha Plant", "Buzzy Beetle",
+	"Blooper", "Bullet Bill", "Cheep Cheep", "Spiny", "Podoboo",
+	"Red Paratroopa", "Blue Goomba", "Red Piranha", "Green Cheep", "White Blooper", "Grey Bowser",
+	"Cave Hammer Bro", "Grey Bullet Bill", "Blue Buzzy", "Spiny Egg", "Cave Lakitu",
+}
+
+// avatarCount is the number of player avatars (1..avatarCount).
+var avatarCount = len(avatarNames)
+
+// aiName is the display name of an AI wearing avatar id (fallback "AI k").
+func aiName(avatar string, k int) string {
+	var i int
+	if _, err := fmt.Sscanf(avatar, "%d", &i); err == nil && i >= 1 && i <= len(avatarNames) {
+		return avatarNames[i-1]
+	}
+	return fmt.Sprintf("AI %d", k)
+}
+
+// aiAvatarsLocked returns n avatars for the AI seats: a random order fixed per room, skipping the
+// avatars humans picked, so AIs never duplicate each other or a human. The waiting room and the
+// started game use the same function, so the AIs keep their faces. Caller holds gs.mu.
+func (gs *GameSession) aiAvatarsLocked(n int) []string {
+	if gs.avatarOrder == nil {
+		r := rand.New(rand.NewSource(time.Now().UnixNano()))
+		for _, i := range r.Perm(avatarCount) {
+			gs.avatarOrder = append(gs.avatarOrder, fmt.Sprintf("%d", i+1))
+		}
+	}
+	taken := map[string]bool{}
+	for _, p := range gs.connectedPlayers {
+		taken[p.Avatar] = true
+	}
+	out := make([]string, 0, n)
+	for _, a := range gs.avatarOrder {
+		if len(out) == n {
+			break
+		}
+		if !taken[a] {
+			out = append(out, a)
+		}
+	}
+	for i := 0; len(out) < n; i++ { // more AIs than free avatars (cannot happen with 23): reuse
+		out = append(out, gs.avatarOrder[i%len(gs.avatarOrder)])
+	}
+	return out
+}
+
 // waitingAIRows lists the AI seats of a single-player room for the waiting room. Caller holds gs.mu.
 func (gs *GameSession) waitingAIRows() []map[string]any {
 	if !gs.isSingle() {
 		return nil
 	}
 	numAI := gs.maxPlayers - 1
+	avatars := gs.aiAvatarsLocked(numAI)
 	rows := make([]map[string]any, 0, numAI)
 	for k := 0; k < numAI; k++ {
 		rows = append(rows, map[string]any{
-			"id":      0,
-			"name":    fmt.Sprintf("AI %d", k+1),
-			"avatar":  "",
-			"isAI":    true,
-			"aiLevel": gs.aiLevelAt(k).String(),
-			"aiIndex": k,
-			"online":  true,
+			"id":       0,
+			"name":     aiName(avatars[k], k+1),
+			"avatar":   avatars[k],
+			"aiAvatar": true,
+			"isAI":     true,
+			"aiLevel":  gs.aiLevelAt(k).String(),
+			"aiIndex":  k,
+			"online":   true,
 		})
 	}
 	return rows

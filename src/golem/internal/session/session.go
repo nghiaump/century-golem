@@ -87,6 +87,9 @@ type GameSession struct {
 	aiLevels       []ai.Level                           // single-player: level per AI (AI 1..n)
 	aiRuntime      *ai.Runtime                          // server-wide thread pool and budgets
 	pauseWhenEmpty bool                                 // no AI moves while nobody is connected
+	intentMessages bool                                 // send aiIntent messages (off by default)
+	avatarOrder    []string                             // random avatar order of this room (AI avatars)
+	aiAvatars      map[int]string                       // player ID -> avatar of an AI seat
 	agentFactory   func(ai.Level, *ai.Runtime) ai.Agent // tests
 	agents         map[int]ai.Agent                     // player ID -> agent (AI seats)
 	timeoutAgents  map[int]ai.Agent                     // player ID -> who plays for a timed-out human
@@ -1292,9 +1295,12 @@ func (gs *GameSession) serializeState() map[string]interface{} {
 		joinedAt := ""
 
 		pi := gs.getPlayerInfo(p.ID)
+		aiAvatar := false
 		if pi != nil {
 			avatar = pi.GetAvatar()
 			joinedAt = pi.JoinedAt.Format(time.RFC3339)
+		} else if a, ok := gs.aiAvatars[p.ID]; ok {
+			avatar, aiAvatar = a, true // random, picked by the server
 		}
 
 		resourcesMap := map[string]int{
@@ -1320,6 +1326,7 @@ func (gs *GameSession) serializeState() map[string]interface{} {
 			"hasRested":      p.HasRested,
 			"isAI":           p.IsAI,
 			"aiLevel":        gs.aiLevelOf(p.ID),
+			"aiAvatar":       aiAvatar,
 			"pendingDiscard": p.PendingDiscard,
 			"joinedAt":       joinedAt,
 			"online":         pi != nil || p.IsAI,

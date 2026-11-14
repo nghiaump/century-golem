@@ -11,7 +11,7 @@ internal/ai/sim      simulator gọn (state giá trị ~300 B, pool lá không t
 internal/ai          profile.go (cấp, utility, tham số) · scheduler.go (pool luồng) · agent.go (interface)
                      eval.go (evaluator) · utility.go (reward theo cấp) · policy.go (prior + rollout)
                      mcts.go (cây open-loop) · search_agent.go (ensemble, chọn nước, discard, blunder guard)
-                     intent.go (toast ý đồ) · greedy.go (baseline cũ trên engine)
+                     intent.go (toast ý đồ — tắt mặc định, AI_INTENT_MESSAGES) · greedy.go (baseline cũ)
 internal/ai/arena    giải đấu AI-vs-AI (+ aibench CLI)
 internal/session     ai_turns.go: options, ghế, agent theo ghế, game loop có khoá, job AI, intent
 ```

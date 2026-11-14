@@ -3773,7 +3773,7 @@
 +}
 --- a/internal/config/config.go
 +++ b/internal/config/config.go
-@@ -25,6 +25,19 @@
+@@ -25,6 +25,20 @@
  	WebSocketReadTimeout        int // Timeout in seconds for WebSocket read operations (default 60s)
  	WebSocketWriteTimeout       int // Timeout in seconds for WebSocket write operations (default 10s)
  
@@ -3789,11 +3789,12 @@
 +	AIMinDelayMs     int  // minimum visible thinking time per AI move (default 800)
 +	AIMaxNodes       int  // node cap per search tree (default 200000)
 +	AIPauseWhenEmpty bool // no AI moves while nobody is connected to the room (default true)
++	AIIntentMessages bool // send "AI intent" toasts ("AI 2 took the golem you were going for") (default false)
 +
  	// Firebase authentication
  	FirebaseCredentialsFile string // Path to Firebase service account JSON
  	GoogleOAuthClientID     string // Google OAuth client ID
-@@ -54,6 +67,17 @@
+@@ -54,6 +68,18 @@
  		WebSocketReadTimeout:        getEnvInt("WEBSOCKET_READ_TIMEOUT", 60),
  		WebSocketWriteTimeout:       getEnvInt("WEBSOCKET_WRITE_TIMEOUT", 10),
  
@@ -3807,11 +3808,12 @@
 +		AIMinDelayMs:     clamp(getEnvInt("AI_MIN_DELAY_MS", 800), 0, 10000),
 +		AIMaxNodes:       getEnvInt("AI_MAX_NODES", 200000),
 +		AIPauseWhenEmpty: getEnvInt("AI_PAUSE_WHEN_EMPTY", 1) != 0,
++		AIIntentMessages: getEnvInt("AI_INTENT_MESSAGES", 0) != 0,
 +
  		// Firebase authentication
  		FirebaseCredentialsFile: getEnv("FIREBASE_CREDENTIALS_FILE", ""),
  		GoogleOAuthClientID:     getEnv("GOOGLE_OAUTH_CLIENT_ID", ""),
-@@ -78,3 +102,7 @@
+@@ -78,3 +104,7 @@
  	}
  	return defaultValue
  }
@@ -5754,23 +5756,25 @@
  	"golem_century/internal/auth"
  	"golem_century/internal/config"
  	"golem_century/internal/eventstore"
-@@ -31,6 +32,9 @@
+@@ -31,6 +32,10 @@
  	FirebaseAuth     *auth.FirebaseAuth
  	mu               sync.RWMutex
  	config           *config.Config
 +	cleanupInterval  time.Duration // how often each room checks whether it is idle (30s; tests shorten it)
 +	aiRuntime        *ai.Runtime   // server-wide AI thread pool and budgets, shared by all rooms
 +	aiPauseWhenEmpty bool
++	aiIntents        bool // send "AI intent" messages to humans (AI_INTENT_MESSAGES, default off)
  }
  
  // NewGameServerRequest represents request to create a new game server
-@@ -59,14 +63,41 @@
+@@ -59,14 +64,42 @@
  		TelegramNotifier: telegramNotifier,
  		FirebaseAuth:     req.FirebaseAuth,
  		config:           req.Config,
 +		cleanupInterval:  30 * time.Second,
 +		aiRuntime:        newAIRuntime(req.Config),
 +		aiPauseWhenEmpty: req.Config.AIPauseWhenEmpty,
++		aiIntents:        req.Config.AIIntentMessages,
  	}
  }
  
@@ -5802,11 +5806,11 @@
  	defer gs.mu.Unlock()
  
  	session := session.NewGameSession(sessionID, maxPlayers, turnTimeoutInSeconds, gs.EventStore, gs.Logger)
-+	session.ApplyOptions(append([]sessionOption{sessionWithAI(gs)}, opts...)...)
++	session.ApplyOptions(append([]sessionOption{sessionWithAI(gs), sessionIntents(gs)}, opts...)...)
  	gs.SessionsV2[sessionID] = session
  
  	gs.Logger.Info("Session V2 created",
-@@ -81,26 +112,80 @@
+@@ -81,26 +114,80 @@
  	return session
  }
  
@@ -5849,7 +5853,7 @@
 +		gs.mu.Unlock()
 +		if err := s.Close(); err != nil {
 +			gs.Logger.Error("Error closing idle session", zap.String("sessionID", sessionID), zap.Error(err))
-+		}
+ 		}
 +		gs.Logger.Info("Removed idle session",
 +			zap.String("sessionID", sessionID),
 +			zap.String("status", string(status)),
@@ -5857,15 +5861,15 @@
 +			zap.Int("remainingSessions", remaining),
 +		)
 +		return
-+	}
-+}
-+
+ 	}
+ }
+ 
 +// idleLimit is how long a room may have no open connections before it is deleted.
 +func (gs *GameServer) idleLimit(status session.GameStatus) time.Duration {
 +	seconds := func(v, def int) time.Duration {
 +		if v <= 0 {
 +			v = def
- 		}
++		}
 +		return time.Duration(v) * time.Second
 +	}
 +	cfg := gs.config
@@ -5879,9 +5883,9 @@
 +		return seconds(cfg.SessionIdleEndedSeconds, 120)
 +	default:
 +		return seconds(cfg.SessionIdleWaitingSeconds, 300)
- 	}
- }
- 
++	}
++}
++
 +// atSessionLimit reports whether creating another room would exceed MaxSessions (0 = unlimited).
 +func (gs *GameServer) atSessionLimit() bool {
 +	if gs.config == nil || gs.config.MaxSessions <= 0 {
@@ -5895,7 +5899,7 @@
  func (gs *GameServer) GetSessionV2(sessionID string) (*session.GameSession, bool) {
  	gs.mu.RLock()
  	defer gs.mu.RUnlock()
-@@ -141,3 +226,15 @@
+@@ -141,3 +228,17 @@
  	gs.Logger.Info("Game server shutdown complete")
  	return nil
  }
@@ -5905,6 +5909,8 @@
 +func sessionWithAI(gs *GameServer) session.Option {
 +	return session.WithAIRuntime(gs.aiRuntime, gs.aiPauseWhenEmpty)
 +}
++
++func sessionIntents(gs *GameServer) session.Option { return session.WithAIIntents(gs.aiIntents) }
 +
 +// isLiveGame reports whether a game is still being played in memory (deck order must stay hidden).
 +func (gs *GameServer) isLiveGame(gameID string) bool {
@@ -5973,11 +5979,12 @@
 +}
 --- a/internal/session/ai_session_test.go
 +++ b/internal/session/ai_session_test.go
-@@ -0,0 +1,227 @@
+@@ -0,0 +1,336 @@
 +package session
 +
 +import (
 +	"context"
++	"strings"
 +	"sync"
 +	"testing"
 +	"time"
@@ -6201,9 +6208,117 @@
 +	}
 +	t.Skip("human always drew seat 1")
 +}
++
++// Intent messages are off unless WithAIIntents(true).
++func TestAISession_IntentMessagesOffByDefault(t *testing.T) {
++	for _, enabled := range []bool{false, true} {
++		for attempt := 0; ; attempt++ {
++			if attempt == 30 {
++				t.Skip("human always drew seat 1")
++			}
++			gs := newAISession("single_intent", []ai.Level{ai.Hard, ai.Hard},
++				WithAgentFactory(func(ai.Level, *ai.Runtime) ai.Agent { return &fixedAgent{} }))
++			gs.mu.Lock()
++			gs.maxPlayers = 3 // 1 human + 2 AIs
++			gs.mu.Unlock()
++			if enabled {
++				gs.ApplyOptions(WithAIIntents(true))
++			}
++			addTestHuman(gs, "h1")
++			if err := gs.StartGame(); err != nil {
++				t.Fatal(err)
++			}
++			gs.mu.RLock()
++			human := gs.connectedPlayers["h1"]
++			gs.mu.RUnlock()
++			if human.PlayerID == 1 { // the human moves first and never times out on turn 1: retry
++				gs.Close()
++				continue
++			}
++			waitFor(t, 5*time.Second, func() bool {
++				gs.mu.RLock()
++				defer gs.mu.RUnlock()
++				return gs.stepSeq >= 1
++			}, "AI never moved")
++			gs.mu.Lock()
++			got := false
++			for len(human.WriteChan) > 0 {
++				if msg := <-human.WriteChan; strings.Contains(string(msg), `"aiIntent"`) {
++					got = true
++				}
++			}
++			gs.mu.Unlock()
++			gs.Close()
++			if got != enabled {
++				t.Errorf("intents enabled=%v but aiIntent sent=%v", enabled, got)
++			}
++			break
++		}
++	}
++}
++
++type fixedAgent struct{}
++
++func (f *fixedAgent) Level() ai.Level     { return ai.Hard }
++func (f *fixedAgent) Profile() ai.Profile { return ai.DefaultProfile(ai.Hard) }
++
++// Decide rests and reports an intent aimed at the first human seat.
++func (f *fixedAgent) Decide(_ context.Context, snap *game.GameState, _ ai.DecideOptions) (ai.Decision, error) {
++	target := 0
++	for _, p := range snap.Players {
++		if !p.IsAI {
++			target = p.ID
++			break
++		}
++	}
++	return ai.Decision{Action: game.Action{Type: game.Rest},
++		Intents: []ai.Intent{{Kind: ai.IntentTookTargetGolem, TargetID: target}}}, nil
++}
++
++func TestAISession_AIAvatarsRandomDistinctAndNamed(t *testing.T) {
++	seen := map[string]bool{}
++	for i := 0; i < 20; i++ {
++		gs := NewGameSession("single_av", 5, 60, nil, logger.NewNopLogger())
++		gs.ApplyOptions(WithSinglePlayer([]ai.Level{ai.Easy, ai.Easy, ai.Easy, ai.Easy}), WithAIRuntime(&ai.Runtime{MinDelay: time.Hour}, false))
++		addTestHuman(gs, "h1")
++		gs.mu.Lock()
++		gs.connectedPlayers["h1"].Avatar = "4"
++		waiting := gs.waitingAIRows()
++		gs.mu.Unlock()
++		if err := gs.StartGame(); err != nil {
++			t.Fatal(err)
++		}
++		gs.mu.RLock()
++		avatars := map[string]bool{}
++		k := 0
++		for _, p := range gs.GameState.Players {
++			if !p.IsAI {
++				continue
++			}
++			a := gs.aiAvatars[p.ID]
++			if a == "" || a == "4" || avatars[a] {
++				t.Fatalf("AI avatar %q must be set, distinct and not the human's (4)", a)
++			}
++			avatars[a] = true
++			seen[a] = true
++			if p.Name != aiName(a, 0) || strings.HasPrefix(p.Name, "AI ") {
++				t.Fatalf("AI %d should be named after its avatar %s, got %q", p.ID, a, p.Name)
++			}
++			if waiting[k]["avatar"] != a {
++				t.Fatalf("AI #%d changed avatar between waiting room (%v) and game (%s)", k, waiting[k]["avatar"], a)
++			}
++			k++
++		}
++		gs.mu.RUnlock()
++		gs.Close()
++	}
++	if len(seen) < 8 {
++		t.Fatalf("AI avatars do not look random: only %d distinct in 20 games", len(seen))
++	}
++}
 --- a/internal/session/ai_turns.go
 +++ b/internal/session/ai_turns.go
-@@ -0,0 +1,575 @@
+@@ -0,0 +1,639 @@
 +package session
 +
 +import (
@@ -6249,6 +6364,12 @@
 +		gs.aiRuntime = rt
 +		gs.pauseWhenEmpty = pauseWhenEmpty
 +	}
++}
++
++// WithAIIntents turns the "AI intent" messages (aiIntent over WebSocket, shown as toasts) on or
++// off. Off by default: the user found explicit "AI 2 took the golem you were going for" too much.
++func WithAIIntents(enabled bool) Option {
++	return func(gs *GameSession) { gs.intentMessages = enabled }
 +}
 +
 +// WithAgentFactory replaces how agents are built (tests).
@@ -6305,7 +6426,7 @@
 +
 +// assignSeats seats the waiting humans and creates the AI seats. Caller holds gs.mu.
 +// Single-player: humans get random seats (official rule: random start player), AIs the rest,
-+// named "AI 1..n" in seat order. Multiplayer: humans fill seats 1..n in random order.
++// each wearing a random avatar and named after its character (Goomba, Koopa Troopa, …). Multiplayer: humans fill seats 1..n in random order.
 +func (gs *GameSession) assignSeats(rng *rand.Rand) {
 +	n := len(gs.GameState.Players)
 +	clientIDs := gs.getShuffledClientIDs(gs.connectedPlayers)
@@ -6332,6 +6453,8 @@
 +
 +	gs.agents = map[int]ai.Agent{}
 +	gs.timeoutAgents = map[int]ai.Agent{}
++	gs.aiAvatars = map[int]string{}
++	avatars := gs.aiAvatarsLocked(n)
 +	gs.teams = make([]int, n)
 +	levels := make([]ai.Level, 0, n)
 +	k := 0
@@ -6348,7 +6471,8 @@
 +		level := gs.aiLevelAt(k)
 +		k++
 +		p.IsAI = true
-+		p.Name = fmt.Sprintf("AI %d", k)
++		gs.aiAvatars[p.ID] = avatars[k-1]
++		p.Name = aiName(avatars[k-1], k)
 +		gs.agents[p.ID] = gs.newAgent(level)
 +		levels = append(levels, level)
 +	}
@@ -6607,7 +6731,9 @@
 +	}
 +
 +	if !r.timeout {
-+		gs.sendIntentsLocked(cur, r.decision.Intents)
++		if gs.intentMessages {
++			gs.sendIntentsLocked(cur, r.decision.Intents)
++		}
 +		st := r.decision.Stats
 +		gs.logger.Info("AI move",
 +			zap.String("sessionID", gs.ID), zap.Int("playerID", cur.ID),
@@ -6723,22 +6849,75 @@
 +	return aiName + " made a move"
 +}
 +
++// avatarNames[i] is the character on avatar i+1; an AI is named after the avatar it wears.
++// Keep in sync with AVATAR_IDS in web/react-frontend/src/utils/avatar.js and SPRITES in
++// deploy/make-avatars.py (12 characters, then at most one variant each).
++var avatarNames = []string{
++	"Goomba", "Koopa Troopa", "Lakitu", "Bowser", "Hammer Bro", "Piranha Plant", "Buzzy Beetle",
++	"Blooper", "Bullet Bill", "Cheep Cheep", "Spiny", "Podoboo",
++	"Red Paratroopa", "Blue Goomba", "Red Piranha", "Green Cheep", "White Blooper", "Grey Bowser",
++	"Cave Hammer Bro", "Grey Bullet Bill", "Blue Buzzy", "Spiny Egg", "Cave Lakitu",
++}
++
++// avatarCount is the number of player avatars (1..avatarCount).
++var avatarCount = len(avatarNames)
++
++// aiName is the display name of an AI wearing avatar id (fallback "AI k").
++func aiName(avatar string, k int) string {
++	var i int
++	if _, err := fmt.Sscanf(avatar, "%d", &i); err == nil && i >= 1 && i <= len(avatarNames) {
++		return avatarNames[i-1]
++	}
++	return fmt.Sprintf("AI %d", k)
++}
++
++// aiAvatarsLocked returns n avatars for the AI seats: a random order fixed per room, skipping the
++// avatars humans picked, so AIs never duplicate each other or a human. The waiting room and the
++// started game use the same function, so the AIs keep their faces. Caller holds gs.mu.
++func (gs *GameSession) aiAvatarsLocked(n int) []string {
++	if gs.avatarOrder == nil {
++		r := rand.New(rand.NewSource(time.Now().UnixNano()))
++		for _, i := range r.Perm(avatarCount) {
++			gs.avatarOrder = append(gs.avatarOrder, fmt.Sprintf("%d", i+1))
++		}
++	}
++	taken := map[string]bool{}
++	for _, p := range gs.connectedPlayers {
++		taken[p.Avatar] = true
++	}
++	out := make([]string, 0, n)
++	for _, a := range gs.avatarOrder {
++		if len(out) == n {
++			break
++		}
++		if !taken[a] {
++			out = append(out, a)
++		}
++	}
++	for i := 0; len(out) < n; i++ { // more AIs than free avatars (cannot happen with 23): reuse
++		out = append(out, gs.avatarOrder[i%len(gs.avatarOrder)])
++	}
++	return out
++}
++
 +// waitingAIRows lists the AI seats of a single-player room for the waiting room. Caller holds gs.mu.
 +func (gs *GameSession) waitingAIRows() []map[string]any {
 +	if !gs.isSingle() {
 +		return nil
 +	}
 +	numAI := gs.maxPlayers - 1
++	avatars := gs.aiAvatarsLocked(numAI)
 +	rows := make([]map[string]any, 0, numAI)
 +	for k := 0; k < numAI; k++ {
 +		rows = append(rows, map[string]any{
-+			"id":      0,
-+			"name":    fmt.Sprintf("AI %d", k+1),
-+			"avatar":  "",
-+			"isAI":    true,
-+			"aiLevel": gs.aiLevelAt(k).String(),
-+			"aiIndex": k,
-+			"online":  true,
++			"id":       0,
++			"name":     aiName(avatars[k], k+1),
++			"avatar":   avatars[k],
++			"aiAvatar": true,
++			"isAI":     true,
++			"aiLevel":  gs.aiLevelAt(k).String(),
++			"aiIndex":  k,
++			"online":   true,
 +		})
 +	}
 +	return rows
@@ -6805,7 +6984,7 @@
  	CreatedAt     time.Time             // When session was created
  	LastActivity  time.Time             // Last time someone was in the room
  	EventStore    eventstore.EventStore // Event store for recording actions
-@@ -76,6 +77,26 @@
+@@ -76,6 +77,29 @@
  	pingInterval time.Duration // Interval for sending ping messages (default 15s)
  	readTimeout  time.Duration // Timeout for read operations (default 60s)
  	writeTimeout time.Duration // Timeout for write operations (default 10s)
@@ -6819,6 +6998,9 @@
 +	aiLevels       []ai.Level                           // single-player: level per AI (AI 1..n)
 +	aiRuntime      *ai.Runtime                          // server-wide thread pool and budgets
 +	pauseWhenEmpty bool                                 // no AI moves while nobody is connected
++	intentMessages bool                                 // send aiIntent messages (off by default)
++	avatarOrder    []string                             // random avatar order of this room (AI avatars)
++	aiAvatars      map[int]string                       // player ID -> avatar of an AI seat
 +	agentFactory   func(ai.Level, *ai.Runtime) ai.Agent // tests
 +	agents         map[int]ai.Agent                     // player ID -> agent (AI seats)
 +	timeoutAgents  map[int]ai.Agent                     // player ID -> who plays for a timed-out human
@@ -6832,7 +7014,7 @@
  }
  
  // PlayerAction represents an action from a player
-@@ -88,7 +109,11 @@
+@@ -88,7 +112,11 @@
  // NewGameSession creates a new game session
  func NewGameSession(sessionID string, maxPlayers int, turnTimeoutInSecond int, eventstore eventstore.EventStore, logger *logger.Logger) *GameSession {
  	now := time.Now()
@@ -6844,7 +7026,7 @@
  		ID:            sessionID,
  		CreatedAt:     now,
  		LastActivity:  now,
-@@ -96,6 +121,7 @@
+@@ -96,6 +124,7 @@
  		TurnTimeout:   time.Duration(turnTimeoutInSecond) * time.Second, // Default 60s timeout
  		TurnStartTime: now,
  		ActionChan:    make(chan PlayerAction, 10),
@@ -6852,7 +7034,7 @@
  		logger:        logger,
  		maxChatMsgs:   10, // Default, will be set from config
  
-@@ -162,8 +188,8 @@
+@@ -162,8 +191,8 @@
  			existingPlayer.Avatar = avatar
  		}
  		// Start new read and write handlers
@@ -6863,7 +7045,7 @@
  
  		// Send playerAssigned message first so client knows its player ID
  		assignedMsg := map[string]interface{}{
-@@ -208,8 +234,8 @@
+@@ -208,8 +237,8 @@
  	// Start read and write handlers in other goroutines
  	player := gs.connectedPlayers[clientID]
  	if player != nil { // player should never be nil, if it is, it means our code has a bug :)
@@ -6874,7 +7056,7 @@
  	}
  
  	// Send assigned player ID back to client -> only after the game is started
-@@ -257,7 +283,7 @@
+@@ -257,7 +286,7 @@
  		return fmt.Errorf("game is not in waiting status")
  	}
  
@@ -6883,7 +7065,7 @@
  		// Check that we have at least 2 players
  		// When it's player vs player room
  		if len(gs.connectedPlayers) < 2 {
-@@ -268,69 +294,35 @@
+@@ -268,69 +297,35 @@
  	// Initialize game state
  	seed := time.Now().UnixNano()
  
@@ -6962,7 +7144,7 @@
  		}
  		resp := gs.EventStore.StoreEvent(req)
  		if resp.Error != nil {
-@@ -376,10 +368,18 @@
+@@ -376,10 +371,18 @@
  	return clientIDs
  }
  
@@ -6984,7 +7166,7 @@
  		}
  	}
  	return 0
-@@ -394,8 +394,12 @@
+@@ -394,8 +397,12 @@
  		return fmt.Errorf("game is full")
  	}
  
@@ -6998,7 +7180,7 @@
  		gs.logger.Warn("playerID is in use by another player", zap.Int("playerID", playerID))
  		playerID = 0 // auto-assign next available player ID
  	}
-@@ -465,26 +469,28 @@
+@@ -465,26 +472,28 @@
  	return nil
  }
  
@@ -7035,7 +7217,7 @@
  
  				if err != nil {
  					// Check if this is a connection closed error
-@@ -511,9 +517,9 @@
+@@ -511,9 +520,9 @@
  			}
  		case <-ticker.C:
  			// Send ping message to keep connection alive
@@ -7048,7 +7230,7 @@
  
  				if err != nil {
  					// Check if this is a connection closed error
-@@ -607,6 +613,13 @@
+@@ -607,6 +616,13 @@
  }
  
  func (gs *GameSession) handleRemovePlayer(clientID string) {
@@ -7062,7 +7244,7 @@
  	gs.mu.Lock()
  	defer gs.mu.Unlock()
  
-@@ -614,6 +627,9 @@
+@@ -614,6 +630,9 @@
  	if p == nil {
  		return
  	}
@@ -7072,7 +7254,7 @@
  
  	if p.Conn != nil {
  		p.Conn.Close()
-@@ -657,28 +673,28 @@
+@@ -657,28 +676,28 @@
  	gs.broadcastState()
  }
  
@@ -7107,7 +7289,7 @@
  
  		var req map[string]interface{}
  		if err := json.Unmarshal(message, &req); err != nil {
-@@ -699,8 +715,8 @@
+@@ -699,8 +718,8 @@
  		}
  	}
  
@@ -7118,7 +7300,7 @@
  }
  
  func (gs *GameSession) handleChatMessage(clientID string, req map[string]any) {
-@@ -728,16 +744,17 @@
+@@ -728,16 +747,17 @@
  
  func (gs *GameSession) handlePlayerAction(clientID string, req map[string]any) {
  	gs.mu.RLock()
@@ -7141,7 +7323,7 @@
  
  	actionTypeStr, _ := req["actionType"].(string)
  	cardIndex, _ := req["cardIndex"].(float64)
-@@ -865,10 +882,17 @@
+@@ -865,10 +885,17 @@
  	default:
  		return
  	}
@@ -7160,7 +7342,7 @@
  	}
  }
  
-@@ -1188,169 +1212,6 @@
+@@ -1188,169 +1215,6 @@
  	return nil
  }
  
@@ -7330,7 +7512,7 @@
  // broadcastState broadcasts the current game state to all players
  func (gs *GameSession) broadcastState() {
  	gs.broadcast(gs.serializeState())
-@@ -1404,6 +1265,8 @@
+@@ -1404,6 +1268,8 @@
  			bJoinedAt, _ := b["joinedAt"].(string)
  			return strings.Compare(aJoinedAt, bJoinedAt)
  		})
@@ -7339,7 +7521,7 @@
  
  		return map[string]interface{}{
  			"type": "state",
-@@ -1416,7 +1279,10 @@
+@@ -1416,7 +1282,10 @@
  			"players":         waitingPlayers,
  			"maxChatMessages": gs.maxChatMsgs,
  			// "market":          map[string]interface{}{},
@@ -7351,11 +7533,25 @@
  		}
  	}
  
-@@ -1453,9 +1319,10 @@
+@@ -1426,9 +1295,12 @@
+ 		joinedAt := ""
+ 
+ 		pi := gs.getPlayerInfo(p.ID)
++		aiAvatar := false
+ 		if pi != nil {
+ 			avatar = pi.GetAvatar()
+ 			joinedAt = pi.JoinedAt.Format(time.RFC3339)
++		} else if a, ok := gs.aiAvatars[p.ID]; ok {
++			avatar, aiAvatar = a, true // random, picked by the server
+ 		}
+ 
+ 		resourcesMap := map[string]int{
+@@ -1453,9 +1325,11 @@
  			"coins":          serializeCards(p.Coins),
  			"hasRested":      p.HasRested,
  			"isAI":           p.IsAI,
 +			"aiLevel":        gs.aiLevelOf(p.ID),
++			"aiAvatar":       aiAvatar,
  			"pendingDiscard": p.PendingDiscard,
  			"joinedAt":       joinedAt,
 -			"online":         pi != nil,
@@ -7363,7 +7559,7 @@
  		}
  	}
  
-@@ -1463,6 +1330,7 @@
+@@ -1463,6 +1337,7 @@
  	for i, card := range gs.GameState.Market.ActionCards {
  		cost := gs.GameState.Market.GetActionCardCost(i)
  		serialized := serializeCardWithCost(card, cost)
@@ -7371,7 +7567,7 @@
  		// Ensure deposits field exists
  		if _, exists := serialized["deposits"]; !exists {
  			serialized["deposits"] = make(map[string]string)
-@@ -1494,7 +1362,12 @@
+@@ -1494,7 +1369,12 @@
  			"pointDeck":   len(gs.GameState.Market.PointDeck),
  			"coins":       marketCoins,
  		},
@@ -7385,7 +7581,7 @@
  	}
  }
  
-@@ -1589,6 +1462,12 @@
+@@ -1589,6 +1469,12 @@
  
  // Close gracefully closes the game session, disconnecting all players and spectators
  func (gs *GameSession) Close() error {
@@ -7398,7 +7594,7 @@
  	gs.mu.Lock()
  	defer gs.mu.Unlock()
  
-@@ -1645,8 +1524,10 @@
+@@ -1645,8 +1531,10 @@
  	gs.assignedPlayers = make(map[int]string)
  	gs.spectators = make(map[string]*Spectator)
  

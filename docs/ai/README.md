@@ -33,7 +33,7 @@ Pick one level for every AI in the single-player lobby (default **Medium**, reme
    best human score, shared by all AIs.
 5. **Opponent model.** For every opponent: which golem they are going for (softmax over discounted value), how close
    they are, coin races. It biases the search towards denial (Hard: against the leader; Very Hard: against humans) and
-   produces the **intent toasts** ("AI 2 took the golem you were going for").
+   can produce **intent toasts** ("Bowser took the golem you were going for") — off by default (`AI_INTENT_MESSAGES`).
 
 ## Configuration (server, `deploy/docker-compose.yml`)
 
@@ -44,6 +44,7 @@ Pick one level for every AI in the single-player lobby (default **Medium**, reme
 | `AI_MIN_DELAY_MS` | `800` | minimum visible thinking time per AI move |
 | `AI_MAX_NODES` | `200000` | node cap per search tree (memory bound: ~13 MB per tree) |
 | `AI_PAUSE_WHEN_EMPTY` | `1` | AI turns pause while nobody is connected to the room |
+| `AI_INTENT_MESSAGES` | `0` | send intent toasts to humans (off by default) |
 
 API: `POST /api/single {"numAI": 1..4, "difficulty": "easy|medium|hard|veryhard"}` (default `medium`), optional
 `"aiLevels": [...]` per AI. The response echoes `difficulty`, `aiLevels`, `coalition`. WebSocket adds `aiThinking`

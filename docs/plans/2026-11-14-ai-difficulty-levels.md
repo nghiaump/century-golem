@@ -265,4 +265,5 @@ info/quyết định AI · tham số `AI_THINK_SCALE_PCT` để hạ tải nếu
 | 2026-11-14 | M8: Pixel tắt (pin 19%, không sạc) khi benchmark Very Hard; người dùng chọn **chờ cắm sạc** rồi mới deploy (không phục vụ tạm từ rtx) | sự cố — `docs/ai/hieu-nang.md` |
 | 2026-11-14 | M8: deploy lên pixel3xl sau khi cắm sạc (smoke local + public, privacy sạch; VH 3.00 s / 184k–224k iteration ở ván thật) | — |
 | 2026-11-14 | Quy ước commit mới của người dùng: một dòng, prefix `feat/fix/chore/docs/ci…`, **không** Co-Authored-By; viết lại toàn bộ message cũ + force push (bước M8.5 trong plan gốc ghi "kèm Co-Authored-By" — không còn áp dụng) | yêu cầu người dùng |
+| 2026-11-14 | Sau rollout, theo phản hồi người dùng: tắt toast ý đồ AI (mặc định `AI_INTENT_MESSAGES=0`); avatar AI ngẫu nhiên do server chọn + AI mang tên nhân vật (bỏ "AI 1, AI 2"); 23 avatar (12 nhân vật + tối đa 1 biến thể); sửa giật khung khi AI nghĩ; bỏ chỉ báo trùng trên ô người chơi desktop | yêu cầu người dùng |
 

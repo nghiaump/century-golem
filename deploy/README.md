@@ -19,7 +19,7 @@ systemctl --user status century-tunnel                         # tunnel (log: ./
 | `Dockerfile.server` | build backend theo kiến trúc máy build (amd64 / arm64) |
 | `patches/`, `regen-patches.sh` | sửa code upstream (0001 auth, 0002-frontend, 0003-backend: dọn phòng + luật + AI); script sinh lại + kiểm tái lập |
 | `sanitize-src.sh` | làm sạch source mới (idempotent) |
-| `make-avatars.py` | sinh avatar 1..15 từ `../assets-src/smb-enemies-sheet.png` |
+| `make-avatars.py` | sinh avatar 1..23 từ `../assets-src/smb-enemies-sheet.png` (12 nhân vật + tối đa 1 biến thể) |
 | `strip-image-metadata.py` | xoá metadata ảnh |
 | `smoke-test.sh`, `privacy-audit.sh` | kiểm chức năng (gồm `difficulty` của AI) / riêng tư |
 

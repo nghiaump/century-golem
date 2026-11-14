@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""Sinh avatar người chơi (1..15.webp) từ sprite sheet Super Mario Bros. (NES) — thay avatar ảnh người thật của upstream.
+"""Sinh avatar người chơi (1..23.webp) từ sprite sheet Super Mario Bros. (NES) — thay avatar ảnh người thật của upstream.
 
     PY=/home/nghia/ai/venvs/mda5-asr/bin/python   # cần Pillow có WebP
     $PY -I deploy/make-avatars.py assets-src/smb-enemies-sheet.png \
         src/golem/web/static/images/avatar      # web/react-frontend/public/images là symlink tới web/static/images
     # thêm --preview out.png để xuất ảnh xem trước (vòng tròn + ô vuông như UI)
 
-Avatar được dùng ở: Lobby (create/join room), SinglePlayerLobby, OpponentArea (trong ván); AI lấy avatar = player ID (1..5); người chơi chọn trong 1..15.
+Avatar được dùng ở: Lobby (create/join room), SinglePlayerLobby, avatar trong ván; người chơi chọn trong 1..23; AI được server
+chọn NGẪU NHIÊN (không trùng nhau, không trùng người chơi) — số lượng phải khớp `avatarCount` (session) và `AVATAR_IDS` (frontend).
 UI hiển thị `object-cover` trong khung TRÒN ⇒ sprite chiếm ≤ 68% cạnh để không bị cắt góc.
 """
 import os
@@ -18,24 +19,33 @@ SKY = (146, 144, 255, 255)  # màu trời SMB = màu nền ô sprite trong sheet
 SIZE = 512
 FILL = 0.68
 # số avatar -> (tên, bbox x0, y0, x1, y1 trong sheet) — bbox dò tự động theo khung nền tím của từng ô
-# 1..5 cũng là avatar mặc định của AI (avatar = player ID, ván tối đa 5 người) ⇒ giữ 5 loài dễ phân biệt nhất ở đầu.
 # Đổi/thêm số ở đây ⇒ cập nhật AVATAR_IDS trong web/react-frontend/src/utils/avatar.js (+ bump AVATAR_VERSION).
 SPRITES = {
+    # 12 loài khác nhau trước…
     1: ("goomba", (0, 16, 16, 32)),
     2: ("koopa-troopa", (0, 112, 16, 136)),
     3: ("lakitu", (54, 138, 70, 162)),
     4: ("bowser", (0, 208, 32, 240)),
     5: ("hammer-bro", (0, 182, 16, 206)),
-    6: ("red-koopa", (0, 318, 16, 342)),
-    7: ("paratroopa", (36, 112, 52, 136)),
-    8: ("red-paratroopa", (36, 318, 52, 342)),
-    9: ("piranha-plant", (0, 138, 16, 162)),
-    10: ("buzzy-beetle", (0, 34, 16, 50)),
-    11: ("blooper", (0, 52, 16, 76)),
-    12: ("bullet-bill", (54, 52, 70, 68)),
-    13: ("cheep-cheep", (0, 370, 16, 386)),
-    14: ("spiny", (72, 352, 88, 368)),
-    15: ("podoboo", (90, 370, 106, 386)),
+    6: ("piranha-plant", (0, 138, 16, 162)),
+    7: ("buzzy-beetle", (0, 34, 16, 50)),
+    8: ("blooper", (0, 52, 16, 76)),
+    9: ("bullet-bill", (54, 52, 70, 68)),
+    10: ("cheep-cheep", (0, 370, 16, 386)),
+    11: ("spiny", (72, 352, 88, 368)),
+    12: ("podoboo", (90, 370, 106, 386)),
+    # …rồi TỐI ĐA 1 biến thể cho mỗi loài (bảng màu khác hoặc dạng khác) — yêu cầu người dùng 2026-11-14
+    13: ("red-paratroopa", (36, 318, 52, 342)),
+    14: ("underground-goomba", (74, 16, 90, 32)),
+    15: ("red-piranha-plant", (0, 344, 16, 368)),
+    16: ("green-cheep-cheep", (0, 164, 16, 180)),
+    17: ("underwater-blooper", (222, 52, 238, 76)),
+    18: ("underwater-bowser", (292, 208, 324, 240)),
+    19: ("underground-hammer-bro", (146, 182, 162, 206)),
+    20: ("castle-bullet-bill", (202, 52, 218, 68)),
+    21: ("underground-buzzy-beetle", (74, 34, 90, 50)),
+    22: ("spiny-egg", (36, 352, 52, 368)),
+    23: ("underground-lakitu", (200, 138, 216, 162)),
 }
 
 

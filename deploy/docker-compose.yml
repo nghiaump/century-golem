@@ -66,6 +66,7 @@ services:
       - AI_MIN_DELAY_MS=800                # thời gian "đang nghĩ" tối thiểu mỗi nước AI (UX)
       - AI_MAX_NODES=200000                # trần node mỗi cây search (~13 MB)
       - AI_PAUSE_WHEN_EMPTY=1              # phòng không còn ai kết nối ⇒ AI dừng đi (tiết kiệm CPU/pin)
+      - AI_INTENT_MESSAGES=0               # toast ý đồ AI ("… took the golem you were going for") — người dùng tắt
       - GOMEMLIMIT=512MiB                  # GC chủ động trước khi chạm trần bộ nhớ (máy 3.5 GB)
       # Tắt hẳn Telegram + Firebase/Google OAuth (để trống = disabled)
       - TELEGRAM_BOT_TOKEN=

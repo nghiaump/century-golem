@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -224,4 +225,112 @@ func TestAISession_HumanTimeoutIsPlayedByAI(t *testing.T) {
 		return
 	}
 	t.Skip("human always drew seat 1")
+}
+
+// Intent messages are off unless WithAIIntents(true).
+func TestAISession_IntentMessagesOffByDefault(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		for attempt := 0; ; attempt++ {
+			if attempt == 30 {
+				t.Skip("human always drew seat 1")
+			}
+			gs := newAISession("single_intent", []ai.Level{ai.Hard, ai.Hard},
+				WithAgentFactory(func(ai.Level, *ai.Runtime) ai.Agent { return &fixedAgent{} }))
+			gs.mu.Lock()
+			gs.maxPlayers = 3 // 1 human + 2 AIs
+			gs.mu.Unlock()
+			if enabled {
+				gs.ApplyOptions(WithAIIntents(true))
+			}
+			addTestHuman(gs, "h1")
+			if err := gs.StartGame(); err != nil {
+				t.Fatal(err)
+			}
+			gs.mu.RLock()
+			human := gs.connectedPlayers["h1"]
+			gs.mu.RUnlock()
+			if human.PlayerID == 1 { // the human moves first and never times out on turn 1: retry
+				gs.Close()
+				continue
+			}
+			waitFor(t, 5*time.Second, func() bool {
+				gs.mu.RLock()
+				defer gs.mu.RUnlock()
+				return gs.stepSeq >= 1
+			}, "AI never moved")
+			gs.mu.Lock()
+			got := false
+			for len(human.WriteChan) > 0 {
+				if msg := <-human.WriteChan; strings.Contains(string(msg), `"aiIntent"`) {
+					got = true
+				}
+			}
+			gs.mu.Unlock()
+			gs.Close()
+			if got != enabled {
+				t.Errorf("intents enabled=%v but aiIntent sent=%v", enabled, got)
+			}
+			break
+		}
+	}
+}
+
+type fixedAgent struct{}
+
+func (f *fixedAgent) Level() ai.Level     { return ai.Hard }
+func (f *fixedAgent) Profile() ai.Profile { return ai.DefaultProfile(ai.Hard) }
+
+// Decide rests and reports an intent aimed at the first human seat.
+func (f *fixedAgent) Decide(_ context.Context, snap *game.GameState, _ ai.DecideOptions) (ai.Decision, error) {
+	target := 0
+	for _, p := range snap.Players {
+		if !p.IsAI {
+			target = p.ID
+			break
+		}
+	}
+	return ai.Decision{Action: game.Action{Type: game.Rest},
+		Intents: []ai.Intent{{Kind: ai.IntentTookTargetGolem, TargetID: target}}}, nil
+}
+
+func TestAISession_AIAvatarsRandomDistinctAndNamed(t *testing.T) {
+	seen := map[string]bool{}
+	for i := 0; i < 20; i++ {
+		gs := NewGameSession("single_av", 5, 60, nil, logger.NewNopLogger())
+		gs.ApplyOptions(WithSinglePlayer([]ai.Level{ai.Easy, ai.Easy, ai.Easy, ai.Easy}), WithAIRuntime(&ai.Runtime{MinDelay: time.Hour}, false))
+		addTestHuman(gs, "h1")
+		gs.mu.Lock()
+		gs.connectedPlayers["h1"].Avatar = "4"
+		waiting := gs.waitingAIRows()
+		gs.mu.Unlock()
+		if err := gs.StartGame(); err != nil {
+			t.Fatal(err)
+		}
+		gs.mu.RLock()
+		avatars := map[string]bool{}
+		k := 0
+		for _, p := range gs.GameState.Players {
+			if !p.IsAI {
+				continue
+			}
+			a := gs.aiAvatars[p.ID]
+			if a == "" || a == "4" || avatars[a] {
+				t.Fatalf("AI avatar %q must be set, distinct and not the human's (4)", a)
+			}
+			avatars[a] = true
+			seen[a] = true
+			if p.Name != aiName(a, 0) || strings.HasPrefix(p.Name, "AI ") {
+				t.Fatalf("AI %d should be named after its avatar %s, got %q", p.ID, a, p.Name)
+			}
+			if waiting[k]["avatar"] != a {
+				t.Fatalf("AI #%d changed avatar between waiting room (%v) and game (%s)", k, waiting[k]["avatar"], a)
+			}
+			k++
+		}
+		gs.mu.RUnlock()
+		gs.Close()
+	}
+	if len(seen) < 8 {
+		t.Fatalf("AI avatars do not look random: only %d distinct in 20 games", len(seen))
+	}
 }

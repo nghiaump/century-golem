@@ -8,7 +8,9 @@ const PlayerAvatar = ({ player, className = '' }) => {
   const players = useGameStore((state) => state.gameState?.players) || []
   const [failedSrc, setFailedSrc] = useState(null)
 
-  const fullPlayer = players.find((p) => p.id === player?.id) || player
+  // Look the player up only by a real seat ID: in the waiting room every not-yet-seated row
+  // (humans and AIs) has id 0, and matching on it gave every AI the human's avatar.
+  const fullPlayer = (player?.id ? players.find((p) => p.id === player.id) : null) || player
   const src = avatarSrc(resolveAvatarId(fullPlayer, players))
   const initial = fullPlayer?.name?.charAt(0)?.toUpperCase() || '?'
 

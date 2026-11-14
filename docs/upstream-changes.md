@@ -93,6 +93,12 @@ vòng lặp 100ms chạy tới hết ván rồi object nằm trong RAM mãi.
   `single_`; `/api/events`, `/api/snapshot` ẩn thứ tự deck của ván đang chơi. `config.go`: biến `AI_*`.
 - Test mới: `session/ai_session_test.go` (7), `server/single_ai_test.go`.
 
+### Avatar & tên AI (2026-11-14, theo yêu cầu người dùng)
+- 23 avatar: 12 nhân vật khác nhau + tối đa 1 biến thể mỗi nhân vật (trước: 15, trong đó 4 biến thể Koopa). `AVATAR_VERSION`
+  = `smb2`. Server chọn avatar AI ngẫu nhiên (không trùng nhau/người chơi) và đặt tên AI theo nhân vật; `PlayerAvatar` không
+  tra người chơi theo `id 0` nữa (phòng chờ: mọi AI từng hiện avatar của người chơi).
+- Toast ý đồ AI (`aiIntent`) **tắt mặc định** (`AI_INTENT_MESSAGES=0`) — người dùng thấy thông báo quá tường minh.
+
 ### 0002 (f) UI AI 4 mức (2026-11-14)
 - `SinglePlayerLobby.jsx`: chọn độ khó (XP list + badge, mặc định Medium, nhớ trong localStorage, ghi chú liên minh ở
   Very Hard), gửi `difficulty`. `XpWaitingRoom.jsx`: dòng AI kèm mức, sửa key trùng.
@@ -106,7 +112,7 @@ vòng lặp 100ms chạy tới hết ván rồi object nằm trong RAM mãi.
 ## 2. Asset — sinh bởi script
 | Thứ | Script | Chi tiết |
 |---|---|---|
-| `web/static/images/avatar/1..15.webp` | `deploy/make-avatars.py` | từ `assets-src/smb-enemies-sheet.png` (NES Super Mario Bros. enemies, sheet by SuperJustinBros). 512×512, nền trời SMB, phóng to bội số nguyên, sprite ≤68% để khung tròn không cắt |
+| `web/static/images/avatar/1..23.webp` | `deploy/make-avatars.py` | từ `assets-src/smb-enemies-sheet.png` (NES Super Mario Bros. enemies, sheet by SuperJustinBros). 512×512, nền trời SMB, phóng to bội số nguyên, sprite ≤68% để khung tròn không cắt |
 | metadata mọi PNG/JPEG | `deploy/strip-image-metadata.py` | bỏ chunk/segment metadata, điểm ảnh giữ nguyên (đã so pixel) |
 
 Avatar: 1 Goomba · 2 Koopa Troopa · 3 Lakitu · 4 Bowser · 5 Hammer Bro · 6 Red Koopa · 7 Paratroopa ·

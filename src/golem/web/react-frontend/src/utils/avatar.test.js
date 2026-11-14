@@ -29,6 +29,17 @@ describe('resolveAvatarId', () => {
     expect(resolveAvatarId(ai(1), [])).toBe(AVATAR_IDS[0])   // AI not found in list → first free
   })
 
+  it('uses the random avatar the server picked for an AI', () => {
+    const players = [human(0, '4'), { ...ai(1), avatar: '17', aiAvatar: true }, { ...ai(2), avatar: '9', aiAvatar: true }]
+    expect(players.map((p) => resolveAvatarId(p, players))).toEqual(['4', '17', '9'])
+    // an invalid server value falls back to the seat-order rule
+    expect(resolveAvatarId({ ...ai(1), avatar: '999', aiAvatar: true }, [human(0, '1'), ai(1)])).toBe('2')
+  })
+
+  it('offers 23 avatars', () => {
+    expect(AVATAR_IDS).toHaveLength(23)
+  })
+
   it('builds versioned URLs', () => {
     expect(avatarSrc('3')).toMatch(/^\/assets\/images\/avatar\/3\.webp\?v=/)
   })
