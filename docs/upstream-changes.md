@@ -110,6 +110,11 @@ vòng lặp 100ms chạy tới hết ván rồi object nằm trong RAM mãi.
 - Giá market theo luật chính thức ("đặt k× crystal bất kỳ") ở `WebGameLayout`, `CompactGameBoard`, `FantasyMarketArea`,
   `CompactCard`; GameOver ghi chú thắng hoà do đi sau. `utils/aiLevel.js` (+ test), `utils/avatar.js` dùng `aiIndex`.
 - Test mới: `utils/aiLevel.test.js`, `components/__tests__/SinglePlayerLobby.test.jsx`.
+- Màn kết thúc (2026-11-15): **Play Again** không còn reload trang (reload ở URL `/room/<id>` mở nhầm lobby Multiplayer):
+  ván 1 người ⇒ tạo ngay ván mới cùng số AI + mức + tên + avatar (vào phòng chờ); nhiều người ⇒ về lobby Multiplayer;
+  **Back to Menu** ⇒ màn chính. `gameStore.leaveGame()` đóng WS bình thường (gỡ handler trước để onclose muộn không xoá
+  kết nối mới) và xoá state; `connectWebSocket` lưu tên/avatar (upstream không lưu ⇒ Retry Connection dùng tên rỗng);
+  phòng vừa rời không bị hiểu nhầm là link mời.
 
 ## 2. Asset — sinh bởi script
 | Thứ | Script | Chi tiết |

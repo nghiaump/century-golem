@@ -268,4 +268,5 @@ info/quyết định AI · tham số `AI_THINK_SCALE_PCT` để hạ tải nếu
 | 2026-11-14 | Sau rollout, theo phản hồi người dùng: tắt toast ý đồ AI (mặc định `AI_INTENT_MESSAGES=0`); avatar AI ngẫu nhiên do server chọn + AI mang tên nhân vật (bỏ "AI 1, AI 2"); 23 avatar (12 nhân vật + tối đa 1 biến thể); sửa giật khung khi AI nghĩ; bỏ chỉ báo trùng trên ô người chơi desktop | yêu cầu người dùng |
 | 2026-11-15 | UI theo phản hồi: badge chỉ ghi mức; hàng người chơi 5 người không bị nút nổi đè (desktop + mobile); sửa dòng ma ở thanh người chơi mobile; nút âm thanh mobile dời xuống dưới nút chat; lưới avatar nhỏ 50% (10 cột desktop, 8 cột mobile, 3 hàng); chọn số AI gọn 1 hàng; **bỏ dòng công bố liên minh ở lobby** (ADR 0004 cập nhật) | yêu cầu người dùng |
 | 2026-11-15 | Bỏ badge độ khó trong từng ô người chơi ⇒ một `DifficultyBadge` dưới nút ✨; avatar ô người chơi desktop cao bằng 2 hàng | yêu cầu người dùng |
+| 2026-11-15 | Play Again ở ván 1 người tạo ván mới cùng thiết lập (trước: reload ⇒ lobby Multiplayer); Back to Menu về màn chính | phản hồi người dùng |
 

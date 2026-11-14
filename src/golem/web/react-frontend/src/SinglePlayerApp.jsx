@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import SinglePlayerLobby from './components/SinglePlayerLobby'
 import Lobby from './components/Lobby'
@@ -12,6 +12,8 @@ import GameOverModal from './components/GameOverModal'
 import Toast from './components/Toast'
 import XpWindow from './components/XpWindow'
 import { avatarSrc } from './utils/avatar'
+import { apiFetch } from './utils/api'
+import { showToast } from './utils/toast'
 import WebGameLayout from './components/desktop/WebGameLayout'
 import ThemeToggleButton from './components/ThemeToggleButton'
 import SoundToggleButton from './components/SoundToggleButton'
@@ -24,23 +26,16 @@ import { MobileLayoutProvider } from './contexts/MobileLayoutContext'
 import { ThemeProvider, useTheme } from './contexts/ThemeContext'
 
 // Game Content with Theme Support
-function GameContentWithTheme({ useWebLayout, isMobile, isPortrait, sessionId, setInGame, setGameMode }) {
+function GameContentWithTheme({ useWebLayout, isMobile, isPortrait, sessionId, onNewGame, onBackToMenu }) {
   const { isFantasy } = useTheme()
   
   // Initialize game sounds hook
   useGameSounds()
 
-  const handleNewGame = () => {
-    setInGame(false)
-    setGameMode(null)
-    window.location.reload()
-  }
-
-  const handleBackToMenu = () => {
-    setInGame(false)
-    setGameMode(null)
-    window.location.reload()
-  }
+  // Upstream reloaded the page here; with the URL still at /room/<id> the reload opened the
+  // multiplayer Join screen. The parent now restarts / exits in place.
+  const handleNewGame = onNewGame
+  const handleBackToMenu = onBackToMenu
 
   // Fantasy Theme Layout
   if (isFantasy) {
@@ -171,7 +166,12 @@ function SinglePlayerApp() {
   // Opening /room/:roomId directly (page reload, invite link, old link) has no live connection yet. Upstream jumped
   // straight to the in-game screen without ever connecting, so it hung on "Connecting..." forever. Instead, open the
   // multiplayer lobby on the Join tab with the room prefilled; it checks whether the room still exists.
+  // The room we just left on purpose (Back to Menu / Play Again): while the URL still says
+  // /room/<id> for one more render, it must not be mistaken for an invite link.
+  const leftRoomRef = useRef(null)
+
   useEffect(() => {
+    if (roomId && roomId === leftRoomRef.current) return
     if (roomId && !inGame && !isConnecting) {
       setPendingRoomId(roomId)
       setGameMode('multi')
@@ -198,6 +198,53 @@ function SinglePlayerApp() {
     setGameMode(null)
     setInGame(false)
     navigate('/')
+  }
+
+  const leaveGame = useGameStore((s) => s.leaveGame)
+
+  // Game over → "Back to Menu": leave the room and show the main menu (no page reload).
+  const handleExitToMenu = () => {
+    leftRoomRef.current = roomId || null
+    leaveGame()
+    handleBackToMenu()
+  }
+
+  // Game over → "Play Again". Single player: a new game with the same opponents (count and level),
+  // name and avatar, straight into the waiting room. Multiplayer: back to the multiplayer lobby.
+  const handlePlayAgain = async () => {
+    leftRoomRef.current = roomId || null
+    const st = useGameStore.getState()
+    const finished = st.gameState
+    const name = st.myPlayer?.name || st.playerName || 'Player 1'
+    const avatar = String(st.myPlayer?.avatar || st.playerAvatar || '4')
+    if (finished?.mode !== 'single') {
+      leaveGame()
+      setPendingRoomId(null)
+      setInGame(false)
+      setGameMode('multi')
+      navigate('/')
+      return
+    }
+    const ais = (finished.players || []).filter((p) => p.isAI)
+    const body = { numAI: Math.min(4, Math.max(1, ais.length || 1)), seed: Date.now() }
+    const levels = ais.map((p) => p.aiLevel).filter(Boolean)
+    if (levels.length === ais.length && levels.length > 0) body.aiLevels = levels
+    leaveGame()
+    try {
+      const response = await apiFetch('/api/single', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`)
+      handleStartSinglePlayer(data.sessionID, name, avatar)
+    } catch (error) {
+      showToast(`Could not start a new game: ${error.message}`, 'error')
+      setGameMode('single') // fall back to the single-player lobby
+      setInGame(false)
+      navigate('/')
+    }
   }
 
   // Mode selection screen
@@ -332,8 +379,8 @@ function SinglePlayerApp() {
           isMobile={isMobile}
           isPortrait={isPortrait}
           sessionId={sessionId}
-          setInGame={setInGame}
-          setGameMode={setGameMode}
+          onNewGame={handlePlayAgain}
+          onBackToMenu={handleExitToMenu}
         />
       </MobileLayoutProvider>
     </ThemeProvider>

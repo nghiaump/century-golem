@@ -65,10 +65,13 @@ const useGameStore = create((set, get) => ({
       set({ connectionTimeoutId: null });
     }
 
-    // Clear previous errors and mark as connecting
+    // Clear previous errors and mark as connecting. Remember who we connect as: forceReconnect and
+    // "Play Again" reuse it (upstream never stored it, so a manual reconnect used an empty name).
     set({ 
       connectionError: null, 
       isConnecting: true,
+      playerName,
+      playerAvatar,
     });
 
     // In development with Vite, always connect to the dev server (localhost:3000)
@@ -530,6 +533,29 @@ const useGameStore = create((set, get) => ({
     }
     logger.info(`🔄 Force reconnecting...`);
     get().connectWebSocket(sessionId, playerName, playerAvatar, isSpectator);
+  },
+
+  // Leave the current game without reloading the page (Play Again / Back to Menu): stop reconnecting,
+  // close the socket normally and clear the game state. The old socket's handlers are detached first,
+  // otherwise its late onclose would wipe the NEXT connection's `ws`.
+  leaveGame: () => {
+    const { ws, reconnectTimeoutId, connectionTimeoutId } = get();
+    if (reconnectTimeoutId) clearTimeout(reconnectTimeoutId);
+    if (connectionTimeoutId) clearTimeout(connectionTimeoutId);
+    if (ws) {
+      ws.onopen = null;
+      ws.onmessage = null;
+      ws.onerror = null;
+      ws.onclose = null;
+      try { ws.close(1000, 'left game'); } catch { /* already closed */ }
+    }
+    set({
+      ws: null, connected: false, isConnecting: false, isReconnecting: false, connectionError: null,
+      reconnectTimeoutId: null, connectionTimeoutId: null, reconnectAttempts: 0, reconnectDelay: 1000,
+      sessionId: null, playerId: null, spectatorId: null, isSpectator: false,
+      gameState: null, previousGameState: null, currentPlayer: null, myPlayer: null, opponents: [],
+      roundNumber: 0, selectedCard: null, actionHistory: [], acquiringCardIds: [], acquiredCardOverlay: null,
+    });
   },
 
   // Cancel reconnection attempt

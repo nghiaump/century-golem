@@ -1723,12 +1723,20 @@
    <React.StrictMode>
 --- a/web/react-frontend/src/SinglePlayerApp.jsx
 +++ b/web/react-frontend/src/SinglePlayerApp.jsx
-@@ -10,9 +10,12 @@
+@@ -1,4 +1,4 @@
+-import React, { useState, useEffect } from 'react'
++import React, { useState, useEffect, useRef } from 'react'
+ import { useParams, useNavigate } from 'react-router-dom'
+ import SinglePlayerLobby from './components/SinglePlayerLobby'
+ import Lobby from './components/Lobby'
+@@ -10,9 +10,14 @@
  import AcquiredCardOverlay from './components/AcquiredCardOverlay'
  import GameOverModal from './components/GameOverModal'
  import Toast from './components/Toast'
 +import XpWindow from './components/XpWindow'
 +import { avatarSrc } from './utils/avatar'
++import { apiFetch } from './utils/api'
++import { showToast } from './utils/toast'
  import WebGameLayout from './components/desktop/WebGameLayout'
  import ThemeToggleButton from './components/ThemeToggleButton'
  import SoundToggleButton from './components/SoundToggleButton'
@@ -1736,7 +1744,35 @@
  import FantasyGameLayout from './components/desktop/FantasyGameLayout'
  import useGameStore from './store/gameStore'
  import useOrientation from './hooks/useOrientation'
-@@ -44,6 +47,7 @@
+@@ -21,29 +26,23 @@
+ import { ThemeProvider, useTheme } from './contexts/ThemeContext'
+ 
+ // Game Content with Theme Support
+-function GameContentWithTheme({ useWebLayout, isMobile, isPortrait, sessionId, setInGame, setGameMode }) {
++function GameContentWithTheme({ useWebLayout, isMobile, isPortrait, sessionId, onNewGame, onBackToMenu }) {
+   const { isFantasy } = useTheme()
+   
+   // Initialize game sounds hook
+   useGameSounds()
+ 
+-  const handleNewGame = () => {
+-    setInGame(false)
+-    setGameMode(null)
+-    window.location.reload()
+-  }
+-
+-  const handleBackToMenu = () => {
+-    setInGame(false)
+-    setGameMode(null)
+-    window.location.reload()
+-  }
++  // Upstream reloaded the page here; with the URL still at /room/<id> the reload opened the
++  // multiplayer Join screen. The parent now restarts / exits in place.
++  const handleNewGame = onNewGame
++  const handleBackToMenu = onBackToMenu
+ 
+   // Fantasy Theme Layout
+   if (isFantasy) {
      return (
        <>
          <ThemeToggleButton />
@@ -1744,7 +1780,7 @@
          <SoundToggleButton />
          <FantasyGameLayout 
            onNewGame={handleNewGame}
-@@ -59,6 +63,9 @@
+@@ -59,6 +58,9 @@
      <>
        {/* Theme Toggle Button - Always visible */}
        <ThemeToggleButton />
@@ -1754,7 +1790,7 @@
        
        {/* Sound Toggle Button - Always visible */}
        <SoundToggleButton />
-@@ -144,6 +151,7 @@
+@@ -144,6 +146,7 @@
    const navigate = useNavigate()
    const [gameMode, setGameMode] = useState(null) // null, 'single', 'multi'
    const [inGame, setInGame] = useState(false)
@@ -1762,7 +1798,7 @@
    const { 
      connectWebSocket, 
      gameState, 
-@@ -160,11 +168,14 @@
+@@ -160,11 +163,19 @@
    } = useGameStore()
    const { isPortrait, isLandscape, isMobile, isTablet, isDesktop, width } = useOrientation()
  
@@ -1770,7 +1806,12 @@
 +  // Opening /room/:roomId directly (page reload, invite link, old link) has no live connection yet. Upstream jumped
 +  // straight to the in-game screen without ever connecting, so it hung on "Connecting..." forever. Instead, open the
 +  // multiplayer lobby on the Join tab with the room prefilled; it checks whether the room still exists.
++  // The room we just left on purpose (Back to Menu / Play Again): while the URL still says
++  // /room/<id> for one more render, it must not be mistaken for an invite link.
++  const leftRoomRef = useRef(null)
++
    useEffect(() => {
++    if (roomId && roomId === leftRoomRef.current) return
      if (roomId && !inGame && !isConnecting) {
 +      setPendingRoomId(roomId)
        setGameMode('multi')
@@ -1779,7 +1820,7 @@
      }
    }, [roomId, inGame, isConnecting])
  
-@@ -183,79 +194,52 @@
+@@ -183,79 +194,99 @@
    }
  
    const handleBackToMenu = () => {
@@ -1790,6 +1831,53 @@
    }
  
 -  // Mode selection screen - RESPONSIVE
++  const leaveGame = useGameStore((s) => s.leaveGame)
++
++  // Game over → "Back to Menu": leave the room and show the main menu (no page reload).
++  const handleExitToMenu = () => {
++    leftRoomRef.current = roomId || null
++    leaveGame()
++    handleBackToMenu()
++  }
++
++  // Game over → "Play Again". Single player: a new game with the same opponents (count and level),
++  // name and avatar, straight into the waiting room. Multiplayer: back to the multiplayer lobby.
++  const handlePlayAgain = async () => {
++    leftRoomRef.current = roomId || null
++    const st = useGameStore.getState()
++    const finished = st.gameState
++    const name = st.myPlayer?.name || st.playerName || 'Player 1'
++    const avatar = String(st.myPlayer?.avatar || st.playerAvatar || '4')
++    if (finished?.mode !== 'single') {
++      leaveGame()
++      setPendingRoomId(null)
++      setInGame(false)
++      setGameMode('multi')
++      navigate('/')
++      return
++    }
++    const ais = (finished.players || []).filter((p) => p.isAI)
++    const body = { numAI: Math.min(4, Math.max(1, ais.length || 1)), seed: Date.now() }
++    const levels = ais.map((p) => p.aiLevel).filter(Boolean)
++    if (levels.length === ais.length && levels.length > 0) body.aiLevels = levels
++    leaveGame()
++    try {
++      const response = await apiFetch('/api/single', {
++        method: 'POST',
++        headers: { 'Content-Type': 'application/json' },
++        body: JSON.stringify(body),
++      })
++      const data = await response.json()
++      if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`)
++      handleStartSinglePlayer(data.sessionID, name, avatar)
++    } catch (error) {
++      showToast(`Could not start a new game: ${error.message}`, 'error')
++      setGameMode('single') // fall back to the single-player lobby
++      setInGame(false)
++      navigate('/')
++    }
++  }
++
 +  // Mode selection screen
    if (gameMode === null) {
      return (
@@ -1892,7 +1980,7 @@
        </div>
        </>
      )
-@@ -263,151 +247,75 @@
+@@ -263,151 +294,75 @@
  
    // Show appropriate lobby based on mode
    if (!inGame) {
@@ -2105,9 +2193,35 @@
          </div>
        </>
      )
+@@ -424,8 +379,8 @@
+           isMobile={isMobile}
+           isPortrait={isPortrait}
+           sessionId={sessionId}
+-          setInGame={setInGame}
+-          setGameMode={setGameMode}
++          onNewGame={handlePlayAgain}
++          onBackToMenu={handleExitToMenu}
+         />
+       </MobileLayoutProvider>
+     </ThemeProvider>
 --- a/web/react-frontend/src/store/gameStore.js
 +++ b/web/react-frontend/src/store/gameStore.js
-@@ -376,6 +376,17 @@
+@@ -65,10 +65,13 @@
+       set({ connectionTimeoutId: null });
+     }
+ 
+-    // Clear previous errors and mark as connecting
++    // Clear previous errors and mark as connecting. Remember who we connect as: forceReconnect and
++    // "Play Again" reuse it (upstream never stored it, so a manual reconnect used an empty name).
+     set({ 
+       connectionError: null, 
+       isConnecting: true,
++      playerName,
++      playerAvatar,
+     });
+ 
+     // In development with Vite, always connect to the dev server (localhost:3000)
+@@ -376,6 +379,17 @@
              logger.info(`${currentPlayer.name}'s turn`);
            }
          }
@@ -2125,6 +2239,36 @@
        } else if (message.type === "chat") {
          // Handle chat message from server
          if (get().onChatMessage) {
+@@ -521,6 +535,29 @@
+     get().connectWebSocket(sessionId, playerName, playerAvatar, isSpectator);
+   },
+ 
++  // Leave the current game without reloading the page (Play Again / Back to Menu): stop reconnecting,
++  // close the socket normally and clear the game state. The old socket's handlers are detached first,
++  // otherwise its late onclose would wipe the NEXT connection's `ws`.
++  leaveGame: () => {
++    const { ws, reconnectTimeoutId, connectionTimeoutId } = get();
++    if (reconnectTimeoutId) clearTimeout(reconnectTimeoutId);
++    if (connectionTimeoutId) clearTimeout(connectionTimeoutId);
++    if (ws) {
++      ws.onopen = null;
++      ws.onmessage = null;
++      ws.onerror = null;
++      ws.onclose = null;
++      try { ws.close(1000, 'left game'); } catch { /* already closed */ }
++    }
++    set({
++      ws: null, connected: false, isConnecting: false, isReconnecting: false, connectionError: null,
++      reconnectTimeoutId: null, connectionTimeoutId: null, reconnectAttempts: 0, reconnectDelay: 1000,
++      sessionId: null, playerId: null, spectatorId: null, isSpectator: false,
++      gameState: null, previousGameState: null, currentPlayer: null, myPlayer: null, opponents: [],
++      roundNumber: 0, selectedCard: null, actionHistory: [], acquiringCardIds: [], acquiredCardOverlay: null,
++    });
++  },
++
+   // Cancel reconnection attempt
+   cancelReconnect: () => {
+     const timeoutId = get().reconnectTimeoutId;
 --- a/web/react-frontend/src/theme-xp.css
 +++ b/web/react-frontend/src/theme-xp.css
 @@ -0,0 +1,356 @@
