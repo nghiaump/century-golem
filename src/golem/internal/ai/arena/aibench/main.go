@@ -238,5 +238,11 @@ func variant(args []string) {
 	base := ai.DefaultProfile(l)
 	base.Workers = *workers
 	s := arena.HeadToHead(arena.ProfileBot("variant", pv, *iters), arena.ProfileBot("default", base, *iters), *players, *seeds, 1, *parallel)
-	fmt.Printf("%+v\n%s\n", w, s)
+	fmt.Printf("%+v\n", w)
+	for i, e := range s.Errors {
+		if i < 5 {
+			fmt.Println("  error:", e)
+		}
+	}
+	fmt.Println(s)
 }

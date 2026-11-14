@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import useGameStore from '../store/gameStore'
 import PlayerAvatar from './PlayerAvatar'
+import AiLevelBadge from './AiLevelBadge'
 import useOrientation from '../hooks/useOrientation'
 import { getCardSpriteStyle, getCardImagePath } from '../utils/cardNames'
 
@@ -29,12 +30,14 @@ const GameOverModal = ({ onNewGame, onBackToMenu }) => {
   const copperRemaining = marketCoins[0]?.amount ?? 0
   const silverRemaining = marketCoins[1]?.amount ?? 0
 
-  // Sort players by total points (descending)
+  // Sort players by total points (descending); ties: the player later in turn order ranks first
+  // (official rule — the server already picked the winner that way)
   const sortedPlayers = [...players].sort((a, b) => {
     const aPoints = calculateTotalPoints(a)
     const bPoints = calculateTotalPoints(b)
-    return bPoints - aPoints
+    return bPoints - aPoints || (b.id || 0) - (a.id || 0)
   })
+  const wonOnTieBreak = winner && players.some((p) => p.id !== winner.id && calculateTotalPoints(p) === winner.points)
 
   function calculateTotalPoints(player) {
     const pointCardPoints = player.pointCards?.reduce((sum, card) => sum + (card.points || 0), 0) || 0
@@ -157,6 +160,9 @@ const GameOverModal = ({ onNewGame, onBackToMenu }) => {
                   <div className={`text-white/80 ${isMobile ? 'text-sm' : 'text-base'}`}>
                     Wins with <span className="text-yellow-400 font-bold">{winner?.points || 0}</span> points!
                   </div>
+                  {wonOnTieBreak && (
+                    <div className="text-white/60 text-xs">Tied on points — the player later in turn order wins.</div>
+                  )}
                 </div>
                 <span className={`${isMobile ? 'text-2xl' : 'text-3xl'}`}>👑</span>
               </div>
@@ -241,6 +247,7 @@ const GameOverModal = ({ onNewGame, onBackToMenu }) => {
                         <span className={`font-bold text-white ${isMobile ? 'text-sm' : 'text-base sm:text-lg'}`}>
                           {player.name}
                         </span>
+                        {player.isAI && <AiLevelBadge level={player.aiLevel} />}
                       </div>
                       <div className={`font-black text-yellow-300 ${isMobile ? 'text-lg' : 'text-xl sm:text-2xl'}`}>
                         {totalPoints} pts

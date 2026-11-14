@@ -18,6 +18,8 @@ export function resolveAvatarId(player, players = []) {
   if (!player.isAI) return String(player.avatar || AVATAR_IDS[0])
   const taken = new Set(players.filter((p) => !p.isAI).map((p) => String(p.avatar)))
   const free = AVATAR_IDS.filter((id) => !taken.has(id))
-  const aiIndex = Math.max(0, players.filter((p) => p.isAI).findIndex((p) => p.id === player.id))
+  const aiIndex = typeof player.aiIndex === 'number'
+    ? player.aiIndex
+    : Math.max(0, players.filter((p) => p.isAI).findIndex((p) => p.id === player.id))
   return free[aiIndex % free.length] || AVATAR_IDS[0]
 }

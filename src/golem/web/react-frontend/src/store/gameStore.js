@@ -376,6 +376,17 @@ const useGameStore = create((set, get) => ({
             logger.info(`${currentPlayer.name}'s turn`);
           }
         }
+      } else if (message.type === "aiThinking") {
+        // An AI started thinking: show it until the next state arrives (which carries aiThinking too).
+        const gs = get().gameState;
+        if (gs) {
+          set({ gameState: { ...gs, aiThinking: { playerID: message.playerID, level: message.level, timeout: message.timeout } } });
+        }
+      } else if (message.type === "aiIntent") {
+        // Short explanation of an AI move aimed at this player ("AI 2 took the golem you were going for").
+        if (message.message) showToast(message.message, 'ai');
+      } else if (message.type === "turnTimeout") {
+        if (message.message) showToast(message.message, 'info');
       } else if (message.type === "chat") {
         // Handle chat message from server
         if (get().onChatMessage) {

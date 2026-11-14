@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import useGameStore from '../store/gameStore'
 import PlayerAvatar from './PlayerAvatar'
+import AiLevelBadge from './AiLevelBadge'
+import AiThinkingIndicator from './AiThinkingIndicator'
 
 // Timer Ring around avatar
 const TimerRing = ({ duration = 60 }) => {
@@ -52,7 +54,7 @@ const PlayersInfoBar = () => {
             >
               {/* Avatar with timer ring for current turn */}
               <div className="relative">
-                {isCurrentTurn && <TimerRing duration={60} />}
+                {isCurrentTurn && !player.isAI && <TimerRing duration={gameState.turnTimeout || 60} />}
                 <PlayerAvatar
                   player={player}
                   className={`
@@ -61,8 +63,8 @@ const PlayersInfoBar = () => {
                     ${player.online === false ? 'opacity-50' : ''}
                   `}
                 />
-                {/* Online/Offline status indicator */}
-                {player.online !== undefined && (
+                {/* Online/Offline status indicator (humans only) */}
+                {player.online !== undefined && !player.isAI && (
                   <div 
                     className={`
                       absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white shadow
@@ -79,8 +81,12 @@ const PlayersInfoBar = () => {
                 <div className="flex items-center gap-1">
                   <span className={`text-white font-medium ${player.online === false ? 'opacity-60' : ''}`}>
                     {player.name}
-                    {player.online === false && <span className="text-gray-400 ml-1">(offline)</span>}
+                    {player.isAI && <AiLevelBadge level={player.aiLevel} />}
+                    {!player.isAI && player.online === false && <span className="text-gray-400 ml-1">(offline)</span>}
                   </span>
+                  {isCurrentTurn && player.isAI && gameState.aiThinking?.playerID === player.id && (
+                    <AiThinkingIndicator className="text-[10px]" />
+                  )}
                   <span className="text-yellow-400 font-bold">★{player.points || 0}</span>
                 </div>
                 

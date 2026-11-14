@@ -139,11 +139,7 @@ const CompactCard = ({
           {/* Crystal Cost (for market cards) */}
           {cost && costTotal > 0 && (
             <div className="mt-1 text-red-400">
-              Crystal Cost: 
-              {cost.yellow > 0 && ` 🟡${cost.yellow}`}
-              {cost.green > 0 && ` 🟢${cost.green}`}
-              {cost.blue > 0 && ` 🔵${cost.blue}`}
-              {cost.pink > 0 && ` 🟣${cost.pink}`}
+              To take: place {costTotal}× any crystal (one per card to the left)
             </div>
           )}
 

@@ -213,12 +213,10 @@ const FantasyMarketArea = () => {
   // Check if player can afford a card
   const canAfford = (cost) => {
     if (!cost || !myPlayer?.resources) return false
-    return (
-      (cost.yellow || 0) <= myPlayer.resources.yellow &&
-      (cost.green || 0) <= myPlayer.resources.green &&
-      (cost.blue || 0) <= myPlayer.resources.blue &&
-      (cost.pink || 0) <= myPlayer.resources.pink
-    )
+    // Official rule: place one crystal of ANY colour on each card to the left
+    const need = (cost.yellow || 0) + (cost.green || 0) + (cost.blue || 0) + (cost.pink || 0)
+    const r = myPlayer.resources
+    return (r.yellow || 0) + (r.green || 0) + (r.blue || 0) + (r.pink || 0) >= need
   }
 
   // Handle action card click

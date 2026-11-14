@@ -21,6 +21,9 @@ type GameResult struct {
 	Err    error
 }
 
+// MaxRounds aborts a game that stalls (no real game gets close: ~35–70 rounds).
+var MaxRounds = 150
+
 // PlayGame plays one game with bots[i] in seat i. teams (optional) is passed to every agent.
 func PlayGame(seed int64, bots []Bot, teams []int) GameResult {
 	n := len(bots)
@@ -32,7 +35,16 @@ func PlayGame(seed int64, bots []Bot, teams []int) GameResult {
 		res.Bots[i] = b.Name
 		gs.Players[i].IsAI = true
 	}
-	for step := 0; step < 5000 && !gs.GameOver; step++ {
+	for step := 0; !gs.GameOver; step++ {
+		if gs.Round > MaxRounds {
+			desc := ""
+			for _, p := range gs.Players {
+				desc += fmt.Sprintf(" [golems %d, crystals %s, hand %d, played %d]", len(p.PointCards), p.Resources, len(p.Hand), len(p.PlayedCards))
+			}
+			res.Err = fmt.Errorf("game %d still running after %d rounds (stall):%s", seed, MaxRounds, desc)
+			res.Rounds = gs.Round
+			return res
+		}
 		seat := gs.CurrentTurn % n
 		d, err := agents[seat].Decide(context.Background(), gs.Clone(), ai.DecideOptions{
 			Seed: uint64(seed)*1000003 + uint64(step), Iterations: bots[seat].Iterations, Teams: teams,
@@ -56,10 +68,6 @@ func PlayGame(seed int64, bots []Bot, teams []int) GameResult {
 				return res
 			}
 		}
-	}
-	if !gs.GameOver {
-		res.Err = fmt.Errorf("game %d did not finish", seed)
-		return res
 	}
 	for i, p := range gs.Players {
 		res.Final[i] = p.GetFinalPoints()

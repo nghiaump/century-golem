@@ -60,6 +60,13 @@ services:
       - SESSION_IDLE_PLAYING_SECONDS=600   # ván đang chơi mà mọi người rớt/bỏ (giữ chỗ để reconnect)
       - SESSION_IDLE_ENDED_SECONDS=120     # ván đã kết thúc
       - MAX_SESSIONS=100                   # trần số phòng trong RAM; vượt ⇒ /api/create, /api/single trả 503
+      # AI (docs/ai/README.md, docs/ai/hieu-nang.md). Máy nóng/pin yếu ⇒ hạ AI_THINK_SCALE_PCT hoặc AI_MAX_THREADS.
+      - AI_MAX_THREADS=4                   # tổng luồng search AI toàn server (= số core lớn của Pixel 3 XL)
+      - AI_THINK_SCALE_PCT=100             # nhân thời gian nghĩ mọi cấp (Very Hard 3 s, Hard 1.4 s, Medium 0.3 s)
+      - AI_MIN_DELAY_MS=800                # thời gian "đang nghĩ" tối thiểu mỗi nước AI (UX)
+      - AI_MAX_NODES=200000                # trần node mỗi cây search (~13 MB)
+      - AI_PAUSE_WHEN_EMPTY=1              # phòng không còn ai kết nối ⇒ AI dừng đi (tiết kiệm CPU/pin)
+      - GOMEMLIMIT=512MiB                  # GC chủ động trước khi chạm trần bộ nhớ (máy 3.5 GB)
       # Tắt hẳn Telegram + Firebase/Google OAuth (để trống = disabled)
       - TELEGRAM_BOT_TOKEN=
       - TELEGRAM_CHAT_ID=

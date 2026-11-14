@@ -49,11 +49,13 @@ Play solo against 1–4 AI opponents or with up to 5 friends, right in the brows
 <td width="50%" valign="top">
 
 #### 🎮 Gameplay
-- **Solo vs AI**: pick 1–4 AI opponents and start right away
+- **Solo vs AI** with **4 difficulty levels** (Easy → Very Hard): Monte-Carlo tree search that reads your plan,
+  blocks the leader and, at Very Hard, plays as a team against you — see [AI overview](docs/ai/README.md)
 - **Online multiplayer** for 2–5 players: create a room (optional custom ID) or join one from the open-room list
 - **Spectate** rooms that are already in progress
-- **Turn timer** (60 s by default); when it runs out, the AI plays the turn for you
-- **Full rules engine**: market deposits, crystal upgrades, multi-trades, the 10-crystal limit, copper and silver coin bonuses
+- **Turn timer** (60 s by default); when it runs out, an AI plays the turn for you
+- **AI intent toasts**: "AI 2 took the golem you were going for" — learn why the AI did what it did
+- **Official rules engine**: market deposits (any colour, they stay on the cards), crystal upgrades, multi-trades, the 10-crystal limit, copper and silver coin bonuses, 6/5-golem end, later-seat tie-break
 
 </td>
 <td width="50%" valign="top">
@@ -121,8 +123,9 @@ Play solo against 1–4 AI opponents or with up to 5 friends, right in the brows
 | 🗿 **Claim** a golem | Pay the crystals shown on it. The 1st slot also pays a **copper coin (+3)** and the 2nd a **silver coin (+1)**, while they last |
 | 💤 **Rest** | Return all your played merchant cards to your hand |
 
-**Game end.** When someone claims their **5th golem**, the current round is played out and the game ends.
-Final score = golem points + coins + **1 point per non-yellow crystal**.
+**Game end.** When someone claims their **6th golem** (2–3 players) or **5th golem** (4–5 players), the current round
+is played out and the game ends. Final score = golem points + coins + **1 point per non-yellow crystal**; ties go to the
+player **later in turn order**. In single player your seat (and so the starting player) is drawn at random.
 
 ## 🚀 Quick start
 
@@ -179,6 +182,11 @@ Server settings are environment variables. Set them in [`deploy/docker-compose.y
 | `DEFAULT_TURN_TIMEOUT_SECONDS` | `60` | Turn timer before the AI plays for an idle player |
 | `WEBSOCKET_PING_INTERVAL` | `15` | Seconds between WebSocket pings |
 | `LOG_LEVEL` / `LOG_FORMAT` | `info` / `json` | Server logging |
+| `AI_MAX_THREADS` | `0` (auto) | Server-wide cap on AI search threads (`4` on the phone) |
+| `AI_THINK_SCALE_PCT` | `100` | Multiplies every AI think budget (Very Hard 3 s, Hard 1.4 s, Medium 0.3 s) |
+| `AI_MIN_DELAY_MS` | `800` | Minimum visible "thinking" time per AI move |
+| `AI_MAX_NODES` | `200000` | Node cap per search tree (memory bound) |
+| `AI_PAUSE_WHEN_EMPTY` | `1` | AI turns pause while nobody is connected to the room |
 | `TELEGRAM_*` `FIREBASE_*` `GOOGLE_OAUTH_*` | *(empty)* | **Must stay empty**: these integrations are deliberately disabled |
 
 ## 🧰 Operations
@@ -236,7 +244,7 @@ DOCKER_BUILDKIT=1 docker compose up -d --build --no-deps server    # redeploy ba
 | `GET` | `/health` | Liveness: `OK` |
 | `GET` | `/api/list` | Open multiplayer rooms (single-player games are hidden) |
 | `POST` | `/api/create` | `{numPlayers, sessionID?, creatorName}`: new multiplayer room |
-| `POST` | `/api/single` | `{numAI: 1..4, turnTimeout?}` → `{sessionID: "single_…"}` |
+| `POST` | `/api/single` | `{numAI: 1..4, difficulty?: "easy"\|"medium"\|"hard"\|"veryhard", turnTimeout?}` → `{sessionID: "single_…", difficulty, aiLevels, coalition}` |
 | `POST` | `/api/join` | Join a room |
 | `POST` | `/api/sessions/start` | `{sessionID}`: start the game |
 | `WS` | `/ws?session=&name=&avatar=[&spectate=true][&clientID=]` | Game channel (`state`, `playerAssigned`, …) |
@@ -248,7 +256,8 @@ DOCKER_BUILDKIT=1 docker compose up -d --build --no-deps server    # redeploy ba
 
 - An upstream race can crash the server with *send on closed channel* when a player disconnects mid-broadcast. Docker restarts it automatically, but games in progress are lost.
 - The `session` package has data races reported by `go test -race`.
-- History endpoints (`/api/games`, `/api/events`, …) are public and unauthenticated, and client IDs are guessable.
+- History endpoints (`/api/games`, `/api/events`, …) are public and unauthenticated, and client IDs are guessable
+  (deck order of games still being played is hidden).
 
 ## 🙏 Credits & disclaimer
 

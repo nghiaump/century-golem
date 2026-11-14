@@ -6,6 +6,8 @@ import AcquiredCardOverlay from '../AcquiredCardOverlay'
 import GameOverModal from '../GameOverModal'
 import useGameStore from '../../store/gameStore'
 import PlayerAvatar from '../PlayerAvatar'
+import AiLevelBadge from '../AiLevelBadge'
+import AiThinkingIndicator from '../AiThinkingIndicator'
 import { getCardSpriteStyle, getCardImagePath } from '../../utils/cardNames'
 
 // ============================================
@@ -121,6 +123,7 @@ const PlayerDock = ({ player, isCurrentTurn, isMe, position }) => {
               <span className="text-white font-bold text-sm" style={{ textShadow: '0 0 4px #000, 0 0 8px #000, 1px 1px 2px #000' }}>
                 {player.name || 'Player'}
               </span>
+              {player.isAI && <AiLevelBadge level={player.aiLevel} />}
             </div>
             {/* Số golem đã ăn - clickable for self only */}
             <div 
@@ -720,7 +723,12 @@ const FantasyGameLayout = ({ onNewGame, onBackToMenu }) => {
                 {currentPlayer?.id === myPlayer?.id ? (
                   <span className="text-green-400 font-bold">Your Turn</span>
                 ) : (
-                  <span className="text-yellow-400">{currentPlayer?.name}'s Turn</span>
+                  <span className="text-yellow-400">
+                    {currentPlayer?.name}'s Turn
+                    {currentPlayer?.isAI && gameState?.aiThinking?.playerID === currentPlayer?.id && (
+                      <AiThinkingIndicator className="ml-2 text-xs" />
+                    )}
+                  </span>
                 )}
               </div>
 

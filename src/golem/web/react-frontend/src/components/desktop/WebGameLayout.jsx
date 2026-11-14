@@ -4,6 +4,8 @@ import CompactCard from '../CompactCard'
 import PlayerCard from '../PlayerCard'
 import PlayerAvatar from '../PlayerAvatar'
 import XpWaitingRoom from '../XpWaitingRoom'
+import AiThinkingIndicator from '../AiThinkingIndicator'
+import { totalCrystals } from '../../utils/aiLevel'
 import GraveyardPanel from '../GraveyardPanel'
 import MyGolemsPanel from '../MyGolemsPanel'
 import HistorySection from '../HistorySection'
@@ -38,8 +40,8 @@ const WebGameLayout = () => {
   const [confirmGolem, setConfirmGolem] = useState({ show: false, golem: null, index: null })
 
   // Timer state
-  const [turnTimeRemaining, setTurnTimeRemaining] = useState(60)
-  const turnTimeLimit = 60
+  const turnTimeLimit = gameState?.turnTimeout || 60
+  const [turnTimeRemaining, setTurnTimeRemaining] = useState(turnTimeLimit)
 
   // Timer effect - reset when current player changes
   useEffect(() => {
@@ -118,12 +120,8 @@ const WebGameLayout = () => {
     if (isSpectator || !myPlayer?.caravan) return false
     // Empty cost or no cost = always affordable
     if (!cost || Object.keys(cost).length === 0) return true
-    return (
-      (myPlayer.caravan.yellow || 0) >= (cost.yellow || 0) &&
-      (myPlayer.caravan.green || 0) >= (cost.green || 0) &&
-      (myPlayer.caravan.blue || 0) >= (cost.blue || 0) &&
-      (myPlayer.caravan.pink || 0) >= (cost.pink || 0)
-    )
+    // Official rule: place one crystal of ANY colour on each card to the left
+    return totalCrystals(myPlayer.caravan) >= totalCrystals(cost)
   }
 
   const canClaimPointCard = (card) => {
@@ -270,7 +268,7 @@ const WebGameLayout = () => {
         {/* Waiting Mode UI - spans rows 2-4 */}
         {isWaiting && (
           <div className="row-span-3 flex items-center justify-center p-6" style={{ minHeight: '400px' }}>
-            <XpWaitingRoom players={otherPlayers} isSpectator={isSpectator} onStart={handleStartGame} />
+            <XpWaitingRoom players={otherPlayers} isSpectator={isSpectator} onStart={handleStartGame} mode={gameState?.mode} />
           </div>
         )}
 
@@ -501,7 +499,11 @@ const WebGameLayout = () => {
                         Your Turn
                       </div>
                     ) : (
-                      <div className="px-3 py-1 bg-white/10 text-white/50 rounded-lg text-sm">Waiting...</div>
+                      <div className="px-3 py-1 bg-white/10 text-white/50 rounded-lg text-sm">
+                        {currentPlayer?.isAI && gameState?.aiThinking?.playerID === currentPlayer?.id
+                          ? <AiThinkingIndicator label={`${currentPlayer.name} is thinking`} />
+                          : 'Waiting...'}
+                      </div>
                     )}
                   </div>
                 </div>

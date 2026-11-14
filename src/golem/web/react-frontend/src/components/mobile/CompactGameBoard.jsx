@@ -6,6 +6,7 @@ import DepositModal from '../DepositModal'
 import ConfirmGolemModal from '../ConfirmGolemModal'
 import { showToast } from '../../utils/toast'
 import XpWaitingRoom from '../XpWaitingRoom'
+import { totalCrystals } from '../../utils/aiLevel'
 
 const CompactGameBoard = () => {
   const { gameState, myPlayer, currentPlayer, acquireCard, claimPointCard, startGame, isSpectator } = useGameStore()
@@ -37,7 +38,7 @@ const CompactGameBoard = () => {
           ${isMobile && isPortrait ? 'px-2 py-2' : isMobile ? 'px-2 py-3' : 'px-4 py-4'}
         `}
       >
-        <XpWaitingRoom players={otherPlayers} isSpectator={isSpectator} onStart={handleStartGame} />
+        <XpWaitingRoom players={otherPlayers} isSpectator={isSpectator} onStart={handleStartGame} mode={gameState?.mode} />
       </div>
     )
   }
@@ -50,12 +51,8 @@ const CompactGameBoard = () => {
 
   const canAfford = (cost) => {
     if (!cost || !myPlayer?.caravan) return false
-    return (
-      (myPlayer.caravan.yellow || 0) >= (cost.yellow || 0) &&
-      (myPlayer.caravan.green || 0) >= (cost.green || 0) &&
-      (myPlayer.caravan.blue || 0) >= (cost.blue || 0) &&
-      (myPlayer.caravan.pink || 0) >= (cost.pink || 0)
-    )
+    // Official rule: place one crystal of ANY colour on each card to the left
+    return totalCrystals(myPlayer.caravan) >= totalCrystals(cost)
   }
 
   const canClaimPointCard = (card) => {

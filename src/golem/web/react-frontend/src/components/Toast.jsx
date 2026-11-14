@@ -19,10 +19,10 @@ const Toast = () => {
       logger.debug('Received toast:', toast)
       setToasts(prev => [...prev, toast])
       
-      // Auto remove after 3 seconds (longer to give time to read)
+      // Auto remove after 3 seconds (AI intents stay a bit longer: they are worth reading)
       setTimeout(() => {
         removeToast(toast.id)
-      }, 3000)
+      }, toast.type === 'ai' ? 4500 : 3000)
     })
 
     return () => {
@@ -47,13 +47,15 @@ const Toast = () => {
                 ? 'bg-red-500/90 border-red-300' 
                 : toast.type === 'success'
                 ? 'bg-green-500/90 border-green-300'
+                : toast.type === 'ai'
+                ? 'bg-purple-600/90 border-purple-300'
                 : 'bg-blue-500/90 border-blue-300'
               }
             `}
           >
             <div className="flex items-center gap-2">
               <span>
-                {toast.type === 'error' ? '❌' : toast.type === 'success' ? '✅' : 'ℹ️'}
+                {toast.type === 'error' ? '❌' : toast.type === 'success' ? '✅' : toast.type === 'ai' ? '🤖' : 'ℹ️'}
               </span>
               <span className="flex-1">{toast.message}</span>
               <button

@@ -1,14 +1,70 @@
+--- a/web/react-frontend/src/components/AiLevelBadge.jsx
++++ b/web/react-frontend/src/components/AiLevelBadge.jsx
+@@ -0,0 +1,18 @@
++import React from 'react'
++import { aiLevelInfo } from '../utils/aiLevel'
++
++// Small level pill next to an AI's name on the board (upstream Tailwind style, not XP).
++const AiLevelBadge = ({ level, className = '' }) => {
++  const info = aiLevelInfo(level)
++  if (!info) return null
++  return (
++    <span
++      className={`inline-block align-middle ml-1 px-1.5 py-px rounded text-[10px] leading-4 font-bold text-white ${info.board} ${className}`}
++      title={`AI · ${info.label}`}
++    >
++      {info.label}
++    </span>
++  )
++}
++
++export default AiLevelBadge
+--- a/web/react-frontend/src/components/AiThinkingIndicator.jsx
++++ b/web/react-frontend/src/components/AiThinkingIndicator.jsx
+@@ -0,0 +1,15 @@
++import React from 'react'
++
++// "thinking…" marker shown on the AI whose turn it is (Hard/Very Hard think for 1.4–3 s).
++const AiThinkingIndicator = ({ label = 'thinking', className = '' }) => (
++  <span className={`inline-flex items-center gap-1 text-purple-200 ${className}`} role="status" aria-live="polite">
++    <span className="flex gap-0.5" aria-hidden="true">
++      <span className="w-1.5 h-1.5 rounded-full bg-purple-300 animate-bounce" style={{ animationDelay: '0ms' }} />
++      <span className="w-1.5 h-1.5 rounded-full bg-purple-300 animate-bounce" style={{ animationDelay: '150ms' }} />
++      <span className="w-1.5 h-1.5 rounded-full bg-purple-300 animate-bounce" style={{ animationDelay: '300ms' }} />
++    </span>
++    <span>{label}…</span>
++  </span>
++)
++
++export default AiThinkingIndicator
+--- a/web/react-frontend/src/components/CompactCard.jsx
++++ b/web/react-frontend/src/components/CompactCard.jsx
+@@ -139,11 +139,7 @@
+           {/* Crystal Cost (for market cards) */}
+           {cost && costTotal > 0 && (
+             <div className="mt-1 text-red-400">
+-              Crystal Cost: 
+-              {cost.yellow > 0 && ` 🟡${cost.yellow}`}
+-              {cost.green > 0 && ` 🟢${cost.green}`}
+-              {cost.blue > 0 && ` 🔵${cost.blue}`}
+-              {cost.pink > 0 && ` 🟣${cost.pink}`}
++              To take: place {costTotal}× any crystal (one per card to the left)
+             </div>
+           )}
+ 
 --- a/web/react-frontend/src/components/desktop/FantasyGameLayout.jsx
 +++ b/web/react-frontend/src/components/desktop/FantasyGameLayout.jsx
-@@ -5,6 +5,7 @@
+@@ -5,6 +5,9 @@
  import AcquiredCardOverlay from '../AcquiredCardOverlay'
  import GameOverModal from '../GameOverModal'
  import useGameStore from '../../store/gameStore'
 +import PlayerAvatar from '../PlayerAvatar'
++import AiLevelBadge from '../AiLevelBadge'
++import AiThinkingIndicator from '../AiThinkingIndicator'
  import { getCardSpriteStyle, getCardImagePath } from '../../utils/cardNames'
  
  // ============================================
-@@ -116,7 +117,7 @@
+@@ -116,10 +119,11 @@
            {/* Top row: Name & Golem count */}
            <div className="flex items-start justify-between mb-1">
              <div className="flex items-center gap-1 flex-wrap">
@@ -17,18 +73,64 @@
                <span className="text-white font-bold text-sm" style={{ textShadow: '0 0 4px #000, 0 0 8px #000, 1px 1px 2px #000' }}>
                  {player.name || 'Player'}
                </span>
++              {player.isAI && <AiLevelBadge level={player.aiLevel} />}
+             </div>
+             {/* Số golem đã ăn - clickable for self only */}
+             <div 
+@@ -719,7 +723,12 @@
+                 {currentPlayer?.id === myPlayer?.id ? (
+                   <span className="text-green-400 font-bold">Your Turn</span>
+                 ) : (
+-                  <span className="text-yellow-400">{currentPlayer?.name}'s Turn</span>
++                  <span className="text-yellow-400">
++                    {currentPlayer?.name}'s Turn
++                    {currentPlayer?.isAI && gameState?.aiThinking?.playerID === currentPlayer?.id && (
++                      <AiThinkingIndicator className="ml-2 text-xs" />
++                    )}
++                  </span>
+                 )}
+               </div>
+ 
 --- a/web/react-frontend/src/components/desktop/WebGameLayout.jsx
 +++ b/web/react-frontend/src/components/desktop/WebGameLayout.jsx
-@@ -2,6 +2,8 @@
+@@ -2,6 +2,10 @@
  import useGameStore from '../../store/gameStore'
  import CompactCard from '../CompactCard'
  import PlayerCard from '../PlayerCard'
 +import PlayerAvatar from '../PlayerAvatar'
 +import XpWaitingRoom from '../XpWaitingRoom'
++import AiThinkingIndicator from '../AiThinkingIndicator'
++import { totalCrystals } from '../../utils/aiLevel'
  import GraveyardPanel from '../GraveyardPanel'
  import MyGolemsPanel from '../MyGolemsPanel'
  import HistorySection from '../HistorySection'
-@@ -267,43 +269,8 @@
+@@ -36,8 +40,8 @@
+   const [confirmGolem, setConfirmGolem] = useState({ show: false, golem: null, index: null })
+ 
+   // Timer state
+-  const [turnTimeRemaining, setTurnTimeRemaining] = useState(60)
+-  const turnTimeLimit = 60
++  const turnTimeLimit = gameState?.turnTimeout || 60
++  const [turnTimeRemaining, setTurnTimeRemaining] = useState(turnTimeLimit)
+ 
+   // Timer effect - reset when current player changes
+   useEffect(() => {
+@@ -116,12 +120,8 @@
+     if (isSpectator || !myPlayer?.caravan) return false
+     // Empty cost or no cost = always affordable
+     if (!cost || Object.keys(cost).length === 0) return true
+-    return (
+-      (myPlayer.caravan.yellow || 0) >= (cost.yellow || 0) &&
+-      (myPlayer.caravan.green || 0) >= (cost.green || 0) &&
+-      (myPlayer.caravan.blue || 0) >= (cost.blue || 0) &&
+-      (myPlayer.caravan.pink || 0) >= (cost.pink || 0)
+-    )
++    // Official rule: place one crystal of ANY colour on each card to the left
++    return totalCrystals(myPlayer.caravan) >= totalCrystals(cost)
+   }
+ 
+   const canClaimPointCard = (card) => {
+@@ -267,43 +267,8 @@
  
          {/* Waiting Mode UI - spans rows 2-4 */}
          {isWaiting && (
@@ -70,11 +172,11 @@
 -              </>
 -            )}
 +          <div className="row-span-3 flex items-center justify-center p-6" style={{ minHeight: '400px' }}>
-+            <XpWaitingRoom players={otherPlayers} isSpectator={isSpectator} onStart={handleStartGame} />
++            <XpWaitingRoom players={otherPlayers} isSpectator={isSpectator} onStart={handleStartGame} mode={gameState?.mode} />
            </div>
          )}
  
-@@ -476,9 +443,10 @@
+@@ -476,9 +441,10 @@
                    <div className="flex items-center gap-3">
                      {/* Avatar & Name */}
                      <div className="flex items-center gap-2">
@@ -88,17 +190,67 @@
                        <div className="text-white font-bold text-sm">{myPlayer?.name || 'You'}</div>
                      </div>
  
+@@ -533,7 +499,11 @@
+                         Your Turn
+                       </div>
+                     ) : (
+-                      <div className="px-3 py-1 bg-white/10 text-white/50 rounded-lg text-sm">Waiting...</div>
++                      <div className="px-3 py-1 bg-white/10 text-white/50 rounded-lg text-sm">
++                        {currentPlayer?.isAI && gameState?.aiThinking?.playerID === currentPlayer?.id
++                          ? <AiThinkingIndicator label={`${currentPlayer.name} is thinking`} />
++                          : 'Waiting...'}
++                      </div>
+                     )}
+                   </div>
+                 </div>
+--- a/web/react-frontend/src/components/FantasyMarketArea.jsx
++++ b/web/react-frontend/src/components/FantasyMarketArea.jsx
+@@ -213,12 +213,10 @@
+   // Check if player can afford a card
+   const canAfford = (cost) => {
+     if (!cost || !myPlayer?.resources) return false
+-    return (
+-      (cost.yellow || 0) <= myPlayer.resources.yellow &&
+-      (cost.green || 0) <= myPlayer.resources.green &&
+-      (cost.blue || 0) <= myPlayer.resources.blue &&
+-      (cost.pink || 0) <= myPlayer.resources.pink
+-    )
++    // Official rule: place one crystal of ANY colour on each card to the left
++    const need = (cost.yellow || 0) + (cost.green || 0) + (cost.blue || 0) + (cost.pink || 0)
++    const r = myPlayer.resources
++    return (r.yellow || 0) + (r.green || 0) + (r.blue || 0) + (r.pink || 0) >= need
+   }
+ 
+   // Handle action card click
 --- a/web/react-frontend/src/components/GameOverModal.jsx
 +++ b/web/react-frontend/src/components/GameOverModal.jsx
-@@ -2,6 +2,7 @@
+@@ -2,6 +2,8 @@
  import { createPortal } from 'react-dom'
  import { motion, AnimatePresence } from 'framer-motion'
  import useGameStore from '../store/gameStore'
 +import PlayerAvatar from './PlayerAvatar'
++import AiLevelBadge from './AiLevelBadge'
  import useOrientation from '../hooks/useOrientation'
  import { getCardSpriteStyle, getCardImagePath } from '../utils/cardNames'
  
-@@ -143,6 +144,12 @@
+@@ -28,12 +30,14 @@
+   const copperRemaining = marketCoins[0]?.amount ?? 0
+   const silverRemaining = marketCoins[1]?.amount ?? 0
+ 
+-  // Sort players by total points (descending)
++  // Sort players by total points (descending); ties: the player later in turn order ranks first
++  // (official rule — the server already picked the winner that way)
+   const sortedPlayers = [...players].sort((a, b) => {
+     const aPoints = calculateTotalPoints(a)
+     const bPoints = calculateTotalPoints(b)
+-    return bPoints - aPoints
++    return bPoints - aPoints || (b.id || 0) - (a.id || 0)
+   })
++  const wonOnTieBreak = winner && players.some((p) => p.id !== winner.id && calculateTotalPoints(p) === winner.points)
+ 
+   function calculateTotalPoints(player) {
+     const pointCardPoints = player.pointCards?.reduce((sum, card) => sum + (card.points || 0), 0) || 0
+@@ -143,6 +147,12 @@
              >
                <div className="flex items-center justify-center gap-3">
                  <span className={`${isMobile ? 'text-2xl' : 'text-3xl'}`}>👑</span>
@@ -111,7 +263,17 @@
                  <div className="text-center">
                    <div className={`text-yellow-300 font-bold ${isMobile ? 'text-lg' : 'text-xl sm:text-2xl'}`}>
                      {winner?.name || 'Unknown'}
-@@ -227,6 +234,10 @@
+@@ -150,6 +160,9 @@
+                   <div className={`text-white/80 ${isMobile ? 'text-sm' : 'text-base'}`}>
+                     Wins with <span className="text-yellow-400 font-bold">{winner?.points || 0}</span> points!
+                   </div>
++                  {wonOnTieBreak && (
++                    <div className="text-white/60 text-xs">Tied on points — the player later in turn order wins.</div>
++                  )}
+                 </div>
+                 <span className={`${isMobile ? 'text-2xl' : 'text-3xl'}`}>👑</span>
+               </div>
+@@ -227,9 +240,14 @@
                            {rankEmojis[index] || `#${index + 1}`}
                          </span>
                          {isWinner && <span className="text-lg">👑</span>}
@@ -122,6 +284,10 @@
                          <span className={`font-bold text-white ${isMobile ? 'text-sm' : 'text-base sm:text-lg'}`}>
                            {player.name}
                          </span>
++                        {player.isAI && <AiLevelBadge level={player.aiLevel} />}
+                       </div>
+                       <div className={`font-black text-yellow-300 ${isMobile ? 'text-lg' : 'text-xl sm:text-2xl'}`}>
+                         {totalPoints} pts
 --- a/web/react-frontend/src/components/Lobby.jsx
 +++ b/web/react-frontend/src/components/Lobby.jsx
 @@ -1,12 +1,13 @@
@@ -744,15 +910,16 @@
  };
 --- a/web/react-frontend/src/components/mobile/CompactGameBoard.jsx
 +++ b/web/react-frontend/src/components/mobile/CompactGameBoard.jsx
-@@ -5,6 +5,7 @@
+@@ -5,6 +5,8 @@
  import DepositModal from '../DepositModal'
  import ConfirmGolemModal from '../ConfirmGolemModal'
  import { showToast } from '../../utils/toast'
 +import XpWaitingRoom from '../XpWaitingRoom'
++import { totalCrystals } from '../../utils/aiLevel'
  
  const CompactGameBoard = () => {
    const { gameState, myPlayer, currentPlayer, acquireCard, claimPointCard, startGame, isSpectator } = useGameStore()
-@@ -36,31 +37,7 @@
+@@ -36,31 +38,7 @@
            ${isMobile && isPortrait ? 'px-2 py-2' : isMobile ? 'px-2 py-3' : 'px-4 py-4'}
          `}
        >
@@ -781,10 +948,25 @@
 -            </button>
 -          )}
 -        </div>
-+        <XpWaitingRoom players={otherPlayers} isSpectator={isSpectator} onStart={handleStartGame} />
++        <XpWaitingRoom players={otherPlayers} isSpectator={isSpectator} onStart={handleStartGame} mode={gameState?.mode} />
        </div>
      )
    }
+@@ -73,12 +51,8 @@
+ 
+   const canAfford = (cost) => {
+     if (!cost || !myPlayer?.caravan) return false
+-    return (
+-      (myPlayer.caravan.yellow || 0) >= (cost.yellow || 0) &&
+-      (myPlayer.caravan.green || 0) >= (cost.green || 0) &&
+-      (myPlayer.caravan.blue || 0) >= (cost.blue || 0) &&
+-      (myPlayer.caravan.pink || 0) >= (cost.pink || 0)
+-    )
++    // Official rule: place one crystal of ANY colour on each card to the left
++    return totalCrystals(myPlayer.caravan) >= totalCrystals(cost)
+   }
+ 
+   const canClaimPointCard = (card) => {
 --- a/web/react-frontend/src/components/mobile/CompactPlayerHand.jsx
 +++ b/web/react-frontend/src/components/mobile/CompactPlayerHand.jsx
 @@ -1,5 +1,6 @@
@@ -892,13 +1074,20 @@
 +export default PlayerAvatar
 --- a/web/react-frontend/src/components/PlayerCard.jsx
 +++ b/web/react-frontend/src/components/PlayerCard.jsx
-@@ -1,4 +1,5 @@
+@@ -1,6 +1,12 @@
  import React from 'react'
 +import PlayerAvatar from './PlayerAvatar'
++import AiLevelBadge from './AiLevelBadge'
++import AiThinkingIndicator from './AiThinkingIndicator'
++import useGameStore from '../store/gameStore'
  
  const PlayerCard = ({ player, isCurrentPlayer }) => {
++  const aiThinking = useGameStore((s) => s.gameState?.aiThinking)
++  const thinking = player.isAI && isCurrentPlayer && aiThinking?.playerID === player.id
    if (!player) return null
-@@ -32,14 +33,15 @@
+ 
+   const golemsCount = player.pointCards?.length || 0
+@@ -32,16 +38,17 @@
        <div className="flex items-center gap-2 mb-1">
          {/* Avatar with online status indicator */}
          <div className="relative flex-shrink-0">
@@ -910,6 +1099,8 @@
 -          `}>
 -            {player.isAI ? '🤖' : player.name?.charAt(0)?.toUpperCase() || '?'}
 -          </div>
+-          {/* Online/Offline status indicator */}
+-          {player.online !== undefined && (
 +          <PlayerAvatar
 +            player={player}
 +            className={`
@@ -919,22 +1110,40 @@
 +              ${player.online === false ? 'opacity-50' : ''}
 +            `}
 +          />
-           {/* Online/Offline status indicator */}
-           {player.online !== undefined && (
++          {/* Online/Offline status indicator (humans only; AIs are always there) */}
++          {player.online !== undefined && !player.isAI && (
              <div 
+               className={`
+                 absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white shadow
+@@ -55,9 +62,11 @@
+         {/* Name */}
+         <div className={`text-white font-bold text-sm flex-1 ${player.online === false ? 'opacity-60' : ''}`}>
+           {player.name || 'Player'}
+-          {player.online === false && (
++          {player.isAI && <AiLevelBadge level={player.aiLevel} />}
++          {!player.isAI && player.online === false && (
+             <span className="text-gray-400 text-xs ml-1">(offline)</span>
+           )}
++          {thinking && <AiThinkingIndicator className="ml-2 text-xs font-normal" />}
+         </div>
+         
+         {/* Golems count (top right) */}
 --- a/web/react-frontend/src/components/PlayersInfoBar.jsx
 +++ b/web/react-frontend/src/components/PlayersInfoBar.jsx
-@@ -1,5 +1,6 @@
+@@ -1,5 +1,8 @@
  import React, { useState, useEffect } from 'react'
  import useGameStore from '../store/gameStore'
 +import PlayerAvatar from './PlayerAvatar'
++import AiLevelBadge from './AiLevelBadge'
++import AiThinkingIndicator from './AiThinkingIndicator'
  
  // Timer Ring around avatar
  const TimerRing = ({ duration = 60 }) => {
-@@ -52,13 +53,14 @@
+@@ -51,16 +54,17 @@
+             >
                {/* Avatar with timer ring for current turn */}
                <div className="relative">
-                 {isCurrentTurn && <TimerRing duration={60} />}
+-                {isCurrentTurn && <TimerRing duration={60} />}
 -                <div className={`
 -                  relative w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold
 -                  ${isCurrentTurn ? 'bg-yellow-500 text-black' : 'bg-purple-600 text-white'}
@@ -942,6 +1151,9 @@
 -                `}>
 -                  {player.isAI ? '🤖' : player.name?.charAt(0)?.toUpperCase() || '?'}
 -                </div>
+-                {/* Online/Offline status indicator */}
+-                {player.online !== undefined && (
++                {isCurrentTurn && !player.isAI && <TimerRing duration={gameState.turnTimeout || 60} />}
 +                <PlayerAvatar
 +                  player={player}
 +                  className={`
@@ -950,18 +1162,35 @@
 +                    ${player.online === false ? 'opacity-50' : ''}
 +                  `}
 +                />
-                 {/* Online/Offline status indicator */}
-                 {player.online !== undefined && (
++                {/* Online/Offline status indicator (humans only) */}
++                {player.online !== undefined && !player.isAI && (
                    <div 
+                     className={`
+                       absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white shadow
+@@ -77,8 +81,12 @@
+                 <div className="flex items-center gap-1">
+                   <span className={`text-white font-medium ${player.online === false ? 'opacity-60' : ''}`}>
+                     {player.name}
+-                    {player.online === false && <span className="text-gray-400 ml-1">(offline)</span>}
++                    {player.isAI && <AiLevelBadge level={player.aiLevel} />}
++                    {!player.isAI && player.online === false && <span className="text-gray-400 ml-1">(offline)</span>}
+                   </span>
++                  {isCurrentTurn && player.isAI && gameState.aiThinking?.playerID === player.id && (
++                    <AiThinkingIndicator className="text-[10px]" />
++                  )}
+                   <span className="text-yellow-400 font-bold">★{player.points || 0}</span>
+                 </div>
+                 
 --- a/web/react-frontend/src/components/SinglePlayerLobby.jsx
 +++ b/web/react-frontend/src/components/SinglePlayerLobby.jsx
-@@ -1,19 +1,20 @@
+@@ -1,20 +1,23 @@
  import React, { useState } from 'react'
 -import { motion } from 'framer-motion'
  import { createLogger } from '../utils/logger'
  import { apiFetch } from '../utils/api'
  import useOrientation from '../hooks/useOrientation'
 +import { AVATAR_IDS, avatarSrc } from '../utils/avatar'
++import { AI_LEVELS, loadAiLevel, saveAiLevel, aiLevelInfo } from '../utils/aiLevel'
 +import XpWindow from './XpWindow'
  
  const logger = createLogger('SinglePlayerLobby');
@@ -971,16 +1200,34 @@
    const [playerName, setPlayerName] = useState('Player 1')
    const [numAI, setNumAI] = useState(1)
    const [selectedAvatar, setSelectedAvatar] = useState('4')
++  const [difficulty, setDifficulty] = useState(loadAiLevel)
    const [loading, setLoading] = useState(false)
 -  const { isMobile, isTablet, isPortrait } = useOrientation()
 +  const { isMobile } = useOrientation()
  
 -  const avatars = ['1', '2', '3', '4']
+-  const difficulties = [
 +  const avatars = AVATAR_IDS
-   const difficulties = [
++  const opponentCounts = [
      { value: 1, label: isMobile ? '1 AI (2P)' : '1 AI Opponent (2 Players)' },
      { value: 2, label: isMobile ? '2 AI (3P)' : '2 AI Opponents (3 Players)' },
-@@ -49,91 +50,42 @@
+     { value: 3, label: isMobile ? '3 AI (4P)' : '3 AI Opponents (4 Players)' },
+@@ -29,12 +32,14 @@
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({
+           numAI,
++          difficulty,
+           seed: Date.now(),
+         }),
+       })
+ 
+       const data = await response.json()
+       if (response.ok) {
++        saveAiLevel(difficulty)
+         onStartGame(data.sessionID, playerName, selectedAvatar)
+       } else {
+         logger.error('Failed to create single-player game:', data.error)
+@@ -49,125 +54,91 @@
    }
  
    return (
@@ -1014,7 +1261,7 @@
 +        icon={avatarSrc(selectedAvatar)}
 +        onClose={onBack}
 +        className="max-w-xl"
-+        status={<><span>Play against AI opponents</span><span>{numAI + 1} players</span></>}
++        status={<><span>Play against AI · {aiLevelInfo(difficulty)?.label}</span><span>{numAI + 1} players</span></>}
        >
 -        <h1 className={`
 -          font-bold text-white text-center
@@ -1057,9 +1304,7 @@
 -              AI Opponents
 -            </label>
 -            <div className={`${isMobile ? 'space-y-1' : 'space-y-2'}`}>
-+            <span className="xp-field-label">AI Opponents</span>
-+            <div className="xp-list" role="radiogroup">
-               {difficulties.map((diff) => (
+-              {difficulties.map((diff) => (
 -                <label
 -                  key={diff.value}
 -                  className={`
@@ -1071,6 +1316,9 @@
 -                    }
 -                  `}
 -                >
++            <span className="xp-field-label">AI Opponents</span>
++            <div className="xp-list" role="radiogroup">
++              {opponentCounts.map((diff) => (
 +                <label key={diff.value} className="xp-list-item" data-selected={numAI === diff.value}>
                    <input
                      type="radio"
@@ -1084,10 +1332,36 @@
 -                    {diff.label}
 -                  </span>
 +                  <span>{diff.label}</span>
++                </label>
++              ))}
++            </div>
++          </div>
++
++          {/* Difficulty (one level for every AI) */}
++          <div>
++            <span className="xp-field-label">Difficulty</span>
++            <div className="xp-list" role="radiogroup" aria-label="AI difficulty">
++              {AI_LEVELS.map((level) => (
++                <label key={level.value} className="xp-list-item" data-selected={difficulty === level.value}>
++                  <input
++                    type="radio"
++                    name="difficulty"
++                    value={level.value}
++                    checked={difficulty === level.value}
++                    onChange={(e) => setDifficulty(e.target.value)}
++                  />
++                  <span className={`xp-badge xp-badge--${level.badge}`}>{level.label}</span>
++                  {!isMobile && <span className="text-xs opacity-80">{level.description}</span>}
                  </label>
                ))}
              </div>
-@@ -141,33 +93,22 @@
++            {difficulty === 'veryhard' && (
++              <p className="xp-note mt-2">
++                All AIs play as one team against you and may sacrifice their own score to stop you. The highest
++                score still wins. With a single AI, Very Hard simply searches deeper.
++              </p>
++            )}
+           </div>
  
            {/* Avatar Selection */}
            <div>
@@ -1129,7 +1403,7 @@
                      }}
                    />
                  </button>
-@@ -175,38 +116,22 @@
+@@ -175,38 +146,22 @@
              </div>
            </div>
  
@@ -1183,16 +1457,93 @@
      </div>
    )
  }
+--- a/web/react-frontend/src/components/__tests__/SinglePlayerLobby.test.jsx
++++ b/web/react-frontend/src/components/__tests__/SinglePlayerLobby.test.jsx
+@@ -0,0 +1,41 @@
++import React from 'react'
++import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
++import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest'
++
++const apiFetch = vi.fn()
++vi.mock('../../utils/api', () => ({ apiFetch: (...args) => apiFetch(...args) }))
++
++import SinglePlayerLobby from '../SinglePlayerLobby'
++
++describe('SinglePlayerLobby', () => {
++  afterEach(() => cleanup())
++
++  beforeEach(() => {
++    apiFetch.mockReset()
++    apiFetch.mockResolvedValue({ ok: true, json: async () => ({ sessionID: 'single_1' }) })
++    try { window.localStorage.clear() } catch { /* ignore */ }
++  })
++
++  test('defaults to Medium and sends the chosen difficulty', async () => {
++    const onStartGame = vi.fn()
++    render(<SinglePlayerLobby onStartGame={onStartGame} onBack={() => {}} />)
++
++    const medium = screen.getByDisplayValue('medium')
++    expect(medium.checked).toBe(true)
++
++    fireEvent.click(screen.getByDisplayValue('hard'))
++    fireEvent.click(screen.getByRole('button', { name: /start game/i }))
++
++    await waitFor(() => expect(onStartGame).toHaveBeenCalled())
++    const body = JSON.parse(apiFetch.mock.calls[0][1].body)
++    expect(body.difficulty).toBe('hard')
++    expect(body.numAI).toBe(1)
++  })
++
++  test('discloses the coalition for Very Hard', () => {
++    render(<SinglePlayerLobby onStartGame={() => {}} onBack={() => {}} />)
++    expect(screen.queryByText(/play as one team against you/i)).toBeNull()
++    fireEvent.click(screen.getByDisplayValue('veryhard'))
++    expect(screen.getByText(/All AIs play as one team against you/i)).toBeTruthy()
++  })
++})
+--- a/web/react-frontend/src/components/Toast.jsx
++++ b/web/react-frontend/src/components/Toast.jsx
+@@ -19,10 +19,10 @@
+       logger.debug('Received toast:', toast)
+       setToasts(prev => [...prev, toast])
+       
+-      // Auto remove after 3 seconds (longer to give time to read)
++      // Auto remove after 3 seconds (AI intents stay a bit longer: they are worth reading)
+       setTimeout(() => {
+         removeToast(toast.id)
+-      }, 3000)
++      }, toast.type === 'ai' ? 4500 : 3000)
+     })
+ 
+     return () => {
+@@ -47,13 +47,15 @@
+                 ? 'bg-red-500/90 border-red-300' 
+                 : toast.type === 'success'
+                 ? 'bg-green-500/90 border-green-300'
++                : toast.type === 'ai'
++                ? 'bg-purple-600/90 border-purple-300'
+                 : 'bg-blue-500/90 border-blue-300'
+               }
+             `}
+           >
+             <div className="flex items-center gap-2">
+               <span>
+-                {toast.type === 'error' ? '❌' : toast.type === 'success' ? '✅' : 'ℹ️'}
++                {toast.type === 'error' ? '❌' : toast.type === 'success' ? '✅' : toast.type === 'ai' ? '🤖' : 'ℹ️'}
+               </span>
+               <span className="flex-1">{toast.message}</span>
+               <button
 --- a/web/react-frontend/src/components/XpWaitingRoom.jsx
 +++ b/web/react-frontend/src/components/XpWaitingRoom.jsx
-@@ -0,0 +1,42 @@
+@@ -0,0 +1,49 @@
 +import React from 'react'
 +import XpWindow from './XpWindow'
 +import PlayerAvatar from './PlayerAvatar'
 +import { avatarSrc } from '../utils/avatar'
++import { aiLevelInfo } from '../utils/aiLevel'
 +
 +// Pre-game waiting room (XP dialog): who has joined + Start Game. Shared by desktop and mobile layouts.
-+const XpWaitingRoom = ({ players = [], isSpectator, onStart, className = '' }) => (
++const XpWaitingRoom = ({ players = [], isSpectator, onStart, className = '', mode }) => (
 +  <XpWindow
 +    title="Waiting for players"
 +    icon={avatarSrc('3')}
@@ -1200,15 +1551,21 @@
 +    status={<><span>{players.length} player(s) in lobby</span><span>Room open</span></>}
 +  >
 +    <div className="xp-stack">
-+      <p>Waiting for other players to join. Start whenever everyone is in.</p>
++      <p>{mode === 'single'
++        ? 'Your AI opponents are ready. Start whenever you are.'
++        : 'Waiting for other players to join. Start whenever everyone is in.'}</p>
 +      <div className="xp-progress" role="progressbar" aria-label="Waiting for players" />
 +
 +      <div className="xp-listview">
-+        {players.map((player) => (
-+          <div key={player.id ?? player.name} className="xp-row">
++        {players.map((player, i) => (
++          <div key={`${player.name}-${i}`} className="xp-row">
 +            <PlayerAvatar player={player} className="w-8 h-8 text-xs border-2 border-black bg-white" />
 +            <span className="font-bold truncate">{player.name || 'Player'}</span>
-+            {player.isAI && <span className="xp-badge xp-badge--blue ml-auto">AI</span>}
++            {player.isAI && (
++              <span className={`xp-badge xp-badge--${aiLevelInfo(player.aiLevel)?.badge || 'blue'} ml-auto`}>
++                AI{aiLevelInfo(player.aiLevel) ? ` · ${aiLevelInfo(player.aiLevel).label}` : ''}
++              </span>
++            )}
 +          </div>
 +        ))}
 +      </div>
@@ -1624,6 +1981,26 @@
          </div>
        </>
      )
+--- a/web/react-frontend/src/store/gameStore.js
++++ b/web/react-frontend/src/store/gameStore.js
+@@ -376,6 +376,17 @@
+             logger.info(`${currentPlayer.name}'s turn`);
+           }
+         }
++      } else if (message.type === "aiThinking") {
++        // An AI started thinking: show it until the next state arrives (which carries aiThinking too).
++        const gs = get().gameState;
++        if (gs) {
++          set({ gameState: { ...gs, aiThinking: { playerID: message.playerID, level: message.level, timeout: message.timeout } } });
++        }
++      } else if (message.type === "aiIntent") {
++        // Short explanation of an AI move aimed at this player ("AI 2 took the golem you were going for").
++        if (message.message) showToast(message.message, 'ai');
++      } else if (message.type === "turnTimeout") {
++        if (message.message) showToast(message.message, 'info');
+       } else if (message.type === "chat") {
+         // Handle chat message from server
+         if (get().onChatMessage) {
 --- a/web/react-frontend/src/theme-xp.css
 +++ b/web/react-frontend/src/theme-xp.css
 @@ -0,0 +1,347 @@
@@ -1974,9 +2351,85 @@
 +@media (prefers-reduced-motion: reduce) {
 +  .xp-progress::before { animation: none; left: 0; width: 100%; }
 +}
+--- a/web/react-frontend/src/utils/aiLevel.js
++++ b/web/react-frontend/src/utils/aiLevel.js
+@@ -0,0 +1,50 @@
++// AI difficulty levels (must match internal/ai/profile.go). The lobby uses the XP style; the in-game
++// board shows a small badge in the upstream (Tailwind) style.
++export const AI_LEVELS = [
++  { value: 'easy', label: 'Easy', badge: 'green', board: 'bg-emerald-500/80',
++    description: 'Looks one move ahead and sometimes settles for a merely good move.' },
++  { value: 'medium', label: 'Medium', badge: 'blue', board: 'bg-sky-500/80',
++    description: 'Plans a few moves ahead with a short search. A solid opponent.' },
++  { value: 'hard', label: 'Hard', badge: 'orange', board: 'bg-amber-500/80',
++    description: 'Searches deeper, reads your plan and blocks whoever is leading.' },
++  { value: 'veryhard', label: 'Very Hard', badge: 'red', board: 'bg-rose-600/80',
++    description: 'Deepest search. Every AI plays as one team against you.' },
++]
++
++export const DEFAULT_AI_LEVEL = 'medium'
++
++export const aiLevelInfo = (value) => AI_LEVELS.find((l) => l.value === value) || null
++
++export const aiLevelLabel = (value) => aiLevelInfo(value)?.label || ''
++
++const STORAGE_KEY = 'golem.aiLevel'
++
++// Remember the last choice (localStorage may be unavailable: private mode, blocked storage).
++export const loadAiLevel = () => {
++  try {
++    const v = window.localStorage.getItem(STORAGE_KEY)
++    return aiLevelInfo(v) ? v : DEFAULT_AI_LEVEL
++  } catch {
++    return DEFAULT_AI_LEVEL
++  }
++}
++
++export const saveAiLevel = (value) => {
++  try {
++    window.localStorage.setItem(STORAGE_KEY, value)
++  } catch {
++    // ignore: the choice just is not remembered
++  }
++}
++
++// Crystals to place for a market card: the server sends `placeCrystals`; older servers only `cost`.
++export const crystalsToPlace = (card, index) => {
++  if (typeof card?.placeCrystals === 'number') return card.placeCrystals
++  const c = card?.cost || {}
++  const total = (c.yellow || 0) + (c.green || 0) + (c.blue || 0) + (c.pink || 0)
++  return total || index || 0
++}
++
++// Total crystals in a caravan/resources map.
++export const totalCrystals = (res) =>
++  (res?.yellow || 0) + (res?.green || 0) + (res?.blue || 0) + (res?.pink || 0)
+--- a/web/react-frontend/src/utils/aiLevel.test.js
++++ b/web/react-frontend/src/utils/aiLevel.test.js
+@@ -0,0 +1,20 @@
++import { describe, it, expect } from 'vitest'
++import { AI_LEVELS, aiLevelInfo, aiLevelLabel, crystalsToPlace, totalCrystals, DEFAULT_AI_LEVEL } from './aiLevel'
++
++describe('aiLevel', () => {
++  it('lists the four levels in order with Medium as default', () => {
++    expect(AI_LEVELS.map((l) => l.value)).toEqual(['easy', 'medium', 'hard', 'veryhard'])
++    expect(DEFAULT_AI_LEVEL).toBe('medium')
++  })
++  it('maps wire values to labels', () => {
++    expect(aiLevelLabel('veryhard')).toBe('Very Hard')
++    expect(aiLevelInfo('nope')).toBeNull()
++    expect(aiLevelLabel('')).toBe('')
++  })
++  it('reads the official market price', () => {
++    expect(crystalsToPlace({ placeCrystals: 3, cost: { yellow: 3 } }, 3)).toBe(3)
++    expect(crystalsToPlace({ cost: { yellow: 2 } }, 2)).toBe(2)
++    expect(crystalsToPlace({}, 4)).toBe(4)
++    expect(totalCrystals({ yellow: 1, green: 2, pink: 1 })).toBe(4)
++  })
++})
 --- a/web/react-frontend/src/utils/avatar.js
 +++ b/web/react-frontend/src/utils/avatar.js
-@@ -0,0 +1,23 @@
+@@ -0,0 +1,25 @@
 +// Player avatars: /assets/images/avatar/<id>.webp, generated from a Super Mario Bros. sprite sheet
 +// (deploy/make-avatars.py). Ids 1..5 are also the AI defaults (avatar = player ID, max 5 players).
 +export const AVATAR_IDS = Array.from({ length: 15 }, (_, i) => String(i + 1))
@@ -1997,7 +2450,9 @@
 +  if (!player.isAI) return String(player.avatar || AVATAR_IDS[0])
 +  const taken = new Set(players.filter((p) => !p.isAI).map((p) => String(p.avatar)))
 +  const free = AVATAR_IDS.filter((id) => !taken.has(id))
-+  const aiIndex = Math.max(0, players.filter((p) => p.isAI).findIndex((p) => p.id === player.id))
++  const aiIndex = typeof player.aiIndex === 'number'
++    ? player.aiIndex
++    : Math.max(0, players.filter((p) => p.isAI).findIndex((p) => p.id === player.id))
 +  return free[aiIndex % free.length] || AVATAR_IDS[0]
 +}
 --- a/web/react-frontend/src/utils/avatar.test.js

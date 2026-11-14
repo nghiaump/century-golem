@@ -38,5 +38,11 @@ if [[ -n "$sid" ]]; then
   check "WS /ws handshake"      "101"              "$ws_code"
 fi
 
+# Độ khó AI: mặc định medium, veryhard bật liên minh, giá trị lạ ⇒ 400
+resp=$(curl -s -m 15 -A "$UA" -X POST -H 'Content-Type: application/json' -d '{"numAI":2,"difficulty":"veryhard"}' "$BASE/api/single")
+check "POST /api/single veryhard" '*"difficulty":"veryhard"*' "$(tr -d ' ' <<<"$resp")"
+check "  coalition flag"          '*"coalition":true*'        "$(tr -d ' ' <<<"$resp")"
+check "POST /api/single bad level" "400*" "$(code -X POST -H 'Content-Type: application/json' -d '{"numAI":1,"difficulty":"impossible"}' "$BASE/api/single")"
+
 [[ $fail == 0 ]] && echo "ALL PASS ($BASE)" || echo "SOME CHECKS FAILED ($BASE)"
 exit $fail

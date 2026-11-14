@@ -308,6 +308,8 @@
 .xp-badge--blue { background: #cfe0ff; }
 .xp-badge--orange { background: #ffe2a8; }
 .xp-badge--red { background: #ffc9bd; }
+/* badges keep dark text inside a selected (blue, white-text) list row — difficulty picker */
+.xp-list-item .xp-badge { color: var(--xp-ink); }
 
 /* XP marquee progress bar */
 .xp-progress {

@@ -1,7 +1,12 @@
 import React from 'react'
 import PlayerAvatar from './PlayerAvatar'
+import AiLevelBadge from './AiLevelBadge'
+import AiThinkingIndicator from './AiThinkingIndicator'
+import useGameStore from '../store/gameStore'
 
 const PlayerCard = ({ player, isCurrentPlayer }) => {
+  const aiThinking = useGameStore((s) => s.gameState?.aiThinking)
+  const thinking = player.isAI && isCurrentPlayer && aiThinking?.playerID === player.id
   if (!player) return null
 
   const golemsCount = player.pointCards?.length || 0
@@ -42,8 +47,8 @@ const PlayerCard = ({ player, isCurrentPlayer }) => {
               ${player.online === false ? 'opacity-50' : ''}
             `}
           />
-          {/* Online/Offline status indicator */}
-          {player.online !== undefined && (
+          {/* Online/Offline status indicator (humans only; AIs are always there) */}
+          {player.online !== undefined && !player.isAI && (
             <div 
               className={`
                 absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white shadow
@@ -57,9 +62,11 @@ const PlayerCard = ({ player, isCurrentPlayer }) => {
         {/* Name */}
         <div className={`text-white font-bold text-sm flex-1 ${player.online === false ? 'opacity-60' : ''}`}>
           {player.name || 'Player'}
-          {player.online === false && (
+          {player.isAI && <AiLevelBadge level={player.aiLevel} />}
+          {!player.isAI && player.online === false && (
             <span className="text-gray-400 text-xs ml-1">(offline)</span>
           )}
+          {thinking && <AiThinkingIndicator className="ml-2 text-xs font-normal" />}
         </div>
         
         {/* Golems count (top right) */}

@@ -38,7 +38,8 @@ Tunnel là unit `systemd --user` (linger = yes) ⇒ cũng tự lên sau reboot, 
 - **Ván đang chơi chỉ nằm trong RAM của `server`.** Server KHÔNG khôi phục ván từ MongoDB khi khởi động ⇒
   restart/rebuild `server` = mọi ván đang diễn ra kết thúc. Mongo chỉ giữ lịch sử event/snapshot (xem qua `/api/games`).
 - Cookie `clientId` (host-only, Secure, SameSite=Lax, 30 ngày) giúp người chơi reconnect vào đúng chỗ.
-- Turn timeout mặc định 60s (`DEFAULT_TURN_TIMEOUT_SECONDS`), WebSocket ping 15s. Hết giờ ⇒ AI đánh thay.
+- Turn timeout mặc định 60s (`DEFAULT_TURN_TIMEOUT_SECONDS`), WebSocket ping 15s. Hết giờ ⇒ chơi 1 người: AI Medium
+  đánh thay cho ghế đó; nhiều người: Rest (như upstream). Lượt đầu tiên của ván không bao giờ hết giờ.
 
 ## Dọn phòng (patch 0003)
 Mỗi phòng có một goroutine kiểm tra mỗi 30s: còn **kết nối WebSocket mở** nào (người chơi `Conn != nil` hoặc khán giả)?
@@ -65,17 +66,32 @@ Không còn liên tục quá ngưỡng ⇒ xoá khỏi map + `Close()` (dừng v
 Màn chính, lobby đơn/nhiều người, hộp thoại kết nối và phòng chờ dùng theme Windows XP × brutalism (`theme-xp.css`,
 `XpWindow`, `XpWaitingRoom`). **Bàn chơi giữ style upstream** (theme XP trong ván đã thử và bị bỏ theo ý người dùng).
 
+## AI (đối thủ máy) — chi tiết: `docs/ai/thiet-ke.md`, tổng quan EN: `docs/ai/README.md`
+```
+runGameLoop (goroutine/phòng, mọi mutate + broadcast dưới gs.mu)
+  tick: lượt AI ⇒ Clone() state ─▶ goroutine agent.Decide(ctx) ─(≥ AI_MIN_DELAY_MS)─▶ aiResults
+        người hết giờ ⇒ như trên với agent chơi thay
+  aiResults: seq còn khớp? ⇒ Step(action) (+discard) ⇒ aiIntent ⇒ broadcast ⇒ lưu event (bản clone, ngoài lock)
+  ActionChan (người): Step ⇒ huỷ job AI đang bay ⇒ broadcast ⇒ lưu event
+internal/ai: agent theo ghế (Easy 1-ply · Medium/Hard/Very Hard MCTS ensemble) chạy trên internal/ai/sim (state gọn,
+             deck = pool không thứ tự ⇒ không thể nhìn thứ tự deck); pool luồng toàn server ai.Scheduler (AI_MAX_THREADS)
+```
+- Engine: `GameState.Step` là hàm lượt duy nhất (luật chính thức: hoà ⇒ ghế sau thắng; mua lá = đặt crystal bất kỳ lên
+  các lá bên trái; last round ở golem thứ 6 với 2–3 người, thứ 5 với 4–5). Ghế người chơi đơn được random.
+- Phòng chơi đơn: chế độ ghi tường minh (`WithSinglePlayer`), fallback tiền tố `single_`. Phòng không còn ai kết nối ⇒
+  AI dừng (`AI_PAUSE_WHEN_EMPTY`).
+
 ## API game (backend, không prefix — `API_PREFIX` rỗng)
 | Method | Path | Ghi chú |
 |---|---|---|
 | GET | `/health` | `OK` |
 | GET | `/api/list` | danh sách phòng đang có |
 | POST | `/api/create` | `{numPlayers, sessionID?, creatorName}` — phòng nhiều người |
-| POST | `/api/single` | `{numAI: 1..4, turnTimeout?}` → `{sessionID: "single_<ns>"}` — chơi với AI |
+| POST | `/api/single` | `{numAI: 1..4, difficulty?: easy\|medium\|hard\|veryhard (mặc định medium), aiLevels?: [...], turnTimeout?, sessionID?}` → `{sessionID: "single_<ns>", difficulty, aiLevels, coalition, …}`; difficulty lạ ⇒ 400; ID tự đặt bị ép tiền tố `single_` |
 | POST | `/api/join` | vào phòng |
 | POST | `/api/sessions/start` | `{sessionID}` bắt đầu ván |
-| WS | `/ws?session=&name=&avatar=[&spectate=true][&clientID=]` | kênh chơi; message `state`, `playerAssigned`, ... |
-| GET | `/api/games`, `/api/events?gameId=`, `/api/snapshot?gameId=`, `/admin/sessions/state?sessionId=` | xem lịch sử — **công khai, không auth** (như upstream) |
+| WS | `/ws?session=&name=&avatar=[&spectate=true][&clientID=]` | kênh chơi; message `state`, `playerAssigned`, `aiThinking`, `aiIntent`, `turnTimeout`, ... (bảng field: `docs/ai/thiet-ke.md` §8) |
+| GET | `/api/games`, `/api/events?gameId=`, `/api/snapshot?gameId=`, `/admin/sessions/state?sessionId=` | xem lịch sử — **công khai, không auth** (như upstream); ván còn đang chơi ⇒ deck trả theo thứ tự ID (ẩn thứ tự thật) |
 | — | `/auth/*` | chỉ đăng ký khi bật Firebase; hiện trả 404 (đúng ý) |
 
 Frontend route (react-router): `/` (chọn chế độ / lobby) và `/room/:roomId` (link mời vào phòng).

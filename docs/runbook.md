@@ -144,3 +144,16 @@ cd /home/nghia/ai/rename-game/deploy && docker compose up -d && systemctl --user
 Bản sao lưu lúc chuyển: `backups/mongo-20261114-110032-cutover.archive.gz` (178 events, 22 snapshots).
 Rủi ro pixel3xl: lúc chuyển đang chạy pin (`pmi8998-charger online=0`) — hết pin ⇒ Cloudflare **1033**. Kiểm:
 `cat /sys/class/power_supply/pmi8998-charger/online /sys/class/power_supply/max1720x/capacity`. Chỉ có Wi-Fi (`wlan0`).
+
+## 12. AI — chỉnh trên máy chạy (2026-11-14)
+Tổng quan: `docs/ai/README.md` · hiệu năng đo được: `docs/ai/hieu-nang.md` · hiệu chỉnh: `docs/ai/tinh-chinh.md`.
+
+| Muốn | Làm |
+|---|---|
+| Máy nóng / pin yếu | `AI_THINK_SCALE_PCT=60` (hoặc `AI_MAX_THREADS=2`) trong `deploy/docker-compose.yml` ⇒ `docker compose up -d --no-deps server` (⚠ mất ván) |
+| AI nghĩ chậm hơn ngân sách | `docker compose logs --since 10m server \| grep '"AI move"'` — xem `elapsed`, `iterations`, `workers` |
+| Xem AI có đang chạy khi phòng trống | không nên: `AI_PAUSE_WHEN_EMPTY=1` (mặc định) dừng AI khi không còn kết nối |
+| Đo lại hiệu năng trên Pixel | lệnh ở `docs/ai/hieu-nang.md` §Đo lại (binary `aibench` arm64) |
+| Nhiệt độ / CPU | `cat /sys/class/thermal/thermal_zone0/temp` · `docker stats --no-stream` · pin: `cat /sys/class/power_supply/{max1720x/capacity,pmi8998-charger/online}` |
+
+`smoke-test.sh` kiểm thêm `/api/single` với `difficulty` (veryhard ⇒ `coalition:true`, giá trị lạ ⇒ 400).

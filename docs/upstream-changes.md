@@ -8,8 +8,11 @@ Mọi thay đổi được tái lập tự động: `deploy/sanitize-src.sh` tr�
 | Patch | Phạm vi | Nội dung |
 |---|---|---|
 | `0001-auth-disabled-when-backend-404.patch` | `contexts/AuthContext.jsx` | `setAuthAvailable(false)` khi `/auth/profile` 404 — bug upstream: auth tắt mà Lobby vẫn đòi "Sign in with Google" |
-| `0002-frontend-xp-theme-smb-avatars.patch` | 18 file `web/react-frontend/src` | (a) avatar SMB, (b) avatar trong màn chơi, (c) theme XP × brutalism màn khởi tạo, (e) sửa link `/room/:id` — chi tiết bên dưới |
-| `0003-backend-idle-room-cleanup.patch` | 5 file `internal/` | dọn phòng ma, đóng phòng an toàn, trần số phòng, ẩn ván chơi đơn — chi tiết bên dưới |
+| `0002-frontend.patch` (đổi tên 2026-11-14, trước là `0002-frontend-xp-theme-smb-avatars.patch`) | 27 file `web/react-frontend/src` | (a) avatar SMB, (b) avatar trong màn chơi, (c) theme XP × brutalism màn khởi tạo, (e) sửa link `/room/:id`, (f) UI AI 4 mức — chi tiết bên dưới |
+| `0003-backend.patch` (đổi tên 2026-11-14, trước là `0003-backend-idle-room-cleanup.patch`) | 47 file `internal/` | dọn phòng ma, đóng phòng an toàn, trần số phòng, ẩn ván chơi đơn; **luật chính thức + engine Validate/Step**; **AI 4 mức** (`internal/ai`); **game loop có khoá** — chi tiết bên dưới |
+
+Tên patch theo **phạm vi thư mục** (không theo tính năng) để không lỗi thời. Đổi tên phải `git mv` và xoá file cũ
+(`sanitize-src.sh` áp mọi `patches/*.patch`).
 
 ### 0002 (a) Avatar SMB ở màn khởi tạo
 - `utils/avatar.js` (mới): `AVATAR_IDS` (15), `avatarSrc(id)` có `?v=AVATAR_VERSION` (vượt cache 7 ngày).
@@ -63,6 +66,43 @@ vòng lặp 100ms chạy tới hết ván rồi object nằm trong RAM mãi.
 - Test: `internal/server/cleanup_test.go` (6 test: ngưỡng mặc định/cấu hình, phòng trống bị xoá, phòng có người
   được giữ, **ván đã bắt đầu rồi bị bỏ bị xoá**, trần số phòng → 503, ẩn ván chơi đơn).
 
+### 0003 Luật chính thức + engine (2026-11-14, ADR 0001)
+- `game.go`: `Validate` (không mutate, trả action chuẩn hoá) + `apply`; `Step` = hàm lượt duy nhất (pending discard →
+  hết lượt → kết thúc ván); `ExecuteAction`/`CheckGameOver` giữ cho caller cũ. Hoà ⇒ ghế sau thắng; mua lá k = đặt k
+  crystal bất kỳ lên các lá bên trái (không gửi deposits ⇒ server đặt crystal rẻ nhất); `GolemsToEnd()` = 6 (2–3 người) /
+  5 (4–5). Bug: `HasAll` bỏ qua multiplier, input âm, deposit không cộng dồn + mutate dở, hành động khi đang phải discard,
+  kết thúc trước discard của ghế cuối, lá mua giữ deposits, coin người chơi alias coin market.
+- `market.go`: market sở hữu bản sao lá khi lá vào hàng; `CrystalsToPlace`. `clone.go`: `Clone`, `RedactDeckOrder`.
+  `legal.go`: `LegalActions` dạng chuẩn. `errors.go`: lỗi sentinel. `engine.go` `Run` dùng `Step`.
+- Test mới: `rules_official_test.go`, `step_test.go`, `clone_test.go`, `legal_test.go`, `invariants_test.go` (fuzz 2000 ván);
+  2 test ngưỡng 5 golem cũ được thay.
+
+### 0003 AI 4 mức — `internal/ai` (2026-11-14, ADR 0002–0005)
+- `ai/sim`: simulator gọn, differential test 2000 ván với engine. `ai`: evaluator, utility theo cấp (own / beat-the-leader /
+  liên minh), MCTS open-loop ensemble, mô hình đối thủ, intent, scheduler luồng toàn server, profile theo cấp.
+- `ai/arena` + `ai/arena/aibench` (CLI benchmark/giải đấu, không build vào image). Chi tiết: `docs/ai/`.
+
+### 0003 Session / server cho AI (2026-11-14)
+- `session/ai_turns.go` (mới): options (`WithSinglePlayer`, `WithAIRuntime`, `WithAgentFactory`), `Mode`, ghế random cho
+  người chơi đơn, agent theo ghế, **game loop mới**: mọi mutate + broadcast dưới `gs.mu`, AI nghĩ trên bản clone ở goroutine
+  riêng, bỏ kết quả cũ theo `stepSeq`, huỷ search khi `Close`/người đi, event lưu ngoài lock từ bản clone.
+- `session.go`: bỏ `Engine`; `handlePlayerAction` không giữ RLock khi gửi action; `findAvailablePlayerID` không giao ghế AI
+  cho người; state thêm `aiLevel`, `mode`, `turnTimeout`, `golemsToEnd`, `coalition`, `aiThinking`, `placeCrystals`; phòng chờ
+  hiện dòng AI; AI không còn "(offline)".
+- `server`: runtime AI dùng chung, `CreateSinglePlayerSession`, `/api/single` nhận `difficulty`/`aiLevels`, ID tự đặt bị ép
+  `single_`; `/api/events`, `/api/snapshot` ẩn thứ tự deck của ván đang chơi. `config.go`: biến `AI_*`.
+- Test mới: `session/ai_session_test.go` (7), `server/single_ai_test.go`.
+
+### 0002 (f) UI AI 4 mức (2026-11-14)
+- `SinglePlayerLobby.jsx`: chọn độ khó (XP list + badge, mặc định Medium, nhớ trong localStorage, ghi chú liên minh ở
+  Very Hard), gửi `difficulty`. `XpWaitingRoom.jsx`: dòng AI kèm mức, sửa key trùng.
+- Bàn chơi (style upstream): `AiLevelBadge.jsx`, `AiThinkingIndicator.jsx` trong `PlayerCard`, `PlayersInfoBar`,
+  `FantasyGameLayout`, `GameOverModal`, `WebGameLayout`; AI không hiện "(offline)"; timer đọc `turnTimeout` từ server.
+- `gameStore.js`: xử lý `aiThinking`, `aiIntent` (toast 🤖 4.5 s), `turnTimeout`. `Toast.jsx`: loại `ai`.
+- Giá market theo luật chính thức ("đặt k× crystal bất kỳ") ở `WebGameLayout`, `CompactGameBoard`, `FantasyMarketArea`,
+  `CompactCard`; GameOver ghi chú thắng hoà do đi sau. `utils/aiLevel.js` (+ test), `utils/avatar.js` dùng `aiIndex`.
+- Test mới: `utils/aiLevel.test.js`, `components/__tests__/SinglePlayerLobby.test.jsx`.
+
 ## 2. Asset — sinh bởi script
 | Thứ | Script | Chi tiết |
 |---|---|---|
@@ -78,6 +118,7 @@ Avatar: 1 Goomba · 2 Koopa Troopa · 3 Lakitu · 4 Bowser · 5 Hammer Bro · 6 
 ## 4. Không sửa trong src, thay bằng cấu hình deploy riêng (`deploy/`)
 - `docker-compose.yml` upstream (truyền `${TELEGRAM_*}`, publish mongo/redis) → không dùng; dùng `deploy/docker-compose.yml`.
 - `Dockerfile.frontend` upstream (base `/apps/golem/`, API `game.anhtran.dev`) → `deploy/Dockerfile.web`.
+- `Dockerfile` upstream (ép `GOARCH=amd64`, hỏng trên arm64) → `deploy/Dockerfile.server` (build theo kiến trúc máy build).
 - k8s/ansible/Jenkins/GitHub Actions (`deployment/`, `ansible/`, `scripts/`, `.github/`) → bỏ qua.
 
 ## Test
@@ -89,6 +130,13 @@ Avatar: 1 Goomba · 2 Koopa Troopa · 3 Lakitu · 4 Bowser · 5 Hammer Bro · 6 
   `session` **fail sẵn ở upstream** (10 test, 25 data race, panic "send on closed channel" tại `sendToPlayer` khi
   test gỡ người chơi trong lúc broadcast — xem "Lỗi upstream đã biết" trong CLAUDE.md); sau patch 0003: 7 fail, 22 race,
   panic đó vẫn còn (không thuộc phần đã sửa).
+
+### Số liệu test sau AI (2026-11-14)
+- Frontend: 22 pass (thêm 5: aiLevel + SinglePlayerLobby), phần lỗi giữ nguyên như upstream (2 fail useGameSounds,
+  2 file không chạy).
+- Backend: `game` (gồm fuzz 2000 ván), `ai`, `ai/sim` (differential 2000 ván), `server`, `auth`, `eventstore`, `telegram`
+  pass với `-race`. `session`: baseline trước khi sửa (M0) **11 fail / 31 race**; sau: **10 fail / 17–28 race** (3 lần chạy;
+  suite vốn flaky), 7 test AI mới luôn pass.
 
 ## Sau khi sửa code
 ```bash

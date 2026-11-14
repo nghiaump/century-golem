@@ -31,6 +31,8 @@ Không có token/secret thật nào trong code hay 220 commit lịch sử git (c
 - **Image `server`**: chỉ binary + `web/static` + CA certs Alpine; không `.git`/`.env`; binary không chứa chuỗi định danh.
 - **Mongo/Redis** volume mới, không dữ liệu cũ; không publish cổng ra host.
 - **Tunnel/credential/DNS**: của tài khoản người dùng; tunnel riêng `century`.
+- **AI** (2026-11-14): chạy hoàn toàn trong process `server` (Go stdlib), không gọi dịch vụ ngoài, không model tải về,
+  không gửi dữ liệu ván đi đâu. Backend vẫn nằm trên mạng `internal` (privacy-audit kiểm).
 
 ## Rủi ro còn lại (đã chấp nhận / cần biết)
 - **Asset game giống hệt bản gốc** (ảnh lá bài, âm thanh, giao diện) ⇒ ai so sánh vẫn nhận ra cùng một game.
@@ -38,8 +40,10 @@ Không có token/secret thật nào trong code hay 220 commit lịch sử git (c
   ngày kể từ 2026-10-07). App không còn trỏ tới URL đó (dùng `?v=`). Muốn xoá ngay: Cloudflare dashboard →
   pentium.ink → Caching → Purge → Custom URL `https://century.pentium.ink/assets/images/avatar/1.webp`.
 - **Endpoint xem lịch sử công khai** `/api/games`, `/api/events`, `/api/snapshot`, `/admin/sessions/state` — không
-  auth (như upstream): ai cũng xem được tên người chơi + diễn biến ván.
+  auth (như upstream): ai cũng xem được tên người chơi + diễn biến ván. Từ 2026-11-14 thứ tự deck của ván **đang chơi**
+  được ẩn (sắp theo ID) để người chơi không xem trước lá — AI cũng không bao giờ nhìn (ADR 0007).
 - **Không đăng nhập** ⇒ ai có link cũng tạo phòng. Bật đăng nhập = Firebase project + OAuth client CỦA NGƯỜI DÙNG.
 - **`clientId` đoán được** (`client_<UnixNano>`) ⇒ về lý thuyết chiếm được chỗ người khác khi reconnect.
 - **Source map** (`.js.map`) công khai ⇒ lộ mã frontend (vốn là mã upstream; không có secret).
-- `src/golem/.git` còn remote + email commit của tác giả — chỉ nằm trên đĩa, không vào image/không phục vụ.
+- Lịch sử git của upstream (remote + email tác giả) đã dời khỏi repo sang `/home/nghia/ai/golem-upstream.git` (chỉ trên
+  đĩa rtx, ⛔ không push); repo `nghiaump/century-golem` có lịch sử mới.
