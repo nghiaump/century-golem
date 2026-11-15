@@ -2,6 +2,8 @@ import { create } from "zustand";
 import { createLogger } from '../utils/logger';
 import { getClientIDFromCookie, apiFetch } from '../utils/api';
 import { showToast } from '../utils/toast';
+import { restedCards } from '../utils/rest';
+import { resolveAvatarId } from '../utils/avatar';
 
 const logger = createLogger('GameStore');
 
@@ -45,6 +47,7 @@ const useGameStore = create((set, get) => ({
   tradeModalCardIndex: null, // Card index for trade modal
   acquiringCardIds: [], // Array of card IDs that are being acquired (for animation)
   acquiredCardOverlay: null, // { card, type: 'market'|'golem', playerName } for overlay animation
+  restPopup: null, // { id, playerName, avatarId, cards } — short popup when an opponent rests
   
   // Sound settings
   soundsMuted: typeof window !== 'undefined' ? localStorage.getItem('gameSoundsMuted') === 'true' : false,
@@ -324,9 +327,7 @@ const useGameStore = create((set, get) => ({
             if (prevOpponent) {
               const prevPlayedCount = prevOpponent.playedCards?.length || 0
               const currentPlayedCount = currentOpponent.playedCards?.length || 0
-              const prevHandCount = prevOpponent.hand?.length || 0
-              const currentHandCount = currentOpponent.hand?.length || 0
-              
+
               // If opponent played a new card
               if (currentPlayedCount > prevPlayedCount && currentOpponent.id !== currentPlayerId) {
                 // Get the newly played card (last card in playedCards)
@@ -346,9 +347,10 @@ const useGameStore = create((set, get) => ({
                 }
               }
               
-              // Detect rest: hand increased significantly and playedCards is now empty
-              if (currentPlayedCount === 0 && prevPlayedCount > 0 && 
-                  currentHandCount > prevHandCount && currentOpponent.id !== currentPlayerId) {
+              // Detect rest: playedCards is now empty and the hand took them back
+              const rested = restedCards(prevOpponent, currentOpponent)
+              if (rested > 0 && currentOpponent.id !== currentPlayerId) {
+                get().showRestPopup(currentOpponent, rested, message.players)
                 get().addActionToHistory({
                   type: 'rest',
                   playerName: currentOpponent.name,
@@ -555,6 +557,7 @@ const useGameStore = create((set, get) => ({
       sessionId: null, playerId: null, spectatorId: null, isSpectator: false,
       gameState: null, previousGameState: null, currentPlayer: null, myPlayer: null, opponents: [],
       roundNumber: 0, selectedCard: null, actionHistory: [], acquiringCardIds: [], acquiredCardOverlay: null,
+      restPopup: null,
     });
   },
 
@@ -837,6 +840,16 @@ const useGameStore = create((set, get) => ({
     setTimeout(() => {
       set({ acquiredCardOverlay: null })
     }, 2000)
+  },
+
+  // Popup "<name> rested" for an opponent's rest. Card overlays are off, and a rest has no card, so without
+  // this an opponent's rest only showed up as one line in the history.
+  showRestPopup: (player, cards, players) => {
+    const id = `${player.id}-${Date.now()}`
+    set({ restPopup: { id, playerName: player.name, avatarId: resolveAvatarId(player, players || []), cards } })
+    setTimeout(() => {
+      if (get().restPopup?.id === id) set({ restPopup: null })
+    }, 2200)
   },
 
   // Clear acquired card overlay

@@ -8,6 +8,7 @@ import CompactPlayerHand from './components/mobile/CompactPlayerHand'
 import CollapsibleInfo from './components/CollapsibleInfo'
 import DiscardModal from './components/DiscardModal'
 import AcquiredCardOverlay from './components/AcquiredCardOverlay'
+import RestPopup from './components/RestPopup'
 import GameOverModal from './components/GameOverModal'
 import Toast from './components/Toast'
 import XpWindow from './components/XpWindow'
@@ -48,6 +49,7 @@ function GameContentWithTheme({ useWebLayout, isMobile, isPortrait, sessionId, o
           onNewGame={handleNewGame}
           onBackToMenu={handleBackToMenu}
         />
+        <RestPopup />
         <Toast />
       </>
     )
@@ -64,6 +66,9 @@ function GameContentWithTheme({ useWebLayout, isMobile, isPortrait, sessionId, o
       
       {/* Sound Toggle Button - Always visible */}
       <SoundToggleButton />
+
+      {/* "<opponent> rested" popup */}
+      <RestPopup />
 
       {/* Blurred Background Layer */}
       <div className="fixed inset-0 z-0"

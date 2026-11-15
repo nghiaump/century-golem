@@ -67,10 +67,8 @@ const HistorySection = () => {
     return `${minutes}m`
   }
 
-  // Show last 4 actions in preview
-  const previewActions = actionHistory.slice(0, 4)
-  const hasCard = previewActions.some(a => a.card)
-  const displayCard = hasCard ? previewActions.find(a => a.card)?.card : null
+  // Top of the stack = the latest action: a rest shows 💤 instead of hiding behind an older card
+  const displayCard = actionHistory[0]?.card || null
 
   return (
     <>

@@ -117,12 +117,19 @@ vòng lặp 100ms chạy tới hết ván rồi object nằm trong RAM mãi.
 - `gameStore.js`: xử lý `aiThinking`, `aiIntent` (toast 🤖 4.5 s), `turnTimeout`. `Toast.jsx`: loại `ai`.
 - Giá market theo luật chính thức ("đặt k× crystal bất kỳ") ở `WebGameLayout`, `CompactGameBoard`, `FantasyMarketArea`,
   `CompactCard`; GameOver ghi chú thắng hoà do đi sau. `utils/aiLevel.js` (+ test), `utils/avatar.js` dùng `aiIndex`.
-- Test mới: `utils/aiLevel.test.js`, `components/__tests__/SinglePlayerLobby.test.jsx`.
+- Test mới: `utils/aiLevel.test.js`, `components/__tests__/SinglePlayerLobby.test.jsx`, `utils/rest.test.js`,
+  `components/__tests__/RestPopup.test.jsx`.
 - Màn kết thúc (2026-11-15): **Play Again** không còn reload trang (reload ở URL `/room/<id>` mở nhầm lobby Multiplayer):
   ván 1 người ⇒ tạo ngay ván mới cùng số AI + mức + tên + avatar (vào phòng chờ); nhiều người ⇒ về lobby Multiplayer;
   **Back to Menu** ⇒ màn chính. `gameStore.leaveGame()` đóng WS bình thường (gỡ handler trước để onclose muộn không xoá
   kết nối mới) và xoá state; `connectWebSocket` lưu tên/avatar (upstream không lưu ⇒ Retry Connection dùng tên rỗng);
   phòng vừa rời không bị hiểu nhầm là link mời.
+- Popup Rest của đối thủ (2026-11-15, theo phản hồi người dùng "AI ra bài liên tục không rest"; số liệu thật: AI Rest
+  10.7% số lượt, người chơi 8.2%): upstream tắt overlay lá bài (`AcquiredCardOverlay` trả `null`), còn Rest không có lá,
+  nên Rest của đối thủ chỉ là một dòng trong lịch sử. Ô History lại hiện lá mới nhất trong 4 nước gần nhất, nên Rest bị
+  lá cũ che. Sửa: `RestPopup.jsx` ("💤 <tên> rested · took back N cards", ~2 s, kèm âm thanh rest), state
+  `restPopup`/`showRestPopup` trong `gameStore.js`, `utils/rest.js` (`restedCards`, + test), gắn ở cả 2 theme trong
+  `SinglePlayerApp.jsx`. `HistorySection.jsx` hiện đúng nước mới nhất (Rest ⇒ 💤).
 
 ## 2. Asset — sinh bởi script
 | Thứ | Script | Chi tiết |
@@ -145,8 +152,8 @@ Avatar: 1 Goomba · 2 Koopa Troopa · 3 Lakitu · 4 Bowser · 5 Hammer Bro · 6 
 ## Test
 - Frontend (vitest, chạy trong `node:18-alpine` trên bản sao có `node_modules`): cấu hình vitest upstream không bật DOM
   (khoá `vitest.environment` trong package.json không có tác dụng) ⇒ chạy `vitest run --environment jsdom`. Khi đó upstream
-  12 pass / 2 fail (useGameSounds) + 2 file không chạy (cardNames, sounds); bản này **giống hệt phần lỗi**, 17 pass
-  (thêm 5 test avatar).
+  12 pass / 2 fail (useGameSounds) + 2 file không chạy (cardNames, sounds); bản này **giống hệt phần lỗi**, 28 pass
+  (2026-11-15; thêm test avatar, aiLevel, lobby, rest, RestPopup).
 - Backend (`go test -race ./internal/...` trong `golang:1.24`): `auth`, `eventstore`, `game`, `server`, `telegram` pass.
   `session` **fail sẵn ở upstream** (10 test, 25 data race, panic "send on closed channel" tại `sendToPlayer` khi
   test gỡ người chơi trong lúc broadcast — xem "Lỗi upstream đã biết" trong CLAUDE.md); sau patch 0003: 7 fail, 22 race,

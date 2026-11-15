@@ -300,6 +300,21 @@
                          <span className={`font-bold text-white ${isMobile ? 'text-sm' : 'text-base sm:text-lg'}`}>
                            {player.name}
                          </span>
+--- a/web/react-frontend/src/components/HistorySection.jsx
++++ b/web/react-frontend/src/components/HistorySection.jsx
+@@ -67,10 +67,8 @@
+     return `${minutes}m`
+   }
+ 
+-  // Show last 4 actions in preview
+-  const previewActions = actionHistory.slice(0, 4)
+-  const hasCard = previewActions.some(a => a.card)
+-  const displayCard = hasCard ? previewActions.find(a => a.card)?.card : null
++  // Top of the stack = the latest action: a rest shows 💤 instead of hiding behind an older card
++  const displayCard = actionHistory[0]?.card || null
+ 
+   return (
+     <>
 --- a/web/react-frontend/src/components/Lobby.jsx
 +++ b/web/react-frontend/src/components/Lobby.jsx
 @@ -1,12 +1,13 @@
@@ -1263,6 +1278,58 @@
                    </span>
                    <span className="text-yellow-400 font-bold">★{player.points || 0}</span>
                  </div>
+--- a/web/react-frontend/src/components/RestPopup.jsx
++++ b/web/react-frontend/src/components/RestPopup.jsx
+@@ -0,0 +1,49 @@
++import React, { useEffect } from 'react'
++import { createPortal } from 'react-dom'
++import { motion, AnimatePresence } from 'framer-motion'
++import useGameStore from '../store/gameStore'
++import soundManager from '../utils/sounds'
++import { avatarSrc } from '../utils/avatar'
++
++// "<name> rested · took back N cards", shown for ~2 s when an opponent rests (store.restPopup).
++const RestPopup = () => {
++  const restPopup = useGameStore((s) => s.restPopup)
++  const id = restPopup?.id
++
++  useEffect(() => {
++    if (id) soundManager.play('rest')
++  }, [id])
++
++  return createPortal(
++    <div className="fixed inset-x-0 top-24 z-[9998] flex justify-center px-4 pointer-events-none">
++      <AnimatePresence>
++        {restPopup && (
++          <motion.div
++            key={restPopup.id}
++            role="status"
++            aria-live="polite"
++            initial={{ opacity: 0, y: -16, scale: 0.9 }}
++            animate={{ opacity: 1, y: 0, scale: 1 }}
++            exit={{ opacity: 0, y: -16, scale: 0.9 }}
++            className="flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-purple-700/90 border-2 border-purple-300 text-white shadow-2xl backdrop-blur-md"
++          >
++            <img
++              src={avatarSrc(restPopup.avatarId)}
++              alt=""
++              className="w-10 h-10 rounded-full border-2 border-white/60 object-cover flex-shrink-0"
++            />
++            <div className="leading-tight">
++              <div className="font-bold text-sm">💤 {restPopup.playerName} rested</div>
++              <div className="text-xs text-purple-100">
++                took back {restPopup.cards} card{restPopup.cards === 1 ? '' : 's'}
++              </div>
++            </div>
++          </motion.div>
++        )}
++      </AnimatePresence>
++    </div>,
++    document.body
++  )
++}
++
++export default RestPopup
 --- a/web/react-frontend/src/components/SinglePlayerLobby.jsx
 +++ b/web/react-frontend/src/components/SinglePlayerLobby.jsx
 @@ -1,25 +1,24 @@
@@ -1563,6 +1630,52 @@
        title={soundsMuted ? 'Unmute sounds' : 'Mute sounds'}
        aria-label={soundsMuted ? 'Unmute sounds' : 'Mute sounds'}
      >
+--- a/web/react-frontend/src/components/__tests__/RestPopup.test.jsx
++++ b/web/react-frontend/src/components/__tests__/RestPopup.test.jsx
+@@ -0,0 +1,43 @@
++import React from 'react'
++import { render, screen, cleanup, act } from '@testing-library/react'
++import { describe, test, expect, vi, afterEach } from 'vitest'
++
++const play = vi.fn()
++vi.mock('../../utils/sounds', () => ({ default: { play: (...a) => play(...a), setMuted: vi.fn(), getMuted: () => false } }))
++
++import RestPopup from '../RestPopup'
++import useGameStore from '../../store/gameStore'
++
++describe('RestPopup', () => {
++  afterEach(() => {
++    cleanup()
++    vi.useRealTimers()
++    play.mockReset()
++    act(() => useGameStore.setState({ restPopup: null }))
++  })
++
++  test('shows an opponent rest with the cards taken back, plays the rest sound, then hides', () => {
++    vi.useFakeTimers()
++    render(<RestPopup />)
++    expect(screen.queryByText(/rested/)).toBeNull()
++
++    act(() => useGameStore.getState().showRestPopup({ id: 3, name: 'AI 2', isAI: true, avatar: '7', aiAvatar: true }, 5, []))
++    expect(screen.getByText(/AI 2 rested/)).toBeTruthy()
++    expect(screen.getByText('took back 5 cards')).toBeTruthy()
++    expect(play).toHaveBeenCalledWith('rest')
++    expect(useGameStore.getState().restPopup.avatarId).toBe('7')
++
++    act(() => vi.advanceTimersByTime(2300))
++    expect(useGameStore.getState().restPopup).toBeNull()
++  })
++
++  test('a newer rest is not cleared by the older timer', () => {
++    vi.useFakeTimers()
++    const st = useGameStore.getState()
++    act(() => st.showRestPopup({ id: 1, name: 'AI 1' }, 2, []))
++    act(() => vi.advanceTimersByTime(1500))
++    act(() => st.showRestPopup({ id: 2, name: 'AI 2' }, 4, []))
++    act(() => vi.advanceTimersByTime(1000)) // first timer fires here
++    expect(useGameStore.getState().restPopup?.playerName).toBe('AI 2')
++  })
++})
 --- a/web/react-frontend/src/components/__tests__/SinglePlayerLobby.test.jsx
 +++ b/web/react-frontend/src/components/__tests__/SinglePlayerLobby.test.jsx
 @@ -0,0 +1,40 @@
@@ -1729,8 +1842,11 @@
  import { useParams, useNavigate } from 'react-router-dom'
  import SinglePlayerLobby from './components/SinglePlayerLobby'
  import Lobby from './components/Lobby'
-@@ -10,9 +10,14 @@
+@@ -8,11 +8,17 @@
+ import CollapsibleInfo from './components/CollapsibleInfo'
+ import DiscardModal from './components/DiscardModal'
  import AcquiredCardOverlay from './components/AcquiredCardOverlay'
++import RestPopup from './components/RestPopup'
  import GameOverModal from './components/GameOverModal'
  import Toast from './components/Toast'
 +import XpWindow from './components/XpWindow'
@@ -1744,7 +1860,7 @@
  import FantasyGameLayout from './components/desktop/FantasyGameLayout'
  import useGameStore from './store/gameStore'
  import useOrientation from './hooks/useOrientation'
-@@ -21,29 +26,23 @@
+@@ -21,34 +27,29 @@
  import { ThemeProvider, useTheme } from './contexts/ThemeContext'
  
  // Game Content with Theme Support
@@ -1780,7 +1896,13 @@
          <SoundToggleButton />
          <FantasyGameLayout 
            onNewGame={handleNewGame}
-@@ -59,6 +58,9 @@
+           onBackToMenu={handleBackToMenu}
+         />
++        <RestPopup />
+         <Toast />
+       </>
+     )
+@@ -59,10 +60,16 @@
      <>
        {/* Theme Toggle Button - Always visible */}
        <ThemeToggleButton />
@@ -1790,7 +1912,14 @@
        
        {/* Sound Toggle Button - Always visible */}
        <SoundToggleButton />
-@@ -144,6 +146,7 @@
+ 
++      {/* "<opponent> rested" popup */}
++      <RestPopup />
++
+       {/* Blurred Background Layer */}
+       <div className="fixed inset-0 z-0"
+         style={{
+@@ -144,6 +151,7 @@
    const navigate = useNavigate()
    const [gameMode, setGameMode] = useState(null) // null, 'single', 'multi'
    const [inGame, setInGame] = useState(false)
@@ -1798,7 +1927,7 @@
    const { 
      connectWebSocket, 
      gameState, 
-@@ -160,11 +163,19 @@
+@@ -160,11 +168,19 @@
    } = useGameStore()
    const { isPortrait, isLandscape, isMobile, isTablet, isDesktop, width } = useOrientation()
  
@@ -1820,7 +1949,7 @@
      }
    }, [roomId, inGame, isConnecting])
  
-@@ -183,79 +194,99 @@
+@@ -183,79 +199,99 @@
    }
  
    const handleBackToMenu = () => {
@@ -1980,7 +2109,7 @@
        </div>
        </>
      )
-@@ -263,151 +294,75 @@
+@@ -263,151 +299,75 @@
  
    // Show appropriate lobby based on mode
    if (!inGame) {
@@ -2193,7 +2322,7 @@
          </div>
        </>
      )
-@@ -424,8 +379,8 @@
+@@ -424,8 +384,8 @@
            isMobile={isMobile}
            isPortrait={isPortrait}
            sessionId={sessionId}
@@ -2206,7 +2335,24 @@
      </ThemeProvider>
 --- a/web/react-frontend/src/store/gameStore.js
 +++ b/web/react-frontend/src/store/gameStore.js
-@@ -65,10 +65,13 @@
+@@ -2,6 +2,8 @@
+ import { createLogger } from '../utils/logger';
+ import { getClientIDFromCookie, apiFetch } from '../utils/api';
+ import { showToast } from '../utils/toast';
++import { restedCards } from '../utils/rest';
++import { resolveAvatarId } from '../utils/avatar';
+ 
+ const logger = createLogger('GameStore');
+ 
+@@ -45,6 +47,7 @@
+   tradeModalCardIndex: null, // Card index for trade modal
+   acquiringCardIds: [], // Array of card IDs that are being acquired (for animation)
+   acquiredCardOverlay: null, // { card, type: 'market'|'golem', playerName } for overlay animation
++  restPopup: null, // { id, playerName, avatarId, cards } — short popup when an opponent rests
+   
+   // Sound settings
+   soundsMuted: typeof window !== 'undefined' ? localStorage.getItem('gameSoundsMuted') === 'true' : false,
+@@ -65,10 +68,13 @@
        set({ connectionTimeoutId: null });
      }
  
@@ -2221,7 +2367,32 @@
      });
  
      // In development with Vite, always connect to the dev server (localhost:3000)
-@@ -376,6 +379,17 @@
+@@ -321,9 +327,7 @@
+             if (prevOpponent) {
+               const prevPlayedCount = prevOpponent.playedCards?.length || 0
+               const currentPlayedCount = currentOpponent.playedCards?.length || 0
+-              const prevHandCount = prevOpponent.hand?.length || 0
+-              const currentHandCount = currentOpponent.hand?.length || 0
+-              
++
+               // If opponent played a new card
+               if (currentPlayedCount > prevPlayedCount && currentOpponent.id !== currentPlayerId) {
+                 // Get the newly played card (last card in playedCards)
+@@ -343,9 +347,10 @@
+                 }
+               }
+               
+-              // Detect rest: hand increased significantly and playedCards is now empty
+-              if (currentPlayedCount === 0 && prevPlayedCount > 0 && 
+-                  currentHandCount > prevHandCount && currentOpponent.id !== currentPlayerId) {
++              // Detect rest: playedCards is now empty and the hand took them back
++              const rested = restedCards(prevOpponent, currentOpponent)
++              if (rested > 0 && currentOpponent.id !== currentPlayerId) {
++                get().showRestPopup(currentOpponent, rested, message.players)
+                 get().addActionToHistory({
+                   type: 'rest',
+                   playerName: currentOpponent.name,
+@@ -376,6 +381,17 @@
              logger.info(`${currentPlayer.name}'s turn`);
            }
          }
@@ -2239,7 +2410,7 @@
        } else if (message.type === "chat") {
          // Handle chat message from server
          if (get().onChatMessage) {
-@@ -521,6 +535,29 @@
+@@ -521,6 +537,30 @@
      get().connectWebSocket(sessionId, playerName, playerAvatar, isSpectator);
    },
  
@@ -2263,12 +2434,30 @@
 +      sessionId: null, playerId: null, spectatorId: null, isSpectator: false,
 +      gameState: null, previousGameState: null, currentPlayer: null, myPlayer: null, opponents: [],
 +      roundNumber: 0, selectedCard: null, actionHistory: [], acquiringCardIds: [], acquiredCardOverlay: null,
++      restPopup: null,
 +    });
 +  },
 +
    // Cancel reconnection attempt
    cancelReconnect: () => {
      const timeoutId = get().reconnectTimeoutId;
+@@ -802,6 +842,16 @@
+     }, 2000)
+   },
+ 
++  // Popup "<name> rested" for an opponent's rest. Card overlays are off, and a rest has no card, so without
++  // this an opponent's rest only showed up as one line in the history.
++  showRestPopup: (player, cards, players) => {
++    const id = `${player.id}-${Date.now()}`
++    set({ restPopup: { id, playerName: player.name, avatarId: resolveAvatarId(player, players || []), cards } })
++    setTimeout(() => {
++      if (get().restPopup?.id === id) set({ restPopup: null })
++    }, 2200)
++  },
++
+   // Clear acquired card overlay
+   clearAcquiredCardOverlay: () => {
+     set({ acquiredCardOverlay: null })
 --- a/web/react-frontend/src/theme-xp.css
 +++ b/web/react-frontend/src/theme-xp.css
 @@ -0,0 +1,356 @@
@@ -2783,5 +2972,38 @@
 +
 +  it('builds versioned URLs', () => {
 +    expect(avatarSrc('3')).toMatch(/^\/assets\/images\/avatar\/3\.webp\?v=/)
++  })
++})
+--- a/web/react-frontend/src/utils/rest.js
++++ b/web/react-frontend/src/utils/rest.js
+@@ -0,0 +1,11 @@
++// Number of cards a player took back by resting between two states, 0 if they did not rest.
++// A rest moves every played card back to the hand: played goes to 0 and the hand grows.
++export function restedCards(prev, cur) {
++  if (!prev || !cur) return 0
++  const prevPlayed = prev.playedCards?.length || 0
++  const curPlayed = cur.playedCards?.length || 0
++  const prevHand = prev.hand?.length || 0
++  const curHand = cur.hand?.length || 0
++  if (prevPlayed > 0 && curPlayed === 0 && curHand > prevHand) return prevPlayed
++  return 0
++}
+--- a/web/react-frontend/src/utils/rest.test.js
++++ b/web/react-frontend/src/utils/rest.test.js
+@@ -0,0 +1,16 @@
++import { describe, test, expect } from 'vitest'
++import { restedCards } from './rest'
++
++const p = (hand, played) => ({ hand: Array(hand).fill({}), playedCards: Array(played).fill({}) })
++
++describe('restedCards', () => {
++  test('counts the cards taken back on a rest', () => {
++    expect(restedCards(p(3, 5), p(8, 0))).toBe(5)
++  })
++  test('is 0 for other moves', () => {
++    expect(restedCards(p(4, 2), p(3, 3))).toBe(0) // played a card
++    expect(restedCards(p(4, 2), p(5, 2))).toBe(0) // acquired a card
++    expect(restedCards(p(4, 0), p(4, 0))).toBe(0) // nothing played, nothing to take back
++    expect(restedCards(null, p(4, 0))).toBe(0)
 +  })
 +})
