@@ -31,13 +31,43 @@ func TestRivalUtility_GiftsToAnotherAICost(t *testing.T) {
 	}
 }
 
-func TestRivalUtility_PersonCountsStronger(t *testing.T) {
+func TestRivalUtility_PersonIsMainRivalOnlyOnATie(t *testing.T) {
 	pv := rivalView()
-	// Same loss of value for the opponent: hurting the person is worth more than hurting the AI.
+	// AI and person equally strong (19): costing the person 3 is worth more than costing the AI 3.
 	hitAI := reward0(pv, [sim.MaxPlayers]float64{20, 16, 19}, false, -1)
 	hitHuman := reward0(pv, [sim.MaxPlayers]float64{20, 19, 16}, false, -1)
 	if hitHuman <= hitAI {
-		t.Fatalf("blocking a close person should be preferred: human %.4f vs AI %.4f", hitHuman, hitAI)
+		t.Fatalf("on equal threat the person is the one to block: human %.4f vs AI %.4f", hitHuman, hitAI)
+	}
+	// The AI clearly leads (25 vs 22): it stays the main rival, so costing it 2 is worth more than
+	// costing the trailing person 2 (the reported bug: an AI far behind spending its turn on a cheap
+	// golem only to take it from the person).
+	hitAI = reward0(pv, [sim.MaxPlayers]float64{20, 23, 22}, false, -1)
+	hitHuman = reward0(pv, [sim.MaxPlayers]float64{20, 25, 20}, false, -1)
+	if hitAI <= hitHuman {
+		t.Fatalf("a clear AI leader must stay the main rival: AI %.4f vs human %.4f", hitAI, hitHuman)
+	}
+}
+
+func TestPerspective_MainRival(t *testing.T) {
+	pv := rivalView() // seat 0 VH, seat 1 AI, seat 2 person
+	cases := []struct {
+		v    [sim.MaxPlayers]float64
+		want int
+	}{
+		{[sim.MaxPlayers]float64{20, 30, 25}, 1},   // AI leads clearly
+		{[sim.MaxPlayers]float64{20, 30, 29.5}, 2}, // equal threat: the person
+		{[sim.MaxPlayers]float64{20, 25, 30}, 2},   // the person leads
+	}
+	for _, c := range cases {
+		if got := pv.mainRival(&c.v, 0); got != c.want {
+			t.Errorf("mainRival(%v) = %d, want %d", c.v[:3], got, c.want)
+		}
+	}
+	// Hard (beat-the-leader) has no tie rule: the plain leader.
+	hard := newPerspective(3, 0, DefaultProfile(Hard), []bool{false, false, true})
+	if got := hard.mainRival(&[sim.MaxPlayers]float64{20, 30, 29.5}, 0); got != 1 {
+		t.Errorf("Hard must target the plain leader, got %d", got)
 	}
 }
 

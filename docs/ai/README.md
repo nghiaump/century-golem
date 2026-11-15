@@ -14,7 +14,7 @@ says Very Hard is the toughest level.
 | **Easy** | Looks one move ahead and picks among the near-best moves at random (softmax). Never makes silly moves (resting with nothing to pick up, missing a game-winning claim). | ~0.8 s (min. delay) |
 | **Medium** | Monte-Carlo tree search, 1 worker, maximises its own score; mild randomness in the final choice. | 0.3 s |
 | **Hard** | Search with 2 workers, reads opponents' plans, plays to **beat whoever is leading** (human or AI) — denial included. | 1.4 s |
-| **Very Hard** | Search with 4 workers, plan recognition, exact endgame rollouts. **Every AI plays for its own win** — it never feeds another AI — but counts you as a few points stronger than you are, so if you are close it blocks you first. With a single AI it simply searches deeper than Hard. | 3.0 s |
+| **Very Hard** | Search with 4 workers, plan recognition, exact endgame rollouts. **Every AI plays for its own win** — it never feeds another AI and never blocks you just to hurt you. It goes after whoever threatens its win most; when you and an AI are equally dangerous, it treats you as its main rival. With a single AI it simply searches deeper than Hard. | 3.0 s |
 
 \* per move on the production phone (Pixel 3 XL); a minimum visible delay of 0.8 s applies to every level.
 
@@ -31,12 +31,13 @@ says Very Hard is the toughest level.
    estimated turns to afford it and by whether an opponent gets there first; the "step value" of the player's cards
    (e.g. `2 yellow → 2 green` repeated 5× = +10 levels per play); clutter and tempo costs.
 4. **Utility per level.** Easy/Medium: own score. Hard: margin over the best other player. Very Hard ("rival"): margin
-   over 0.7 × the strongest + 0.3 × the average opponent, humans counted +3 points mid-game (+1 at the end), so a gift
-   to any opponent always costs and a close human is blocked first. No AI ever shares another AI's reward
+   over 0.7 × the strongest + 0.3 × the average opponent, so a gift to any opponent always costs. Humans only break
+   ties: +1 point mid-game, +0.25 at the end (final scores are whole numbers), so on equal threat the human is the main
+   rival, while an AI that clearly leads stays the one to stop. No AI ever shares another AI's reward
    ([ADR 0008](../adr/0008-very-hard-doi-thu-canh-tranh.md)).
 5. **Opponent model.** For every opponent: which golem they are going for (softmax over discounted value), how close
-   they are, coin races. It biases the search towards denial (Hard: against the leader; Very Hard: the leader plus any
-   human who is close) and
+   they are, coin races. It biases the search towards denial against one seat — the leader when close (Very Hard: the
+   human instead on equal threat) — and
    can produce **intent toasts** ("Bowser took the golem you were going for") — off by default (`AI_INTENT_MESSAGES`).
 
 ## Configuration (server, `deploy/docker-compose.yml`)

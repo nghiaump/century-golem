@@ -46,8 +46,8 @@ type Decision struct {
 
 // DecideOptions carries per-decision context the snapshot does not hold.
 type DecideOptions struct {
-	// Humans[i] reports whether seat i is played by a person (Very Hard counts people a few
-	// points stronger; intents are only reported to people). nil: no seat is known to be human.
+	// Humans[i] reports whether seat i is played by a person (on equal threat Very Hard makes the
+	// person its main rival; intents are only reported to people). nil: no seat is known to be human.
 	Humans []bool
 	// Seed drives every random choice of this decision (reproducible tests and tournaments).
 	Seed uint64

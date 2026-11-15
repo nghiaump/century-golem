@@ -259,27 +259,15 @@ func immediateWin(st *sim.State, legal []sim.Action, d sim.Drawer) (sim.Action, 
 	return best, found
 }
 
-// denialTargets marks whose losses count as gains in the priors: the leader when it is close
-// (beat-the-leader); a rival also marks every person within humanEdgeMid of that bar.
+// denialTargets marks whose losses count as gains in the priors: the main rival (the leader; for
+// Very Hard a person on equal threat) when it is close. Only one seat: blocking someone who is not
+// the main threat does not help the agent win.
 func denialTargets(st *sim.State, seat int, pv *perspective, ev evaluator) [sim.MaxPlayers]bool {
 	var out [sim.MaxPlayers]bool
 	var v [sim.MaxPlayers]float64
 	ev.values(st, &v)
-	leader := -1
-	for i := 0; i < int(st.N); i++ {
-		if i != seat && (leader < 0 || v[i] > v[leader]) {
-			leader = i
-		}
-	}
-	if leader >= 0 && v[leader] >= v[seat]-2 {
-		out[leader] = true
-	}
-	if pv.kind[seat] == UtilityRival {
-		for i := 0; i < int(st.N); i++ {
-			if pv.human[i] && v[i]+humanEdgeMid >= v[seat]-2 {
-				out[i] = true
-			}
-		}
+	if r := pv.mainRival(&v, seat); r >= 0 && v[r] >= v[seat]-2 {
+		out[r] = true
 	}
 	return out
 }

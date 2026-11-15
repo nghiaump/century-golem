@@ -99,14 +99,19 @@ Bản Coalition đạt 0% nhưng là nhờ **thông đồng**. Người dùng ch
 Rival (ADR 0008): mỗi AI chơi để tự thắng, coi người mạnh hơn 3 điểm. Very Hard vẫn khó hơn Hard (21% so với 29%) mà
 không còn "biếu".
 
+Sửa đổi cùng ngày (ADR 0008, sửa đổi 2): người chơi chỉ phân định khi ngang nhau (`humanTieMid = 1`,
+`humanTieTerminal = 0.25`, denial chỉ nhắm đối thủ chính). Người proxy thắng **24.0%** [16.7–33.2] trước 3 VH; trước 3
+Hard vẫn 29.0% (Hard không đổi). Lý do sửa: với +3, AI đang thua xa vẫn bỏ lượt để lấy golem rẻ người chơi sắp lấy.
+
 Với 2 người, Rival trùng hệt BeatLeader. Đã kiểm 24 ván VH vs Hard giữa code cũ và code mới trên cùng seed, kết quả giống
 hệt, nên số 62% ở §5 vẫn đúng.
 
-Muốn khó hơn: tăng `humanEdgeMid` (`utility.go`) rồi đo lại bằng lệnh `vshuman` ở trên. Lưu ý người thật chơi khác bot
-proxy, nên cần theo dõi tỉ lệ thắng thật (§7).
+Muốn khó hơn: **không** tăng thiên vị người chơi (`humanTieMid`). Thiên vị lớn làm AI chặn người thay vì chơi để thắng,
+trái yêu cầu của người dùng. Hãy tăng sức tìm kiếm (Budget/Workers) hoặc chỉnh trọng số evaluator rồi đo lại bằng lệnh
+`vshuman` ở trên. Lưu ý người thật chơi khác bot proxy, nên cần theo dõi tỉ lệ thắng thật (§7).
 
 ## 7. Việc tiếp theo (gợi ý)
 
 - Quét tiếp ở Hard/Very Hard (Contested, Engine theo phase, Epsilon) với ngân sách thời gian.
-- Tách prior denial weight (0.5) thành tham số và đo bằng `vshuman`; thử `humanEdgeMid` 4–5 nếu Very Hard cần khó hơn.
+- Tách prior denial weight (0.5) thành tham số và đo bằng `vshuman`.
 - Theo dõi tỉ lệ thắng của người thật theo cấp (log `AI move` + kết quả ván) để chỉnh lại sau khi chạy thật.

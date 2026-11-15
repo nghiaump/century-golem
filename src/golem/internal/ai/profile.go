@@ -79,8 +79,8 @@ const (
 	// UtilityBeatLeader maximises the margin over the best other player, whoever leads.
 	UtilityBeatLeader
 	// UtilityRival plays for the AI's own win (Very Hard): the margin over the strongest rival,
-	// blended with the average one so feeding any opponent costs, with people counted a few points
-	// stronger than they are so a close person is blocked first. AIs never share a reward.
+	// blended with the average one so feeding any opponent costs. People only break ties: on
+	// equal threat the person is the main rival. AIs never share a reward.
 	UtilityRival
 )
 
