@@ -8,6 +8,7 @@ import useGameStore from '../../store/gameStore'
 import PlayerAvatar from '../PlayerAvatar'
 import AiThinkingIndicator from '../AiThinkingIndicator'
 import { getCardSpriteStyle, getCardImagePath } from '../../utils/cardNames'
+import useReopenAfterUndo from '../../hooks/useReopenAfterUndo'
 
 // ============================================
 // LAYOUT SETTINGS - Everything uses % based positioning
@@ -535,6 +536,10 @@ const MyHandCards = ({ dockPosition }) => {
   const hand = myPlayer?.hand || []
   const isMyTurn = currentPlayer?.id === myPlayer?.id
   const [hoveredIndex, setHoveredIndex] = useState(null)
+  useReopenAfterUndo(({ kind, card, cardIndex }) => {
+    if (kind === 'upgrade') showUpgradeModal(card, cardIndex)
+    else if (kind === 'trade') showTradeModal(card, cardIndex)
+  })
   
   // Handle card click - same logic as FantasyMarketArea
   const handleCardClick = (cardIndex) => {

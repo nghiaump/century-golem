@@ -50,7 +50,8 @@ Play solo against 1–4 AI opponents or with up to 5 friends, right in the brows
 
 #### 🎮 Gameplay
 - **Solo vs AI** with **4 difficulty levels** (Easy → Very Hard): Monte-Carlo tree search that reads your plan,
-  blocks the leader and, at Very Hard, treats you as its main rival — see [AI overview](docs/ai/README.md)
+  blocks the leader and, at Very Hard, makes you its main rival when you are as dangerous as the leading AI — see
+  [AI overview](docs/ai/README.md)
 - **Online multiplayer** for 2–5 players: create a room (optional custom ID) or join one from the open-room list
 - **Spectate** rooms that are already in progress
 - **Turn timer** (60 s by default); when it runs out, an AI plays the turn for you

@@ -9,8 +9,9 @@ Tuỳ biến của người dùng so với upstream: tắt đăng nhập Google 
 AI mang avatar ngẫu nhiên và tên nhân vật đó) · theme **Windows XP × brutalism** cho màn chính + màn tạo/vào phòng (+ hộp thoại kết
 nối, phòng chờ) — **bàn chơi giữ style upstream**: người dùng đã thử XP trong ván và thấy xấu · tự dọn phòng ma ·
 **luật chính thức** (hoà ⇒ ghế sau thắng, mua lá = đặt crystal bất kỳ lên lá bên trái, golem 6/5) · **AI 4 mức**
-(Easy/Medium/Hard/Very Hard; Very Hard = mỗi AI tự chơi để thắng, coi người chơi mạnh hơn vài điểm nên chặn người trước —
-**không liên minh/không "biếu" nhau**, ADR 0008) — `docs/ai/`.
+(Easy/Medium/Hard/Very Hard; Very Hard = mỗi AI tự chơi để thắng, chặn đối thủ đe doạ nhất; người chơi chỉ là đối thủ chính
+khi **ngang** AI dẫn đầu (lệch < 1 điểm) — **không liên minh/không "biếu" nhau, không chặn người chỉ để hại**, ADR 0008) ·
+rút lại nước chơi lá làm tràn >10 crystal (nút Undo ở popup discard) — `docs/ai/`.
 
 > **Máy chạy từ 2026-11-14: `pixel3xl`** — Pixel 3 XL, Ubuntu 24.04 **aarch64**, 3.5 GB RAM, Wi-Fi; `ssh ubuntu@100.71.99.38`
 > (Tailscale), repo `/home/ubuntu/ai/rename-game`, tunnel `century-tunnel` (systemd --user, linger bật), `sudo` không cần mật khẩu.

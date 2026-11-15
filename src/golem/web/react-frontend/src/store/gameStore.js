@@ -4,6 +4,7 @@ import { getClientIDFromCookie, apiFetch } from '../utils/api';
 import { showToast } from '../utils/toast';
 import { restedCards } from '../utils/rest';
 import { resolveAvatarId } from '../utils/avatar';
+import { resolveUndo } from '../utils/undo';
 
 const logger = createLogger('GameStore');
 
@@ -48,6 +49,9 @@ const useGameStore = create((set, get) => ({
   acquiringCardIds: [], // Array of card IDs that are being acquired (for animation)
   acquiredCardOverlay: null, // { card, type: 'market'|'golem', playerName } for overlay animation
   restPopup: null, // { id, playerName, avatarId, cards } — short popup when an opponent rests
+  lastPlay: null, // { kind: 'produce'|'upgrade'|'trade', card, cardIndex } — my last card play (for undo)
+  pendingUndo: null, // lastPlay at the time "Undo" was sent, until the server's answer arrives
+  reopenPlay: null, // the play to reopen the picker for after an undo (useReopenAfterUndo)
   
   // Sound settings
   soundsMuted: typeof window !== 'undefined' ? localStorage.getItem('gameSoundsMuted') === 'true' : false,
@@ -363,6 +367,13 @@ const useGameStore = create((set, get) => ({
           }
         }
 
+        // Undo of an overflowing card play went through: the card is back in hand and nothing is
+        // pending. Drop the play from my history and reopen its picker.
+        const undone = resolveUndo(get().pendingUndo, myPlayer, get().actionHistory)
+        if (undone) {
+          set({ pendingUndo: null, lastPlay: null, ...undone })
+        }
+
         // Update state immediately - we'll keep acquiring cards visible in render
         set({
           gameState: message,
@@ -557,7 +568,7 @@ const useGameStore = create((set, get) => ({
       sessionId: null, playerId: null, spectatorId: null, isSpectator: false,
       gameState: null, previousGameState: null, currentPlayer: null, myPlayer: null, opponents: [],
       roundNumber: 0, selectedCard: null, actionHistory: [], acquiringCardIds: [], acquiredCardOverlay: null,
-      restPopup: null,
+      restPopup: null, lastPlay: null, pendingUndo: null, reopenPlay: null,
     });
   },
 
@@ -625,6 +636,7 @@ const useGameStore = create((set, get) => ({
     const { myPlayer } = get();
     const cardData = card || myPlayer?.hand?.[cardIndex];
     get().sendAction("playCard", cardIndex);
+    set({ lastPlay: { kind: 'produce', card: cardData, cardIndex } });
     logger.info(`Playing card from hand`);
     get().addActionToHistory({
       type: 'play',
@@ -638,6 +650,7 @@ const useGameStore = create((set, get) => ({
     const { myPlayer } = get();
     const cardData = card || myPlayer?.hand?.[cardIndex];
     get().sendAction("playCard", cardIndex, inputResources, outputResources);
+    set({ lastPlay: { kind: 'upgrade', card: cardData, cardIndex } });
     logger.info(`Playing upgrade card`);
     get().addActionToHistory({
       type: 'upgrade',
@@ -657,6 +670,7 @@ const useGameStore = create((set, get) => ({
     const { myPlayer } = get();
     const cardData = card || myPlayer?.hand?.[cardIndex];
     get().sendAction("playCard", cardIndex, null, null, multiplier);
+    set({ lastPlay: { kind: 'trade', card: cardData, cardIndex } });
     logger.info(`Playing trade card (x${multiplier})`);
     get().addActionToHistory({
       type: 'trade',
@@ -714,6 +728,18 @@ const useGameStore = create((set, get) => ({
       card: null,
     });
   },
+
+  // Take back the card play that overflowed the caravan (server: only before the discard, only
+  // card plays). The next state brings the card back; see pendingUndo in the state handler.
+  undoPlay: () => {
+    const { ws, lastPlay } = get()
+    if (!ws || ws.readyState !== WebSocket.OPEN) return
+    ws.send(JSON.stringify({ type: 'action', actionType: 'undo' }))
+    set({ pendingUndo: lastPlay || { kind: null, card: null, cardIndex: null } })
+    logger.info('Undo last card play')
+  },
+
+  consumeReopenPlay: () => set({ reopenPlay: null }),
 
   discardCrystals: (discard) => {
     const { ws, myPlayer } = get()

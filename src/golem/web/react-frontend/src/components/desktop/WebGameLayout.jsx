@@ -16,6 +16,7 @@ import ConfirmGolemModal from '../ConfirmGolemModal'
 import AcquiredCardOverlay from '../AcquiredCardOverlay'
 import CollapsibleInfo from '../CollapsibleInfo'
 import { showToast } from '../../utils/toast'
+import useReopenAfterUndo from '../../hooks/useReopenAfterUndo'
 
 const WebGameLayout = () => {
   const {
@@ -38,6 +39,12 @@ const WebGameLayout = () => {
   const [upgradeModal, setUpgradeModal] = useState({ show: false, card: null, index: null })
   const [tradeModal, setTradeModal] = useState({ show: false, card: null, index: null })
   const [confirmGolem, setConfirmGolem] = useState({ show: false, golem: null, index: null })
+
+  // "Undo" in the discard popup: reopen the picker the card was played with
+  useReopenAfterUndo(({ kind, card, cardIndex }) => {
+    if (kind === 'upgrade') setUpgradeModal({ show: true, card, index: cardIndex })
+    else if (kind === 'trade') setTradeModal({ show: true, card, index: cardIndex })
+  })
 
   // Timer state
   const turnTimeLimit = gameState?.turnTimeout || 60

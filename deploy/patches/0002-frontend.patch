@@ -33,16 +33,18 @@
  
 --- a/web/react-frontend/src/components/desktop/FantasyGameLayout.jsx
 +++ b/web/react-frontend/src/components/desktop/FantasyGameLayout.jsx
-@@ -5,6 +5,8 @@
+@@ -5,7 +5,10 @@
  import AcquiredCardOverlay from '../AcquiredCardOverlay'
  import GameOverModal from '../GameOverModal'
  import useGameStore from '../../store/gameStore'
 +import PlayerAvatar from '../PlayerAvatar'
 +import AiThinkingIndicator from '../AiThinkingIndicator'
  import { getCardSpriteStyle, getCardImagePath } from '../../utils/cardNames'
++import useReopenAfterUndo from '../../hooks/useReopenAfterUndo'
  
  // ============================================
-@@ -116,7 +118,7 @@
+ // LAYOUT SETTINGS - Everything uses % based positioning
+@@ -116,7 +119,7 @@
            {/* Top row: Name & Golem count */}
            <div className="flex items-start justify-between mb-1">
              <div className="flex items-center gap-1 flex-wrap">
@@ -51,7 +53,18 @@
                <span className="text-white font-bold text-sm" style={{ textShadow: '0 0 4px #000, 0 0 8px #000, 1px 1px 2px #000' }}>
                  {player.name || 'Player'}
                </span>
-@@ -719,7 +721,12 @@
+@@ -533,6 +536,10 @@
+   const hand = myPlayer?.hand || []
+   const isMyTurn = currentPlayer?.id === myPlayer?.id
+   const [hoveredIndex, setHoveredIndex] = useState(null)
++  useReopenAfterUndo(({ kind, card, cardIndex }) => {
++    if (kind === 'upgrade') showUpgradeModal(card, cardIndex)
++    else if (kind === 'trade') showTradeModal(card, cardIndex)
++  })
+   
+   // Handle card click - same logic as FantasyMarketArea
+   const handleCardClick = (cardIndex) => {
+@@ -719,7 +726,12 @@
                  {currentPlayer?.id === myPlayer?.id ? (
                    <span className="text-green-400 font-bold">Your Turn</span>
                  ) : (
@@ -78,9 +91,24 @@
  import GraveyardPanel from '../GraveyardPanel'
  import MyGolemsPanel from '../MyGolemsPanel'
  import HistorySection from '../HistorySection'
-@@ -36,8 +40,8 @@
+@@ -12,6 +16,7 @@
+ import AcquiredCardOverlay from '../AcquiredCardOverlay'
+ import CollapsibleInfo from '../CollapsibleInfo'
+ import { showToast } from '../../utils/toast'
++import useReopenAfterUndo from '../../hooks/useReopenAfterUndo'
+ 
+ const WebGameLayout = () => {
+   const {
+@@ -35,9 +40,15 @@
+   const [tradeModal, setTradeModal] = useState({ show: false, card: null, index: null })
    const [confirmGolem, setConfirmGolem] = useState({ show: false, golem: null, index: null })
  
++  // "Undo" in the discard popup: reopen the picker the card was played with
++  useReopenAfterUndo(({ kind, card, cardIndex }) => {
++    if (kind === 'upgrade') setUpgradeModal({ show: true, card, index: cardIndex })
++    else if (kind === 'trade') setTradeModal({ show: true, card, index: cardIndex })
++  })
++
    // Timer state
 -  const [turnTimeRemaining, setTurnTimeRemaining] = useState(60)
 -  const turnTimeLimit = 60
@@ -89,7 +117,7 @@
  
    // Timer effect - reset when current player changes
    useEffect(() => {
-@@ -116,12 +120,8 @@
+@@ -116,12 +127,8 @@
      if (isSpectator || !myPlayer?.caravan) return false
      // Empty cost or no cost = always affordable
      if (!cost || Object.keys(cost).length === 0) return true
@@ -104,7 +132,7 @@
    }
  
    const canClaimPointCard = (card) => {
-@@ -255,10 +255,12 @@
+@@ -255,10 +262,12 @@
            </div>
          )}
  
@@ -120,7 +148,7 @@
                {/* In waiting mode, don't highlight current player (currentPlayer is 0/null) */}
                <PlayerCard player={player} isCurrentPlayer={!isWaiting && currentPlayer?.id === player.id} />
              </div>
-@@ -267,43 +269,8 @@
+@@ -267,43 +276,8 @@
  
          {/* Waiting Mode UI - spans rows 2-4 */}
          {isWaiting && (
@@ -166,7 +194,7 @@
            </div>
          )}
  
-@@ -476,9 +443,10 @@
+@@ -476,9 +450,10 @@
                    <div className="flex items-center gap-3">
                      {/* Avatar & Name */}
                      <div className="flex items-center gap-2">
@@ -180,7 +208,7 @@
                        <div className="text-white font-bold text-sm">{myPlayer?.name || 'You'}</div>
                      </div>
  
-@@ -533,7 +501,11 @@
+@@ -533,7 +508,11 @@
                          Your Turn
                        </div>
                      ) : (
@@ -220,6 +248,55 @@
 +}
 +
 +export default DifficultyBadge
+--- a/web/react-frontend/src/components/DiscardModal.jsx
++++ b/web/react-frontend/src/components/DiscardModal.jsx
+@@ -5,7 +5,7 @@
+ import useOrientation from '../hooks/useOrientation'
+ 
+ const DiscardModal = () => {
+-  const { myPlayer, discardCrystals } = useGameStore()
++  const { myPlayer, discardCrystals, undoPlay } = useGameStore()
+   const { isMobile, isPortrait } = useOrientation()
+   const [discardCounts, setDiscardCounts] = useState({
+     yellow: 0,
+@@ -45,6 +45,11 @@
+     })
+   }
+ 
++  const handleUndo = () => {
++    setDiscardCounts({ yellow: 0, green: 0, blue: 0, pink: 0 })
++    undoPlay()
++  }
++
+   const handleConfirm = () => {
+     const total = discardCounts.yellow + discardCounts.green + discardCounts.blue + discardCounts.pink
+     if (total === pending && total > 0) {
+@@ -210,6 +215,25 @@
+               : `Select ${remaining} more crystal${remaining !== 1 ? 's' : ''}`
+             }
+           </motion.button>
++
++          {/* Take the overflowing card play back (e.g. trade multiplier one too high) */}
++          {myPlayer.canUndo && (
++            <button
++              type="button"
++              onClick={(e) => {
++                e.preventDefault()
++                e.stopPropagation()
++                handleUndo()
++              }}
++              className={`
++                w-full mt-2 rounded-lg border-2 border-gray-300 bg-white text-gray-700 font-semibold
++                hover:bg-gray-100 transition-colors
++                ${isMobile ? 'py-2 px-4 text-sm' : 'py-3 px-6'}
++              `}
++            >
++              ↩ Undo — take the card back
++            </button>
++          )}
+         </motion.div>
+       </motion.div>
+     </AnimatePresence>,
 --- a/web/react-frontend/src/components/FantasyMarketArea.jsx
 +++ b/web/react-frontend/src/components/FantasyMarketArea.jsx
 @@ -213,12 +213,10 @@
@@ -996,14 +1073,30 @@
    const canClaimPointCard = (card) => {
 --- a/web/react-frontend/src/components/mobile/CompactPlayerHand.jsx
 +++ b/web/react-frontend/src/components/mobile/CompactPlayerHand.jsx
-@@ -1,5 +1,6 @@
+@@ -1,9 +1,11 @@
  import React, { useState, useEffect, useRef } from 'react'
  import useGameStore from '../../store/gameStore'
 +import PlayerAvatar from '../PlayerAvatar'
  import useOrientation from '../../hooks/useOrientation'
  import CompactCard from '../CompactCard'
  import UpgradeModal from '../UpgradeModal'
-@@ -119,12 +120,13 @@
+ import TradeModal from '../TradeModal'
++import useReopenAfterUndo from '../../hooks/useReopenAfterUndo'
+ import PlayedCardsView from '../PlayedCardsView'
+ 
+ const CompactPlayerHand = () => {
+@@ -11,6 +13,10 @@
+   const { isMobile, isPortrait, height } = useOrientation()
+   const [upgradeModal, setUpgradeModal] = useState({ show: false, card: null, index: null })
+   const [tradeModal, setTradeModal] = useState({ show: false, card: null, index: null })
++  useReopenAfterUndo(({ kind, card, cardIndex }) => {
++    if (kind === 'upgrade') setUpgradeModal({ show: true, card, index: cardIndex })
++    else if (kind === 'trade') setTradeModal({ show: true, card, index: cardIndex })
++  })
+   const [showPlayedCards, setShowPlayedCards] = useState(false)
+   const [showMyGolems, setShowMyGolems] = useState(false)
+   const [rowHeight, setRowHeight] = useState(null)
+@@ -119,12 +125,13 @@
            <div className="flex-shrink-0 bg-black/50 rounded-lg p-2 flex flex-col justify-center gap-1.5 min-w-[80px]">
              {/* Row 1: Avatar + Name + Points */}
              <div className="flex items-center gap-2">
@@ -1023,7 +1116,7 @@
                <div className="flex flex-col">
                  <span className="text-white text-[11px] font-medium">{myPlayer.name || 'Player'}</span>
                  <span className="text-yellow-400 text-[11px] font-bold">★ {myPlayer.points || 0}</span>
-@@ -185,9 +187,10 @@
+@@ -185,9 +192,10 @@
            `}>
              {/* Avatar & Name */}
              <div className="flex items-center gap-2">
@@ -1630,6 +1723,41 @@
        title={soundsMuted ? 'Unmute sounds' : 'Mute sounds'}
        aria-label={soundsMuted ? 'Unmute sounds' : 'Mute sounds'}
      >
+--- a/web/react-frontend/src/components/__tests__/DiscardModal.test.jsx
++++ b/web/react-frontend/src/components/__tests__/DiscardModal.test.jsx
+@@ -0,0 +1,32 @@
++import React from 'react'
++import { render, screen, fireEvent, cleanup, act } from '@testing-library/react'
++import { describe, test, expect, vi, afterEach } from 'vitest'
++
++import DiscardModal from '../DiscardModal'
++import useGameStore from '../../store/gameStore'
++
++const me = (extra) => ({ id: 2, hand: [], caravan: { yellow: 9, green: 3, blue: 0, pink: 0 }, pendingDiscard: 2, ...extra })
++
++describe('DiscardModal undo', () => {
++  afterEach(() => {
++    cleanup()
++    act(() => useGameStore.setState({ myPlayer: null, ws: null, pendingUndo: null, lastPlay: null }))
++  })
++
++  test('offers undo when the server allows it and sends an undo action', () => {
++    const send = vi.fn()
++    const lastPlay = { kind: 'trade', card: { id: 43 }, cardIndex: 0 }
++    act(() => useGameStore.setState({ myPlayer: me({ canUndo: true }), ws: { readyState: 1, send }, lastPlay }))
++    render(<DiscardModal />)
++    fireEvent.click(screen.getByRole('button', { name: /undo/i }))
++    expect(JSON.parse(send.mock.calls[0][0])).toEqual({ type: 'action', actionType: 'undo' })
++    expect(useGameStore.getState().pendingUndo).toEqual(lastPlay)
++  })
++
++  test('no undo button for a purchase that overflowed', () => {
++    act(() => useGameStore.setState({ myPlayer: me({ canUndo: false }) }))
++    render(<DiscardModal />)
++    expect(screen.getByText(/Too Many Crystals/)).toBeTruthy()
++    expect(screen.queryByRole('button', { name: /undo/i })).toBeNull()
++  })
++})
 --- a/web/react-frontend/src/components/__tests__/RestPopup.test.jsx
 +++ b/web/react-frontend/src/components/__tests__/RestPopup.test.jsx
 @@ -0,0 +1,43 @@
@@ -1824,6 +1952,23 @@
 +)
 +
 +export default XpWindow
+--- a/web/react-frontend/src/hooks/useReopenAfterUndo.js
++++ b/web/react-frontend/src/hooks/useReopenAfterUndo.js
+@@ -0,0 +1,14 @@
++import { useEffect } from 'react'
++import useGameStore from '../store/gameStore'
++
++// After "Undo" in the discard popup the card is back in hand: reopen the picker the player used
++// (trade multiplier / upgrade choice) so they can choose again. open({ kind, card, cardIndex }).
++export default function useReopenAfterUndo(open) {
++  const reopenPlay = useGameStore((s) => s.reopenPlay)
++  useEffect(() => {
++    if (!reopenPlay) return
++    useGameStore.getState().consumeReopenPlay()
++    open(reopenPlay)
++    // eslint-disable-next-line react-hooks/exhaustive-deps
++  }, [reopenPlay])
++}
 --- a/web/react-frontend/src/main.jsx
 +++ b/web/react-frontend/src/main.jsx
 @@ -4,6 +4,7 @@
@@ -2335,24 +2480,28 @@
      </ThemeProvider>
 --- a/web/react-frontend/src/store/gameStore.js
 +++ b/web/react-frontend/src/store/gameStore.js
-@@ -2,6 +2,8 @@
+@@ -2,6 +2,9 @@
  import { createLogger } from '../utils/logger';
  import { getClientIDFromCookie, apiFetch } from '../utils/api';
  import { showToast } from '../utils/toast';
 +import { restedCards } from '../utils/rest';
 +import { resolveAvatarId } from '../utils/avatar';
++import { resolveUndo } from '../utils/undo';
  
  const logger = createLogger('GameStore');
  
-@@ -45,6 +47,7 @@
+@@ -45,6 +48,10 @@
    tradeModalCardIndex: null, // Card index for trade modal
    acquiringCardIds: [], // Array of card IDs that are being acquired (for animation)
    acquiredCardOverlay: null, // { card, type: 'market'|'golem', playerName } for overlay animation
 +  restPopup: null, // { id, playerName, avatarId, cards } — short popup when an opponent rests
++  lastPlay: null, // { kind: 'produce'|'upgrade'|'trade', card, cardIndex } — my last card play (for undo)
++  pendingUndo: null, // lastPlay at the time "Undo" was sent, until the server's answer arrives
++  reopenPlay: null, // the play to reopen the picker for after an undo (useReopenAfterUndo)
    
    // Sound settings
    soundsMuted: typeof window !== 'undefined' ? localStorage.getItem('gameSoundsMuted') === 'true' : false,
-@@ -65,10 +68,13 @@
+@@ -65,10 +72,13 @@
        set({ connectionTimeoutId: null });
      }
  
@@ -2367,7 +2516,7 @@
      });
  
      // In development with Vite, always connect to the dev server (localhost:3000)
-@@ -321,9 +327,7 @@
+@@ -321,9 +331,7 @@
              if (prevOpponent) {
                const prevPlayedCount = prevOpponent.playedCards?.length || 0
                const currentPlayedCount = currentOpponent.playedCards?.length || 0
@@ -2378,7 +2527,7 @@
                // If opponent played a new card
                if (currentPlayedCount > prevPlayedCount && currentOpponent.id !== currentPlayerId) {
                  // Get the newly played card (last card in playedCards)
-@@ -343,9 +347,10 @@
+@@ -343,9 +351,10 @@
                  }
                }
                
@@ -2392,7 +2541,21 @@
                  get().addActionToHistory({
                    type: 'rest',
                    playerName: currentOpponent.name,
-@@ -376,6 +381,17 @@
+@@ -358,6 +367,13 @@
+           }
+         }
+ 
++        // Undo of an overflowing card play went through: the card is back in hand and nothing is
++        // pending. Drop the play from my history and reopen its picker.
++        const undone = resolveUndo(get().pendingUndo, myPlayer, get().actionHistory)
++        if (undone) {
++          set({ pendingUndo: null, lastPlay: null, ...undone })
++        }
++
+         // Update state immediately - we'll keep acquiring cards visible in render
+         set({
+           gameState: message,
+@@ -376,6 +392,17 @@
              logger.info(`${currentPlayer.name}'s turn`);
            }
          }
@@ -2410,7 +2573,7 @@
        } else if (message.type === "chat") {
          // Handle chat message from server
          if (get().onChatMessage) {
-@@ -521,6 +537,30 @@
+@@ -521,6 +548,30 @@
      get().connectWebSocket(sessionId, playerName, playerAvatar, isSpectator);
    },
  
@@ -2434,14 +2597,57 @@
 +      sessionId: null, playerId: null, spectatorId: null, isSpectator: false,
 +      gameState: null, previousGameState: null, currentPlayer: null, myPlayer: null, opponents: [],
 +      roundNumber: 0, selectedCard: null, actionHistory: [], acquiringCardIds: [], acquiredCardOverlay: null,
-+      restPopup: null,
++      restPopup: null, lastPlay: null, pendingUndo: null, reopenPlay: null,
 +    });
 +  },
 +
    // Cancel reconnection attempt
    cancelReconnect: () => {
      const timeoutId = get().reconnectTimeoutId;
-@@ -802,6 +842,16 @@
+@@ -585,6 +636,7 @@
+     const { myPlayer } = get();
+     const cardData = card || myPlayer?.hand?.[cardIndex];
+     get().sendAction("playCard", cardIndex);
++    set({ lastPlay: { kind: 'produce', card: cardData, cardIndex } });
+     logger.info(`Playing card from hand`);
+     get().addActionToHistory({
+       type: 'play',
+@@ -598,6 +650,7 @@
+     const { myPlayer } = get();
+     const cardData = card || myPlayer?.hand?.[cardIndex];
+     get().sendAction("playCard", cardIndex, inputResources, outputResources);
++    set({ lastPlay: { kind: 'upgrade', card: cardData, cardIndex } });
+     logger.info(`Playing upgrade card`);
+     get().addActionToHistory({
+       type: 'upgrade',
+@@ -617,6 +670,7 @@
+     const { myPlayer } = get();
+     const cardData = card || myPlayer?.hand?.[cardIndex];
+     get().sendAction("playCard", cardIndex, null, null, multiplier);
++    set({ lastPlay: { kind: 'trade', card: cardData, cardIndex } });
+     logger.info(`Playing trade card (x${multiplier})`);
+     get().addActionToHistory({
+       type: 'trade',
+@@ -675,6 +729,18 @@
+     });
+   },
+ 
++  // Take back the card play that overflowed the caravan (server: only before the discard, only
++  // card plays). The next state brings the card back; see pendingUndo in the state handler.
++  undoPlay: () => {
++    const { ws, lastPlay } = get()
++    if (!ws || ws.readyState !== WebSocket.OPEN) return
++    ws.send(JSON.stringify({ type: 'action', actionType: 'undo' }))
++    set({ pendingUndo: lastPlay || { kind: null, card: null, cardIndex: null } })
++    logger.info('Undo last card play')
++  },
++
++  consumeReopenPlay: () => set({ reopenPlay: null }),
++
+   discardCrystals: (discard) => {
+     const { ws, myPlayer } = get()
+     if (!ws || ws.readyState !== WebSocket.OPEN) return
+@@ -802,6 +868,16 @@
      }, 2000)
    },
  
@@ -3005,5 +3211,50 @@
 +    expect(restedCards(p(4, 2), p(5, 2))).toBe(0) // acquired a card
 +    expect(restedCards(p(4, 0), p(4, 0))).toBe(0) // nothing played, nothing to take back
 +    expect(restedCards(null, p(4, 0))).toBe(0)
++  })
++})
+--- a/web/react-frontend/src/utils/undo.js
++++ b/web/react-frontend/src/utils/undo.js
+@@ -0,0 +1,13 @@
++// Reconciles an "Undo" sent from the discard popup with the next state from the server.
++// pendingUndo: { kind, card, cardIndex } of the play being taken back; me: my player in the new
++// state; history: actionHistory (newest first). Returns null while the server has not answered
++// (a discard is still pending), else { reopenPlay, actionHistory } to store.
++export function resolveUndo(pendingUndo, me, history = []) {
++  if (!pendingUndo || !me || me.pendingDiscard > 0) return null
++  const back = !!pendingUndo.card && me.hand?.[pendingUndo.cardIndex]?.id === pendingUndo.card.id
++  const top = history[0]
++  return {
++    reopenPlay: back && (pendingUndo.kind === 'trade' || pendingUndo.kind === 'upgrade') ? pendingUndo : null,
++    actionHistory: back && top && !top.isOpponent && top.card?.id === pendingUndo.card.id ? history.slice(1) : history,
++  }
++}
+--- a/web/react-frontend/src/utils/undo.test.js
++++ b/web/react-frontend/src/utils/undo.test.js
+@@ -0,0 +1,26 @@
++import { describe, test, expect } from 'vitest'
++import { resolveUndo } from './undo'
++
++const trade = { id: 43, actionType: 2 }
++const pending = { kind: 'trade', card: trade, cardIndex: 1 }
++
++describe('resolveUndo', () => {
++  test('waits while the discard is still pending', () => {
++    expect(resolveUndo(pending, { pendingDiscard: 2, hand: [] })).toBeNull()
++    expect(resolveUndo(null, { pendingDiscard: 0, hand: [] })).toBeNull()
++  })
++  test('card back in hand: reopen the trade picker and drop the play from history', () => {
++    const history = [{ type: 'trade', card: trade }, { type: 'play', card: { id: 7 }, isOpponent: true }]
++    const out = resolveUndo(pending, { pendingDiscard: 0, hand: [{ id: 1 }, trade] }, history)
++    expect(out.reopenPlay).toBe(pending)
++    expect(out.actionHistory).toEqual([history[1]])
++  })
++  test('produce cards just go back to hand; history kept when the card is not back', () => {
++    const produce = { kind: 'produce', card: { id: 501 }, cardIndex: 0 }
++    expect(resolveUndo(produce, { pendingDiscard: 0, hand: [{ id: 501 }] }).reopenPlay).toBeNull()
++    const history = [{ type: 'trade', card: trade }]
++    const out = resolveUndo(pending, { pendingDiscard: 0, hand: [{ id: 1 }] }, history)
++    expect(out.reopenPlay).toBeNull()
++    expect(out.actionHistory).toBe(history)
 +  })
 +})

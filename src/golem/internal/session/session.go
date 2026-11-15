@@ -96,6 +96,7 @@ type GameSession struct {
 	humans         []bool                               // seats played by people
 	seed           int64                                // game seed (reproducible AI randomness)
 	stepSeq        uint64                               // bumped on every applied step; stale AI results are dropped
+	undo           *undoPoint                           // a person's overflowing card play that can still be taken back
 	aiJob          *aiJob                               // in-flight AI decision, if any
 	aiResults      chan aiResult                        // AI goroutine -> game loop
 	ctx            context.Context                      // cancelled by Close (stops searches)
@@ -107,6 +108,7 @@ type PlayerAction struct {
 	PlayerID int
 	ClientID string
 	Action   game.Action
+	Undo     bool // take back the card play still waiting for a discard (Action unused)
 }
 
 // NewGameSession creates a new game session
@@ -835,7 +837,10 @@ func (gs *GameSession) handlePlayerAction(clientID string, req map[string]any) {
 	}
 
 	var gameAction game.Action
+	undo := false
 	switch actionTypeStr {
+	case "undo":
+		undo = true
 	case "playCard":
 		gameAction = game.Action{
 			Type:            game.PlayCard,
@@ -890,6 +895,7 @@ func (gs *GameSession) handlePlayerAction(clientID string, req map[string]any) {
 		PlayerID: playerID,
 		ClientID: clientID,
 		Action:   gameAction,
+		Undo:     undo,
 	}:
 	case <-gs.stop: // session closed: drop the action instead of blocking forever
 	default: // the loop is far behind (flooding client): tell the sender instead of blocking
@@ -1327,6 +1333,7 @@ func (gs *GameSession) serializeState() map[string]interface{} {
 			"aiLevel":        gs.aiLevelOf(p.ID),
 			"aiAvatar":       aiAvatar,
 			"pendingDiscard": p.PendingDiscard,
+			"canUndo":        gs.canUndoLocked(p.ID), // may take back the play that overflowed (DiscardModal)
 			"joinedAt":       joinedAt,
 			"online":         pi != nil || p.IsAI,
 		}

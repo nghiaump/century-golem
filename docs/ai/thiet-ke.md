@@ -67,9 +67,11 @@ Trọng số hiện tại: xem `DefaultWeights` và lịch sử ở [`tinh-chinh
 
 Reward mỗi ghế trong [0,1] = σ(x/scale), scale 6 giữa ván, 2.5 khi ván kết thúc (điểm chính xác):
 Own `x = v_i − mean(v_đối thủ)` · BeatLeader `x = v_i − max(v_đối thủ)` ·
-Rival (Very Hard) giữa ván `x = v_i − (0.7·max e_j + 0.3·mean e_j)` với `e_j = v_j + 3` nếu j là người, `v_j` nếu là AI;
-cuối ván Rival: thắng ⇒ `x = max(0.5, v_i − max v_j)`, thua ⇒ `x = min(−0.5, v_i − max(v_j + 1·người))` (thắng luôn hơn
-thua; thua người tệ hơn thua AI một chút). Hằng số `humanEdgeMid/humanEdgeTerminal/rivalLeadShare` ở đầu `utility.go`.
+Rival (Very Hard) giữa ván `x = v_i − (0.7·max e_j + 0.3·mean e_j)` với `e_j = v_j + 1` nếu j là người, `v_j` nếu là AI
+(+1 chỉ để **phân định khi ngang nhau**: người và AI mạnh nhất lệch dưới 1 điểm ⇒ người là đối thủ chính; AI dẫn rõ vẫn
+là đối thủ chính); cuối ván Rival: thắng ⇒ `x = max(0.5, v_i − max v_j)`, thua ⇒ `x = min(−0.5, v_i − max(v_j + 0.25·người))`
+(thắng luôn hơn thua; 0.25 < 1 điểm nên chỉ phân định hai đối thủ bằng điểm). Hằng số `humanTieMid/humanTieTerminal/
+rivalLeadShare` ở đầu `utility.go`. Trước 2026-11-15 là +3/+1 — xem ADR 0008 (sửa đổi).
 Hoà (x = 0) ở cuối ván được giải theo luật ghế sau. Góc nhìn (`perspective`): Easy/Medium coi mọi ghế là Own; Hard coi mọi
 ghế là BeatLeader; Very Hard: AI khác = Rival (đối thủ như mình), người = BeatLeader; không biết ai là người
 (`DecideOptions.Humans` nil, vd giải đấu 2 bot) ⇒ Rival không cộng edge — với 2 người trùng hệt BeatLeader.
@@ -79,7 +81,9 @@ ghế là BeatLeader; Very Hard: AI khác = Rival (đối thủ như mình), ng�
 ## 6. MCTS (`mcts.go`, `search_agent.go`)
 
 - Mỗi worker một `tree` (node trong slice, nối bằng chỉ số `first/next`, ~64 B/node, cap `AI_MAX_NODES`), RNG PCG riêng.
-- Iteration: copy state gốc → đi xuống: nút chưa mở ⇒ `expand` (prior = softmax(điểm evaluator sau nước + denial, τ=1));
+- Iteration: copy state gốc → đi xuống: nút chưa mở ⇒ `expand` (prior = softmax(điểm evaluator sau nước + denial, τ=1);
+  denial chỉ nhắm **một** ghế — đối thủ chính `perspective.mainRival`: người dẫn đầu, với Very Hard người chơi thay chỗ khi
+  lệch AI mạnh nhất dưới `humanTieMid` — và chỉ khi ghế đó không kém mình quá 2 điểm);
   nút đã mở ⇒ thêm con cho nước mới xuất hiện do refill khác (prior nhỏ) → chọn PUCT trên các con **hợp lệ ở iteration này**
   (`avail++`, `U = c·prior·√avail/(1+visits)`, FPU = Q cha − 0.1) → tới nút mới ⇒ rollout → backup vector reward.
 - Rollout: `RolloutTurns` vòng nước ε-greedy theo `fastScore` (claim > tăng level > mua lá tốt; phạt tràn caravan), gần cuối
@@ -106,6 +110,8 @@ ghế là BeatLeader; Very Hard: AI khác = Rival (đối thủ như mình), ng�
 | S→C | `state.{mode, turnTimeout, golemsToEnd, aiThinking}` | `aiThinking` = `{playerID, level, timeout}` hoặc `null` |
 | S→C | `state.market.actionCards[].placeCrystals` | số crystal phải đặt (luật chính thức) |
 | S→C | waiting state: `mode`, `numPlayers`, dòng AI `{isAI, aiLevel, aiIndex}` | phòng chờ hiện AI |
+| S→C | `state.players[].canUndo` | người này vừa chơi lá làm tràn >10 crystal và chưa discard ⇒ được rút lại |
+| C→S | `{type:"action", actionType:"undo"}` | rút lại nước chơi lá đó (chỉ lá bài, không phải mua bài — mua bài lật lá mới từ deck); event log ghi `type -2` |
 
 ## 9. Thêm cấp/thử nghiệm mới
 

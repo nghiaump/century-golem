@@ -5,6 +5,7 @@ import useOrientation from '../../hooks/useOrientation'
 import CompactCard from '../CompactCard'
 import UpgradeModal from '../UpgradeModal'
 import TradeModal from '../TradeModal'
+import useReopenAfterUndo from '../../hooks/useReopenAfterUndo'
 import PlayedCardsView from '../PlayedCardsView'
 
 const CompactPlayerHand = () => {
@@ -12,6 +13,10 @@ const CompactPlayerHand = () => {
   const { isMobile, isPortrait, height } = useOrientation()
   const [upgradeModal, setUpgradeModal] = useState({ show: false, card: null, index: null })
   const [tradeModal, setTradeModal] = useState({ show: false, card: null, index: null })
+  useReopenAfterUndo(({ kind, card, cardIndex }) => {
+    if (kind === 'upgrade') setUpgradeModal({ show: true, card, index: cardIndex })
+    else if (kind === 'trade') setTradeModal({ show: true, card, index: cardIndex })
+  })
   const [showPlayedCards, setShowPlayedCards] = useState(false)
   const [showMyGolems, setShowMyGolems] = useState(false)
   const [rowHeight, setRowHeight] = useState(null)

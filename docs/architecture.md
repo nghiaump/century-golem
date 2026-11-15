@@ -91,7 +91,7 @@ internal/ai: agent theo ghế (Easy 1-ply · Medium/Hard/Very Hard MCTS ensemble
 | POST | `/api/single` | `{numAI: 1..4, difficulty?: easy\|medium\|hard\|veryhard (mặc định medium), aiLevels?: [...], turnTimeout?, sessionID?}` → `{sessionID: "single_<ns>", difficulty, aiLevels, …}`; difficulty lạ ⇒ 400; ID tự đặt bị ép tiền tố `single_` |
 | POST | `/api/join` | vào phòng |
 | POST | `/api/sessions/start` | `{sessionID}` bắt đầu ván |
-| WS | `/ws?session=&name=&avatar=[&spectate=true][&clientID=]` | kênh chơi; message `state`, `playerAssigned`, `aiThinking`, `aiIntent`, `turnTimeout`, ... (bảng field: `docs/ai/thiet-ke.md` §8) |
+| WS | `/ws?session=&name=&avatar=[&spectate=true][&clientID=]` | kênh chơi; message `state`, `playerAssigned`, `aiThinking`, `aiIntent`, `turnTimeout`, ...; client gửi `action` (`playCard`, `acquireCard`, `claimPointCard`, `rest`, `discard`, `undo`) (bảng field: `docs/ai/thiet-ke.md` §8) |
 | GET | `/api/games`, `/api/events?gameId=`, `/api/snapshot?gameId=`, `/admin/sessions/state?sessionId=` | xem lịch sử — **công khai, không auth** (như upstream); ván còn đang chơi ⇒ deck trả theo thứ tự ID (ẩn thứ tự thật) |
 | — | `/auth/*` | chỉ đăng ký khi bật Firebase; hiện trả 404 (đúng ý) |
 

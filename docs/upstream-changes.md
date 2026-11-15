@@ -100,6 +100,21 @@ vòng lặp 100ms chạy tới hết ván rồi object nằm trong RAM mãi.
 - `DecideOptions.Teams []int` → `Humans []bool` (session `gs.humans`, arena `PlayGame(..., humans)`); bỏ field `coalition`
   ở response `/api/single`, state ván và state phòng chờ; `aibench coalition` → `aibench vshuman`; smoke-test kiểm `aiLevels`.
 - Test mới `ai/utility_test.go` (biếu AI khác bị trừ, chặn người được ưu tiên, thứ tự thắng/thua cuối ván).
+- Sửa đổi cùng ngày (ADR 0008, sửa đổi 2): người chơi chỉ **phân định khi ngang nhau** (`humanTieMid = 1`,
+  `humanTieTerminal = 0.25`); denial prior chỉ nhắm một ghế (`perspective.mainRival`). Test
+  `TestRivalUtility_PersonIsMainRivalOnlyOnATie`, `TestPerspective_MainRival`. Người proxy vs 3 VH: 24% (trước 21%).
+
+### Rút lại nước chơi lá làm tràn crystal (2026-11-15, theo yêu cầu người dùng)
+Chọn nhầm hệ số trade (x3 thay vì x2, vẫn hợp lệ) làm vượt 10 crystal thì upstream chuyển thẳng sang popup "Too Many
+Crystals!" và không quay lại được.
+- Backend `session/undo.go`: khi **người** chơi lá (produce/upgrade/trade) mà phải discard, session giữ crystal + tay bài +
+  lá đã chơi của trước nước đó. Trước khi discard, action `undo` khôi phục đúng trạng thái cũ (nước chơi lá không đổi gì
+  khác: không refill market, chưa hết lượt). Mua bài làm tràn thì **không** cho undo (đã lật lá mới từ deck). Bất kỳ step nào
+  sau đó (discard, timeout) làm mất quyền undo (`stepSeq`). Event log ghi `type -2`. State có `players[].canUndo`.
+- Frontend: nút "↩ Undo — take the card back" trong `DiscardModal.jsx` (chỉ hiện khi `canUndo`); `gameStore.undoPlay`, lưu
+  `lastPlay`; `utils/undo.js` (`resolveUndo`) bỏ nước đó khỏi lịch sử và mở lại popup chọn hệ số/upgrade qua
+  `hooks/useReopenAfterUndo.js` (desktop, mobile, fantasy).
+- Test: `session/undo_test.go`, `utils/undo.test.js`, `components/__tests__/DiscardModal.test.jsx`.
 
 ### Avatar & tên AI (2026-11-14, theo yêu cầu người dùng)
 - 23 avatar: 12 nhân vật khác nhau + tối đa 1 biến thể mỗi nhân vật (trước: 15, trong đó 4 biến thể Koopa). `AVATAR_VERSION`
@@ -152,8 +167,8 @@ Avatar: 1 Goomba · 2 Koopa Troopa · 3 Lakitu · 4 Bowser · 5 Hammer Bro · 6 
 ## Test
 - Frontend (vitest, chạy trong `node:18-alpine` trên bản sao có `node_modules`): cấu hình vitest upstream không bật DOM
   (khoá `vitest.environment` trong package.json không có tác dụng) ⇒ chạy `vitest run --environment jsdom`. Khi đó upstream
-  12 pass / 2 fail (useGameSounds) + 2 file không chạy (cardNames, sounds); bản này **giống hệt phần lỗi**, 28 pass
-  (2026-11-15; thêm test avatar, aiLevel, lobby, rest, RestPopup).
+  12 pass / 2 fail (useGameSounds) + 2 file không chạy (cardNames, sounds); bản này **giống hệt phần lỗi**, 33 pass
+  (2026-11-15; thêm test avatar, aiLevel, lobby, rest, RestPopup, undo, DiscardModal).
 - Backend (`go test -race ./internal/...` trong `golang:1.24`): `auth`, `eventstore`, `game`, `server`, `telegram` pass.
   `session` **fail sẵn ở upstream** (10 test, 25 data race, panic "send on closed channel" tại `sendToPlayer` khi
   test gỡ người chơi trong lúc broadcast — xem "Lỗi upstream đã biết" trong CLAUDE.md); sau patch 0003: 7 fail, 22 race,

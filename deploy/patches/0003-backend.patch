@@ -49,8 +49,8 @@
 +
 +// DecideOptions carries per-decision context the snapshot does not hold.
 +type DecideOptions struct {
-+	// Humans[i] reports whether seat i is played by a person (Very Hard counts people a few
-+	// points stronger; intents are only reported to people). nil: no seat is known to be human.
++	// Humans[i] reports whether seat i is played by a person (on equal threat Very Hard makes the
++	// person its main rival; intents are only reported to people). nil: no seat is known to be human.
 +	Humans []bool
 +	// Seed drives every random choice of this decision (reproducible tests and tournaments).
 +	Seed uint64
@@ -2000,8 +2000,8 @@
 +	// UtilityBeatLeader maximises the margin over the best other player, whoever leads.
 +	UtilityBeatLeader
 +	// UtilityRival plays for the AI's own win (Very Hard): the margin over the strongest rival,
-+	// blended with the average one so feeding any opponent costs, with people counted a few points
-+	// stronger than they are so a close person is blocked first. AIs never share a reward.
++	// blended with the average one so feeding any opponent costs. People only break ties: on
++	// equal threat the person is the main rival. AIs never share a reward.
 +	UtilityRival
 +)
 +
@@ -2155,7 +2155,7 @@
 +}
 --- a/internal/ai/search_agent.go
 +++ b/internal/ai/search_agent.go
-@@ -0,0 +1,331 @@
+@@ -0,0 +1,319 @@
 +package ai
 +
 +import (
@@ -2417,27 +2417,15 @@
 +	return best, found
 +}
 +
-+// denialTargets marks whose losses count as gains in the priors: the leader when it is close
-+// (beat-the-leader); a rival also marks every person within humanEdgeMid of that bar.
++// denialTargets marks whose losses count as gains in the priors: the main rival (the leader; for
++// Very Hard a person on equal threat) when it is close. Only one seat: blocking someone who is not
++// the main threat does not help the agent win.
 +func denialTargets(st *sim.State, seat int, pv *perspective, ev evaluator) [sim.MaxPlayers]bool {
 +	var out [sim.MaxPlayers]bool
 +	var v [sim.MaxPlayers]float64
 +	ev.values(st, &v)
-+	leader := -1
-+	for i := 0; i < int(st.N); i++ {
-+		if i != seat && (leader < 0 || v[i] > v[leader]) {
-+			leader = i
-+		}
-+	}
-+	if leader >= 0 && v[leader] >= v[seat]-2 {
-+		out[leader] = true
-+	}
-+	if pv.kind[seat] == UtilityRival {
-+		for i := 0; i < int(st.N); i++ {
-+			if pv.human[i] && v[i]+humanEdgeMid >= v[seat]-2 {
-+				out[i] = true
-+			}
-+		}
++	if r := pv.mainRival(&v, seat); r >= 0 && v[r] >= v[seat]-2 {
++		out[r] = true
 +	}
 +	return out
 +}
@@ -3655,7 +3643,7 @@
 +}
 --- a/internal/ai/utility.go
 +++ b/internal/ai/utility.go
-@@ -0,0 +1,118 @@
+@@ -0,0 +1,141 @@
 +package ai
 +
 +import (
@@ -3664,18 +3652,25 @@
 +	"golem_century/internal/ai/sim"
 +)
 +
-+// Rival utility (Very Hard). Every AI plays for its own win; nobody shares a reward.
-+//   - People count as humanEdgeMid points stronger than their evaluation mid-game, so a person
-+//     who is close is the first rival an AI blocks. At the end the bias shrinks to
-+//     humanEdgeTerminal: losing to a person is graded a little worse than losing to an AI,
-+//     but a win is always a win and a loss always a loss.
-+//   - Mid-game the margin is taken against rivalLeadShare·strongest + (1−rivalLeadShare)·average
++// Rival utility (Very Hard). Every AI plays for its own win; nobody shares a reward. The main
++// rival is the strongest opponent, and people only break ties:
++//   - mid-game a person counts humanTieMid points stronger than their evaluation: when a person
++//     and an AI are about as dangerous (within a point), the person is the one to block. An AI
++//     that clearly leads stays the main rival, and a person who trails is not targeted.
++//   - at the end the bias is humanTieTerminal, below one point while final scores are whole
++//     numbers: it only decides between two opponents on the same score. A win is always a win
++//     and a loss always a loss.
++//   - mid-game the margin is taken against rivalLeadShare·strongest + (1−rivalLeadShare)·average
 +//     rival, so handing crystals or cards to ANY opponent costs something (no "gifts" to the AI
 +//     that moves next).
++//
++// Until 2026-11-15 people counted 3 points stronger (1 at the end). That made an AI that was far
++// behind spend its turn taking a cheap golem the person was about to claim, instead of playing for
++// its own win (ADR 0008, amendment).
 +const (
-+	humanEdgeMid      = 3.0
-+	humanEdgeTerminal = 1.0
-+	rivalLeadShare    = 0.7
++	humanTieMid      = 1.0
++	humanTieTerminal = 0.25
++	rivalLeadShare   = 0.7
 +)
 +
 +// perspective says what every seat maximises, from the searching agent's point of view.
@@ -3733,18 +3728,18 @@
 +				if winner == i {
 +					x = math.Max(0.5, v[i]-pv.strongest(v, i, 0))
 +				} else {
-+					x = math.Min(-0.5, v[i]-pv.strongest(v, i, humanEdgeTerminal))
++					x = math.Min(-0.5, v[i]-pv.strongest(v, i, humanTieTerminal))
 +				}
 +				break
 +			}
 +			sum := 0.0
 +			for j := 0; j < pv.n; j++ {
 +				if j != i {
-+					sum += v[j] + pv.edge(j, humanEdgeMid)
++					sum += v[j] + pv.edge(j, humanTieMid)
 +				}
 +			}
 +			mean := sum / float64(max(1, pv.n-1))
-+			x = v[i] - (rivalLeadShare*pv.strongest(v, i, humanEdgeMid) + (1-rivalLeadShare)*mean)
++			x = v[i] - (rivalLeadShare*pv.strongest(v, i, humanTieMid) + (1-rivalLeadShare)*mean)
 +		}
 +		if terminal && x == 0 && winner >= 0 { // a tie on points: turn order decides
 +			if winner == i {
@@ -3768,6 +3763,22 @@
 +	return best
 +}
 +
++// mainRival is the seat whose losses seat counts as its own gains: the strongest other seat. For
++// a rival (Very Hard) a person within humanTieMid of the strongest AI takes its place.
++func (pv *perspective) mainRival(v *[sim.MaxPlayers]float64, seat int) int {
++	tie := 0.0
++	if pv.kind[seat] == UtilityRival {
++		tie = humanTieMid
++	}
++	best := -1
++	for i := 0; i < pv.n; i++ {
++		if i != seat && (best < 0 || v[i]+pv.edge(i, tie) > v[best]+pv.edge(best, tie)) {
++			best = i
++		}
++	}
++	return best
++}
++
 +func (pv *perspective) edge(j int, e float64) float64 {
 +	if pv.human[j] {
 +		return e
@@ -3776,7 +3787,7 @@
 +}
 --- a/internal/ai/utility_test.go
 +++ b/internal/ai/utility_test.go
-@@ -0,0 +1,70 @@
+@@ -0,0 +1,100 @@
 +package ai
 +
 +import (
@@ -3810,13 +3821,43 @@
 +	}
 +}
 +
-+func TestRivalUtility_PersonCountsStronger(t *testing.T) {
++func TestRivalUtility_PersonIsMainRivalOnlyOnATie(t *testing.T) {
 +	pv := rivalView()
-+	// Same loss of value for the opponent: hurting the person is worth more than hurting the AI.
++	// AI and person equally strong (19): costing the person 3 is worth more than costing the AI 3.
 +	hitAI := reward0(pv, [sim.MaxPlayers]float64{20, 16, 19}, false, -1)
 +	hitHuman := reward0(pv, [sim.MaxPlayers]float64{20, 19, 16}, false, -1)
 +	if hitHuman <= hitAI {
-+		t.Fatalf("blocking a close person should be preferred: human %.4f vs AI %.4f", hitHuman, hitAI)
++		t.Fatalf("on equal threat the person is the one to block: human %.4f vs AI %.4f", hitHuman, hitAI)
++	}
++	// The AI clearly leads (25 vs 22): it stays the main rival, so costing it 2 is worth more than
++	// costing the trailing person 2 (the reported bug: an AI far behind spending its turn on a cheap
++	// golem only to take it from the person).
++	hitAI = reward0(pv, [sim.MaxPlayers]float64{20, 23, 22}, false, -1)
++	hitHuman = reward0(pv, [sim.MaxPlayers]float64{20, 25, 20}, false, -1)
++	if hitAI <= hitHuman {
++		t.Fatalf("a clear AI leader must stay the main rival: AI %.4f vs human %.4f", hitAI, hitHuman)
++	}
++}
++
++func TestPerspective_MainRival(t *testing.T) {
++	pv := rivalView() // seat 0 VH, seat 1 AI, seat 2 person
++	cases := []struct {
++		v    [sim.MaxPlayers]float64
++		want int
++	}{
++		{[sim.MaxPlayers]float64{20, 30, 25}, 1},   // AI leads clearly
++		{[sim.MaxPlayers]float64{20, 30, 29.5}, 2}, // equal threat: the person
++		{[sim.MaxPlayers]float64{20, 25, 30}, 2},   // the person leads
++	}
++	for _, c := range cases {
++		if got := pv.mainRival(&c.v, 0); got != c.want {
++			t.Errorf("mainRival(%v) = %d, want %d", c.v[:3], got, c.want)
++		}
++	}
++	// Hard (beat-the-leader) has no tie rule: the plain leader.
++	hard := newPerspective(3, 0, DefaultProfile(Hard), []bool{false, false, true})
++	if got := hard.mainRival(&[sim.MaxPlayers]float64{20, 30, 29.5}, 0); got != 1 {
++		t.Errorf("Hard must target the plain leader, got %d", got)
 +	}
 +}
 +
@@ -6394,7 +6435,7 @@
 +}
 --- a/internal/session/ai_turns.go
 +++ b/internal/session/ai_turns.go
-@@ -0,0 +1,615 @@
+@@ -0,0 +1,633 @@
 +package session
 +
 +import (
@@ -6827,10 +6868,28 @@
 +	if act.PlayerID != gs.GameState.GetCurrentPlayer().ID {
 +		return nil
 +	}
++	if act.Undo {
++		if !gs.undoLocked(act.PlayerID) {
++			gs.sendToPlayer(act.ClientID, map[string]any{"type": "error", "error": "nothing to undo"})
++			return nil
++		}
++		gs.cancelAIJobLocked()
++		gs.broadcastState()
++		return []pendingEvent{{playerID: act.PlayerID, action: game.Action{Type: actionUndo}, state: gs.GameState.Clone()}}
++	}
++	var before *undoPoint
++	if act.Action.Type == game.PlayCard {
++		before = undoPointOf(gs.GameState.GetCurrentPlayer())
++	}
 +	res, err := gs.applyLocked(act.Action)
 +	if err != nil {
 +		gs.sendToPlayer(act.ClientID, map[string]any{"type": "error", "error": err.Error()})
 +		return nil
++	}
++	gs.undo = nil
++	if before != nil && res.PendingDiscard > 0 {
++		before.seq = gs.stepSeq
++		gs.undo = before
 +	}
 +	gs.cancelAIJobLocked() // e.g. their own timeout job: its result is stale now
 +	gs.broadcastState()
@@ -7036,7 +7095,7 @@
  	CreatedAt     time.Time             // When session was created
  	LastActivity  time.Time             // Last time someone was in the room
  	EventStore    eventstore.EventStore // Event store for recording actions
-@@ -76,6 +77,29 @@
+@@ -76,6 +77,30 @@
  	pingInterval time.Duration // Interval for sending ping messages (default 15s)
  	readTimeout  time.Duration // Timeout for read operations (default 60s)
  	writeTimeout time.Duration // Timeout for write operations (default 10s)
@@ -7059,6 +7118,7 @@
 +	humans         []bool                               // seats played by people
 +	seed           int64                                // game seed (reproducible AI randomness)
 +	stepSeq        uint64                               // bumped on every applied step; stale AI results are dropped
++	undo           *undoPoint                           // a person's overflowing card play that can still be taken back
 +	aiJob          *aiJob                               // in-flight AI decision, if any
 +	aiResults      chan aiResult                        // AI goroutine -> game loop
 +	ctx            context.Context                      // cancelled by Close (stops searches)
@@ -7066,7 +7126,13 @@
  }
  
  // PlayerAction represents an action from a player
-@@ -88,7 +112,11 @@
+@@ -83,12 +108,17 @@
+ 	PlayerID int
+ 	ClientID string
+ 	Action   game.Action
++	Undo     bool // take back the card play still waiting for a discard (Action unused)
+ }
+ 
  // NewGameSession creates a new game session
  func NewGameSession(sessionID string, maxPlayers int, turnTimeoutInSecond int, eventstore eventstore.EventStore, logger *logger.Logger) *GameSession {
  	now := time.Now()
@@ -7078,7 +7144,7 @@
  		ID:            sessionID,
  		CreatedAt:     now,
  		LastActivity:  now,
-@@ -96,6 +124,7 @@
+@@ -96,6 +126,7 @@
  		TurnTimeout:   time.Duration(turnTimeoutInSecond) * time.Second, // Default 60s timeout
  		TurnStartTime: now,
  		ActionChan:    make(chan PlayerAction, 10),
@@ -7086,7 +7152,7 @@
  		logger:        logger,
  		maxChatMsgs:   10, // Default, will be set from config
  
-@@ -162,8 +191,8 @@
+@@ -162,8 +193,8 @@
  			existingPlayer.Avatar = avatar
  		}
  		// Start new read and write handlers
@@ -7097,7 +7163,7 @@
  
  		// Send playerAssigned message first so client knows its player ID
  		assignedMsg := map[string]interface{}{
-@@ -208,8 +237,8 @@
+@@ -208,8 +239,8 @@
  	// Start read and write handlers in other goroutines
  	player := gs.connectedPlayers[clientID]
  	if player != nil { // player should never be nil, if it is, it means our code has a bug :)
@@ -7108,7 +7174,7 @@
  	}
  
  	// Send assigned player ID back to client -> only after the game is started
-@@ -257,7 +286,7 @@
+@@ -257,7 +288,7 @@
  		return fmt.Errorf("game is not in waiting status")
  	}
  
@@ -7117,7 +7183,7 @@
  		// Check that we have at least 2 players
  		// When it's player vs player room
  		if len(gs.connectedPlayers) < 2 {
-@@ -268,69 +297,35 @@
+@@ -268,69 +299,35 @@
  	// Initialize game state
  	seed := time.Now().UnixNano()
  
@@ -7196,7 +7262,7 @@
  		}
  		resp := gs.EventStore.StoreEvent(req)
  		if resp.Error != nil {
-@@ -376,10 +371,18 @@
+@@ -376,10 +373,18 @@
  	return clientIDs
  }
  
@@ -7218,7 +7284,7 @@
  		}
  	}
  	return 0
-@@ -394,8 +397,12 @@
+@@ -394,8 +399,12 @@
  		return fmt.Errorf("game is full")
  	}
  
@@ -7232,7 +7298,7 @@
  		gs.logger.Warn("playerID is in use by another player", zap.Int("playerID", playerID))
  		playerID = 0 // auto-assign next available player ID
  	}
-@@ -465,26 +472,28 @@
+@@ -465,26 +474,28 @@
  	return nil
  }
  
@@ -7269,7 +7335,7 @@
  
  				if err != nil {
  					// Check if this is a connection closed error
-@@ -511,9 +520,9 @@
+@@ -511,9 +522,9 @@
  			}
  		case <-ticker.C:
  			// Send ping message to keep connection alive
@@ -7282,7 +7348,7 @@
  
  				if err != nil {
  					// Check if this is a connection closed error
-@@ -607,6 +616,13 @@
+@@ -607,6 +618,13 @@
  }
  
  func (gs *GameSession) handleRemovePlayer(clientID string) {
@@ -7296,7 +7362,7 @@
  	gs.mu.Lock()
  	defer gs.mu.Unlock()
  
-@@ -614,6 +630,9 @@
+@@ -614,6 +632,9 @@
  	if p == nil {
  		return
  	}
@@ -7306,7 +7372,7 @@
  
  	if p.Conn != nil {
  		p.Conn.Close()
-@@ -657,28 +676,28 @@
+@@ -657,28 +678,28 @@
  	gs.broadcastState()
  }
  
@@ -7341,7 +7407,7 @@
  
  		var req map[string]interface{}
  		if err := json.Unmarshal(message, &req); err != nil {
-@@ -699,8 +718,8 @@
+@@ -699,8 +720,8 @@
  		}
  	}
  
@@ -7352,7 +7418,7 @@
  }
  
  func (gs *GameSession) handleChatMessage(clientID string, req map[string]any) {
-@@ -728,16 +747,17 @@
+@@ -728,16 +749,17 @@
  
  func (gs *GameSession) handlePlayerAction(clientID string, req map[string]any) {
  	gs.mu.RLock()
@@ -7375,7 +7441,18 @@
  
  	actionTypeStr, _ := req["actionType"].(string)
  	cardIndex, _ := req["cardIndex"].(float64)
-@@ -865,10 +885,17 @@
+@@ -815,7 +837,10 @@
+ 	}
+ 
+ 	var gameAction game.Action
++	undo := false
+ 	switch actionTypeStr {
++	case "undo":
++		undo = true
+ 	case "playCard":
+ 		gameAction = game.Action{
+ 			Type:            game.PlayCard,
+@@ -865,10 +890,18 @@
  	default:
  		return
  	}
@@ -7385,6 +7462,7 @@
  		PlayerID: playerID,
  		ClientID: clientID,
  		Action:   gameAction,
++		Undo:     undo,
 +	}:
 +	case <-gs.stop: // session closed: drop the action instead of blocking forever
 +	default: // the loop is far behind (flooding client): tell the sender instead of blocking
@@ -7394,7 +7472,7 @@
  	}
  }
  
-@@ -1188,169 +1215,6 @@
+@@ -1188,169 +1221,6 @@
  	return nil
  }
  
@@ -7564,7 +7642,7 @@
  // broadcastState broadcasts the current game state to all players
  func (gs *GameSession) broadcastState() {
  	gs.broadcast(gs.serializeState())
-@@ -1404,6 +1268,8 @@
+@@ -1404,6 +1274,8 @@
  			bJoinedAt, _ := b["joinedAt"].(string)
  			return strings.Compare(aJoinedAt, bJoinedAt)
  		})
@@ -7573,7 +7651,7 @@
  
  		return map[string]interface{}{
  			"type": "state",
-@@ -1416,7 +1282,9 @@
+@@ -1416,7 +1288,9 @@
  			"players":         waitingPlayers,
  			"maxChatMessages": gs.maxChatMsgs,
  			// "market":          map[string]interface{}{},
@@ -7584,7 +7662,7 @@
  		}
  	}
  
-@@ -1426,9 +1294,12 @@
+@@ -1426,9 +1300,12 @@
  		joinedAt := ""
  
  		pi := gs.getPlayerInfo(p.ID)
@@ -7597,20 +7675,21 @@
  		}
  
  		resourcesMap := map[string]int{
-@@ -1453,9 +1324,11 @@
+@@ -1453,9 +1330,12 @@
  			"coins":          serializeCards(p.Coins),
  			"hasRested":      p.HasRested,
  			"isAI":           p.IsAI,
 +			"aiLevel":        gs.aiLevelOf(p.ID),
 +			"aiAvatar":       aiAvatar,
  			"pendingDiscard": p.PendingDiscard,
++			"canUndo":        gs.canUndoLocked(p.ID), // may take back the play that overflowed (DiscardModal)
  			"joinedAt":       joinedAt,
 -			"online":         pi != nil,
 +			"online":         pi != nil || p.IsAI,
  		}
  	}
  
-@@ -1463,6 +1336,7 @@
+@@ -1463,6 +1343,7 @@
  	for i, card := range gs.GameState.Market.ActionCards {
  		cost := gs.GameState.Market.GetActionCardCost(i)
  		serialized := serializeCardWithCost(card, cost)
@@ -7618,7 +7697,7 @@
  		// Ensure deposits field exists
  		if _, exists := serialized["deposits"]; !exists {
  			serialized["deposits"] = make(map[string]string)
-@@ -1494,7 +1368,11 @@
+@@ -1494,7 +1375,11 @@
  			"pointDeck":   len(gs.GameState.Market.PointDeck),
  			"coins":       marketCoins,
  		},
@@ -7631,7 +7710,7 @@
  	}
  }
  
-@@ -1589,6 +1467,12 @@
+@@ -1589,6 +1474,12 @@
  
  // Close gracefully closes the game session, disconnecting all players and spectators
  func (gs *GameSession) Close() error {
@@ -7644,7 +7723,7 @@
  	gs.mu.Lock()
  	defer gs.mu.Unlock()
  
-@@ -1645,8 +1529,10 @@
+@@ -1645,8 +1536,10 @@
  	gs.assignedPlayers = make(map[int]string)
  	gs.spectators = make(map[string]*Spectator)
  
@@ -7657,3 +7736,172 @@
  
  	gs.logger.Info("Game session closed successfully", zap.String("sessionID", gs.ID))
  	return nil
+--- a/internal/session/undo.go
++++ b/internal/session/undo.go
+@@ -0,0 +1,62 @@
++package session
++
++import "golem_century/internal/game"
++
++// Taking back an overflowing card play. A person who plays a card that leaves them with more than
++// 10 crystals must discard before the turn ends; until they do, they may take the play back (e.g.
++// a trade multiplier picked one too high) and choose again. Only card plays qualify: they reveal
++// nothing, whereas buying a card refills the market from the deck. AIs never undo.
++
++// actionUndo marks a taken-back play in the event log (like -1 marks the initial state).
++const actionUndo game.PlayerActionType = -2
++
++// undoPoint is the mover's cards and crystals from before the play.
++type undoPoint struct {
++	playerID int
++	seq      uint64 // stepSeq right after the play: any later step (the discard, a timeout) voids it
++	res      game.Resources
++	hand     []*game.Card
++	played   []*game.Card
++}
++
++func undoPointOf(p *game.Player) *undoPoint {
++	u := &undoPoint{
++		playerID: p.ID,
++		hand:     append([]*game.Card(nil), p.Hand...),
++		played:   append([]*game.Card(nil), p.PlayedCards...),
++	}
++	if p.Resources != nil {
++		u.res = *p.Resources
++	}
++	return u
++}
++
++// canUndoLocked reports whether playerID may take back the play they still have to discard for.
++// Caller holds gs.mu (read or write).
++func (gs *GameSession) canUndoLocked(playerID int) bool {
++	u := gs.undo
++	if u == nil || u.seq != gs.stepSeq || u.playerID != playerID || gs.GameState == nil || gs.GameState.GameOver {
++		return false
++	}
++	cur := gs.GameState.GetCurrentPlayer()
++	return cur != nil && cur.ID == playerID && cur.PendingDiscard > 0
++}
++
++// undoLocked restores the mover's cards and crystals from before the play. Card plays change
++// nothing else (no market refill, no turn change while a discard is pending), so the game is back
++// exactly where it was. Caller holds gs.mu.
++func (gs *GameSession) undoLocked(playerID int) bool {
++	if !gs.canUndoLocked(playerID) {
++		return false
++	}
++	u := gs.undo
++	p := gs.GameState.GetCurrentPlayer()
++	res := u.res
++	p.Resources = &res
++	p.Hand = append([]*game.Card(nil), u.hand...)
++	p.PlayedCards = append([]*game.Card(nil), u.played...)
++	p.PendingDiscard = 0
++	gs.undo = nil
++	gs.stepSeq++ // in-flight timeout jobs saw the overflowing state
++	return true
++}
+--- a/internal/session/undo_test.go
++++ b/internal/session/undo_test.go
+@@ -0,0 +1,101 @@
++package session
++
++import (
++	"encoding/json"
++	"testing"
++
++	"golem_century/internal/game"
++	"golem_century/internal/logger"
++)
++
++// undoSession is a 2-seat session whose seat-1 player (a person) is about to overflow: 10 yellow
++// and a +2 yellow card in hand. No game loop runs; actions go straight to onHumanAction.
++func undoSession(t *testing.T) (*GameSession, *game.Player, int) {
++	t.Helper()
++	gs := NewGameSession("undo_test", 2, 60, nil, logger.NewNopLogger())
++	gs.GameState = game.NewGameState(2, 11)
++	gs.status = GameStatusPlaying
++	p := gs.GameState.GetCurrentPlayer()
++	p.Resources = &game.Resources{Yellow: 10}
++	for i, c := range p.Hand {
++		if c.ActionType == game.Produce {
++			return gs, p, i
++		}
++	}
++	t.Fatal("no produce card in hand")
++	return nil, nil, 0
++}
++
++func stateJSON(t *testing.T, gs *game.GameState) string {
++	t.Helper()
++	c := gs.Clone()
++	c.RNG = nil
++	b, err := json.Marshal(c)
++	if err != nil {
++		t.Fatal(err)
++	}
++	return string(b)
++}
++
++func canUndoIn(gs *GameSession, playerID int) bool {
++	for _, p := range gs.serializeState()["players"].([]map[string]interface{}) {
++		if p["id"] == playerID {
++			return p["canUndo"] == true
++		}
++	}
++	return false
++}
++
++func TestUndo_TakesBackAnOverflowingCardPlay(t *testing.T) {
++	gs, p, idx := undoSession(t)
++	before := stateJSON(t, gs.GameState)
++
++	ev := gs.onHumanAction(PlayerAction{PlayerID: p.ID, Action: game.Action{Type: game.PlayCard, CardIndex: idx}})
++	if len(ev) != 1 || p.PendingDiscard != 2 || !canUndoIn(gs, p.ID) {
++		t.Fatalf("the overflowing play must wait for a discard and offer undo: pending=%d events=%d", p.PendingDiscard, len(ev))
++	}
++
++	ev = gs.onHumanAction(PlayerAction{PlayerID: p.ID, Undo: true})
++	if len(ev) != 1 || ev[0].action.Type != actionUndo {
++		t.Fatalf("undo must be logged as an event: %+v", ev)
++	}
++	if got := stateJSON(t, gs.GameState); got != before {
++		t.Fatalf("undo must restore the state from before the play\nbefore %s\nafter  %s", before, got)
++	}
++	if canUndoIn(gs, p.ID) {
++		t.Fatal("nothing left to undo")
++	}
++	if ev := gs.onHumanAction(PlayerAction{PlayerID: p.ID, Undo: true}); ev != nil {
++		t.Fatal("a second undo must be refused")
++	}
++
++	// the same play again, then the discard: undo is gone and the turn moves on
++	gs.onHumanAction(PlayerAction{PlayerID: p.ID, Action: game.Action{Type: game.PlayCard, CardIndex: idx}})
++	gs.onHumanAction(PlayerAction{PlayerID: p.ID, Action: game.Action{Type: game.Discard, DiscardResources: &game.Resources{Yellow: 2}}})
++	if gs.GameState.GetCurrentPlayer() == p || canUndoIn(gs, p.ID) {
++		t.Fatal("after the discard the turn ends and the play is final")
++	}
++}
++
++func TestUndo_OnlyCardPlaysThatOverflow(t *testing.T) {
++	gs, p, idx := undoSession(t)
++	p.Resources = &game.Resources{Yellow: 2}
++	gs.onHumanAction(PlayerAction{PlayerID: p.ID, Action: game.Action{Type: game.PlayCard, CardIndex: idx}})
++	if canUndoIn(gs, p.ID) {
++		t.Fatal("a play that does not overflow ends the turn: nothing to undo")
++	}
++
++	// buying a card that picks up deposits past 10 refills the market: no undo (it would reveal a card)
++	gs, p, _ = undoSession(t)
++	gs.GameState.Market.ActionCards[0].Deposits = &game.Resources{Yellow: 3}
++	gs.onHumanAction(PlayerAction{PlayerID: p.ID, Action: game.Action{Type: game.AcquireCard, CardIndex: 0}})
++	if p.PendingDiscard == 0 {
++		t.Fatal("test setup: the purchase should overflow")
++	}
++	if canUndoIn(gs, p.ID) {
++		t.Fatal("purchases must not be undoable")
++	}
++	if ev := gs.onHumanAction(PlayerAction{PlayerID: p.ID, Undo: true}); ev != nil || p.PendingDiscard == 0 {
++		t.Fatal("undo after a purchase must be refused")
++	}
++}

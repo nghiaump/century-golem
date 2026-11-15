@@ -430,10 +430,28 @@ func (gs *GameSession) onHumanAction(act PlayerAction) []pendingEvent {
 	if act.PlayerID != gs.GameState.GetCurrentPlayer().ID {
 		return nil
 	}
+	if act.Undo {
+		if !gs.undoLocked(act.PlayerID) {
+			gs.sendToPlayer(act.ClientID, map[string]any{"type": "error", "error": "nothing to undo"})
+			return nil
+		}
+		gs.cancelAIJobLocked()
+		gs.broadcastState()
+		return []pendingEvent{{playerID: act.PlayerID, action: game.Action{Type: actionUndo}, state: gs.GameState.Clone()}}
+	}
+	var before *undoPoint
+	if act.Action.Type == game.PlayCard {
+		before = undoPointOf(gs.GameState.GetCurrentPlayer())
+	}
 	res, err := gs.applyLocked(act.Action)
 	if err != nil {
 		gs.sendToPlayer(act.ClientID, map[string]any{"type": "error", "error": err.Error()})
 		return nil
+	}
+	gs.undo = nil
+	if before != nil && res.PendingDiscard > 0 {
+		before.seq = gs.stepSeq
+		gs.undo = before
 	}
 	gs.cancelAIJobLocked() // e.g. their own timeout job: its result is stale now
 	gs.broadcastState()

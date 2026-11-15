@@ -5,7 +5,7 @@ import useGameStore from '../store/gameStore'
 import useOrientation from '../hooks/useOrientation'
 
 const DiscardModal = () => {
-  const { myPlayer, discardCrystals } = useGameStore()
+  const { myPlayer, discardCrystals, undoPlay } = useGameStore()
   const { isMobile, isPortrait } = useOrientation()
   const [discardCounts, setDiscardCounts] = useState({
     yellow: 0,
@@ -43,6 +43,11 @@ const DiscardModal = () => {
       newCounts[type] = newValue
       return newCounts
     })
+  }
+
+  const handleUndo = () => {
+    setDiscardCounts({ yellow: 0, green: 0, blue: 0, pink: 0 })
+    undoPlay()
   }
 
   const handleConfirm = () => {
@@ -210,6 +215,25 @@ const DiscardModal = () => {
               : `Select ${remaining} more crystal${remaining !== 1 ? 's' : ''}`
             }
           </motion.button>
+
+          {/* Take the overflowing card play back (e.g. trade multiplier one too high) */}
+          {myPlayer.canUndo && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                handleUndo()
+              }}
+              className={`
+                w-full mt-2 rounded-lg border-2 border-gray-300 bg-white text-gray-700 font-semibold
+                hover:bg-gray-100 transition-colors
+                ${isMobile ? 'py-2 px-4 text-sm' : 'py-3 px-6'}
+              `}
+            >
+              ↩ Undo — take the card back
+            </button>
+          )}
         </motion.div>
       </motion.div>
     </AnimatePresence>,
