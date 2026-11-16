@@ -10,14 +10,14 @@ import Pill from '../ui/Pill'
  * Corner controls of the game screen, in one place: top-left plaque (round, AI level, last round),
  * top-right cluster (✨ layout switch on desktop, sound, activity & chat).
  */
-const Hud = ({ sessionId, showSkinToggle = false, compact = false }) => {
+const Hud = ({ sessionId, showSkinToggle = false, compact = false, showRound = true }) => {
   const round = useGameStore((s) => s.gameState?.round)
   const lastRound = useGameStore((s) => s.gameState?.lastRound)
   const started = useGameStore((s) => !!s.gameState?.market && Object.keys(s.gameState.market).length > 0)
   const inset = { top: 'max(8px, var(--safe-top))' }
   return (
     <>
-      {started ? (
+      {started && showRound ? (
         <div className="fixed z-hud flex items-center gap-2" style={{ ...inset, left: 'max(12px, var(--safe-left))' }}>
           <div className="surface-stone flex h-11 items-center gap-2 px-3">
             <span className="font-display text-sm font-bold text-bronze-100">{compact ? `R${round || 1}` : `Round ${round || 1}`}</span>

@@ -5,10 +5,18 @@ import DiscardModal from '../DiscardModal'
 import AcquiredCardOverlay from '../AcquiredCardOverlay'
 import GameOverModal from '../GameOverModal'
 import useGameStore from '../../store/gameStore'
-import PlayerAvatar from '../PlayerAvatar'
 import AiThinkingIndicator from '../AiThinkingIndicator'
 import { getCardSpriteStyle, getCardImagePath } from '../../utils/cardNames'
 import useReopenAfterUndo from '../../hooks/useReopenAfterUndo'
+import useTurnTimer from '../../hooks/useTurnTimer'
+import Avatar from '../ui/Avatar'
+import Button from '../ui/Button'
+import CardImage from '../ui/CardImage'
+import CrystalRow from '../ui/CrystalRow'
+import GolemIcon from '../ui/GolemIcon'
+import Modal from '../ui/Modal'
+import NightBackdrop from '../ui/NightBackdrop'
+import TurnBanner from '../ui/TurnBanner'
 
 // ============================================
 // LAYOUT SETTINGS - Everything uses % based positioning
@@ -71,262 +79,46 @@ const DOCK_POSITIONS = [
 ]
 
 // ============================================
-// Player Dock Component
+// Player Dock — stone plaque: portrait (timer ring on a person's turn; anchor of the rest popup),
+// name, points, golems (mine open the list), crystals x/10.
 // ============================================
+const pointsOf = (p) =>
+  (p?.pointCards?.reduce((s, c) => s + (c.points || 0), 0) || 0) + (p?.coins?.reduce((s, c) => s + (c.points || 0), 0) || 0)
+
 const PlayerDock = ({ player, isCurrentTurn, isMe, position }) => {
-  const spriteStyle = getCardSpriteStyle('normal_dock')
   const [showGolems, setShowGolems] = useState(false)
+  const timer = useTurnTimer()
   const golemCount = player.pointCards?.length || 0
-  
   return (
     <>
-      <motion.div 
-        className={`
-          absolute rounded-xl overflow-hidden shadow-lg
-          ${isCurrentTurn ? 'ring-4 ring-green-500' : ''}
-          ${isMe && !isCurrentTurn ? 'ring-2 ring-blue-400' : ''}
-        `}
-        style={{ 
-          left: `${position.left}%`,
-          top: `${position.top}%`,
-          width: `${DOCK_LAYOUT.width}%`,
-          height: `${DOCK_LAYOUT.height}%`,
-        }}
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ 
-          opacity: 1, 
-          scale: 1,
-          boxShadow: isCurrentTurn 
-            ? ['0 0 20px rgba(34,197,94,0.5)', '0 0 40px rgba(34,197,94,0.9)', '0 0 20px rgba(34,197,94,0.5)'] 
-            : '0 10px 25px rgba(0,0,0,0.3)'
-        }}
-        transition={{ 
-          duration: 0.3,
-          boxShadow: isCurrentTurn ? { duration: 1.2, repeat: Infinity, ease: 'easeInOut' } : {}
-        }}
+      <div
+        className={`surface-stone absolute flex flex-col justify-center gap-1 px-2 py-1.5 ${isCurrentTurn ? 'turn-glow' : ''}`}
+        style={{ left: `${position.left}%`, top: `${position.top}%`, width: `${DOCK_LAYOUT.width}%`, height: `${DOCK_LAYOUT.height}%` }}
       >
-        {/* normal_dock background - scale to fill container */}
-        <img 
-          src="/assets/images/normal_dock.JPG" 
-          alt="dock"
-          className="absolute inset-0 w-full h-full rounded-xl"
-          style={{ objectFit: 'fill' }}
-          onError={(e) => { e.target.style.display = 'none' }}
-        />
-        
-        {/* Player info overlay */}
-        <div className="absolute inset-0 flex flex-col p-2">
-          {/* Top row: Name & Golem count */}
-          <div className="flex items-start justify-between mb-1">
-            <div className="flex items-center gap-1 flex-wrap">
-              <PlayerAvatar player={player} restAnchor={!isMe} className="w-6 h-6 rounded-full text-xs bg-purple-600 text-white border border-white/70" />
-              <span className="text-white font-bold text-sm" style={{ textShadow: '0 0 4px #000, 0 0 8px #000, 1px 1px 2px #000' }}>
-                {player.name || 'Player'}
-              </span>
-            </div>
-            {/* Số golem đã ăn - clickable for self only */}
-            <div 
-              className={`
-                flex items-center gap-1 bg-black/60 rounded px-2 py-1
-                ${isMe && golemCount > 0 ? 'cursor-pointer hover:bg-black/80 hover:scale-105 transition-all' : ''}
-              `}
-              onClick={() => isMe && golemCount > 0 && setShowGolems(true)}
-              title={isMe && golemCount > 0 ? 'Click to view golems' : ''}
-            >
-              <span className="text-lg">🗿</span>
-              <span className="text-white font-bold text-base" style={{ textShadow: '0 0 3px #000' }}>
-                {golemCount}
-              </span>
-            </div>
-          </div>
-          
-          {/* Crystals - absolute positioned on dock like cards on arena */}
-          {(() => {
-            // Gop tat ca da thanh 1 array
-            const allStones = [
-              ...Array(player.resources?.yellow || 0).fill('yellow'),
-              ...Array(player.resources?.pink || 0).fill('pink'),
-              ...Array(player.resources?.green || 0).fill('green'),
-              ...Array(player.resources?.blue || 0).fill('blue'),
-            ]
-            const row1 = allStones.slice(0, 5)   // 5 da dau
-            const row2 = allStones.slice(5, 10)  // 5 da tiep theo
-            
-            // ============ STONE LAYOUT - Điều chỉnh vị trí đá (% based) ============
-            const STONE_LAYOUT = {
-              // Vị trí bắt đầu của row 1
-              row1Left: 7,     // % từ trái
-              row1Top: 36.5,      // % từ trên
-              // Vị trí bắt đầu của row 2
-              row2Left: 7,     // % từ trái
-              row2Top: 66,      // % từ trên
-              // Kích thước và khoảng cách
-              stoneSize: 13.5,    // % của dock width
-              gapX: 18.4,         // % khoảng cách ngang giữa các đá
-            }
-            // ========================================================================
-            
-            return (
-              <>
-                {/* Row 1: first 5 stones */}
-                {row1.map((color, i) => (
-                  <img 
-                    key={`r1-${i}`} 
-                    src={`/assets/images/stone_${color}.JPG`} 
-                    alt={color} 
-                    className="absolute object-cover rounded-full"
-                    style={{
-                      left: `${STONE_LAYOUT.row1Left + i * STONE_LAYOUT.gapX}%`,
-                      top: `${STONE_LAYOUT.row1Top}%`,
-                      width: `${STONE_LAYOUT.stoneSize}%`,
-                      height: 'auto',
-                      aspectRatio: '1',
-                    }}
-                  />
-                ))}
-                {/* Row 2: next 5 stones */}
-                {row2.map((color, i) => (
-                  <img 
-                    key={`r2-${i}`} 
-                    src={`/assets/images/stone_${color}.JPG`} 
-                    alt={color} 
-                    className="absolute object-cover rounded-full"
-                    style={{
-                      left: `${STONE_LAYOUT.row2Left + i * STONE_LAYOUT.gapX}%`,
-                      top: `${STONE_LAYOUT.row2Top}%`,
-                      width: `${STONE_LAYOUT.stoneSize}%`,
-                      height: 'auto',
-                      aspectRatio: '1',
-                    }}
-                  />
-                ))}
-              </>
-            )
-          })()}
-        </div>
-      </motion.div>
-
-      {/* Golem Cards Modal - only for self */}
-      <AnimatePresence>
-        {isMe && showGolems && (
-          <motion.div
-            className="fixed inset-0 z-50 flex items-center justify-center"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+        <div className="flex min-w-0 items-center gap-2">
+          <Avatar player={player} size={30} turn={isCurrentTurn} timer={isCurrentTurn && !player.isAI ? timer : undefined} restAnchor={!isMe} />
+          <span className="min-w-0 flex-1 truncate text-sm font-bold text-fg">{player.name || 'Player'}{isMe ? <span className="font-normal text-fg-muted"> (you)</span> : null}</span>
+          <span className="font-display text-sm font-bold text-bronze-100">★{pointsOf(player)}</span>
+          <button
+            type="button"
+            onClick={() => isMe && golemCount > 0 && setShowGolems(true)}
+            disabled={!isMe || golemCount === 0}
+            aria-label={`${golemCount} golem${golemCount === 1 ? '' : 's'}${isMe ? ', show' : ''}`}
+            className="inline-flex items-center gap-0.5 rounded-full bg-rock-950/60 px-2 py-0.5 text-sm font-bold text-bronze-300 enabled:hover:bg-rock-700"
           >
-            {/* Backdrop */}
-            <div 
-              className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-              onClick={() => setShowGolems(false)}
-            />
-            
-            {/* Modal Content */}
-            <motion.div
-              className="relative bg-gradient-to-br from-amber-900/95 to-stone-900/95 rounded-2xl p-6 max-w-[80vw] max-h-[80vh] overflow-auto border-2 border-amber-500/50 shadow-2xl"
-              initial={{ scale: 0.8, y: 50 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.8, y: 50 }}
-            >
-              {/* Header */}
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-bold text-amber-200 flex items-center gap-2">
-                  <span className="text-2xl">🗿</span>
-                  My Golems ({golemCount})
-                </h3>
-                <button
-                  onClick={() => setShowGolems(false)}
-                  className="text-white/70 hover:text-white text-2xl"
-                >
-                  ✕
-                </button>
-              </div>
-              
-              {/* Stats Summary */}
-              {golemCount > 0 && (
-                <div className="flex flex-wrap items-center gap-4 mb-4 p-3 bg-black/40 rounded-xl border border-amber-500/30">
-                  {/* Total Golem Points */}
-                  <div className="flex items-center gap-2">
-                    <span className="text-amber-300 text-sm">Golem Points:</span>
-                    <span className="text-yellow-400 font-bold text-lg">
-                      ★{player.pointCards?.reduce((sum, card) => sum + (card.points || 0), 0) || 0}
-                    </span>
-                  </div>
-                  
-                  {/* Coin Bonuses */}
-                  {player.coins && player.coins.length > 0 && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-amber-300 text-sm">Bonus Coins:</span>
-                      <div className="flex items-center gap-1">
-                        {/* Copper coins (3pts each) */}
-                        {player.coins.filter(c => c.points === 3).length > 0 && (
-                          <span className="flex items-center gap-0.5 text-orange-400">
-                            <span>🥉</span>
-                            <span className="font-bold">{player.coins.filter(c => c.points === 3).length}</span>
-                          </span>
-                        )}
-                        {/* Silver coins (1pt each) */}
-                        {player.coins.filter(c => c.points === 1).length > 0 && (
-                          <span className="flex items-center gap-0.5 text-gray-300">
-                            <span>🥈</span>
-                            <span className="font-bold">{player.coins.filter(c => c.points === 1).length}</span>
-                          </span>
-                        )}
-                        <span className="text-yellow-400 font-bold ml-1">
-                          (+{player.coins.reduce((sum, c) => sum + (c.points || 0), 0)})
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Total Points */}
-                  <div className="flex items-center gap-2 ml-auto">
-                    <span className="text-amber-300 text-sm">Total:</span>
-                    <span className="text-green-400 font-bold text-xl">
-                      ★{(player.pointCards?.reduce((sum, card) => sum + (card.points || 0), 0) || 0) + 
-                         (player.coins?.reduce((sum, c) => sum + (c.points || 0), 0) || 0)}
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {/* Golem Cards Grid */}
-              <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                {player.pointCards?.map((card, idx) => (
-                  <div 
-                    key={idx}
-                    className="rounded-xl overflow-hidden shadow-lg hover:scale-105 transition-transform relative"
-                    style={{ aspectRatio: '2/3', minWidth: '100px' }}
-                  >
-                    {(() => {
-                      const spriteStyle = getCardSpriteStyle(card.name)
-                      if (spriteStyle) {
-                        return <div className="w-full h-full" style={spriteStyle} />
-                      }
-                      return (
-                        <img
-                          src={getCardImagePath(card.name)}
-                          alt={card.name}
-                          className="w-full h-full object-cover"
-                          onError={(e) => { e.target.src = '/assets/images/golem_bg.JPG' }}
-                        />
-                      )
-                    })()}
-                    {/* Point badge on each card */}
-                    <div className="absolute bottom-1 right-1 bg-black/70 text-yellow-400 text-xs font-bold px-1.5 py-0.5 rounded">
-                      ★{card.points || 0}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              
-              {golemCount === 0 && (
-                <p className="text-center text-white/60 py-8">No golems collected yet</p>
-              )}
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            <GolemIcon size={14} />{golemCount}
+          </button>
+        </div>
+        <CrystalRow resources={player.caravan || player.resources} capacity={10} size="sm" />
+      </div>
+      <Modal open={isMe && showGolems} onClose={() => setShowGolems(false)} title={`My golems (${golemCount})`} variant="stone" size="lg">
+        <p className="mb-3 text-sm text-fg-muted">Golems and coins: <b className="font-display text-lg text-bronze-100">★{pointsOf(player)}</b></p>
+        <div className="grid grid-cols-3 gap-3 md:grid-cols-5">
+          {player.pointCards?.map((card, idx) => (
+            <CardImage key={idx} name={card.name} alt={`Golem, ${card.points} points`} className="aspect-[0.58] w-full rounded-stone-sm border border-black/50" />
+          ))}
+        </div>
+      </Modal>
     </>
   )
 }
@@ -350,7 +142,7 @@ const LastPlayedCard = ({ player, dockPosition, isMe, isMyTurn }) => {
     <>
       {/* Small card beside dock - use sprite */}
       <motion.div
-        className="absolute rounded-lg overflow-hidden shadow-lg cursor-pointer z-10"
+        className="absolute z-10 cursor-pointer overflow-hidden rounded-stone-sm border border-black/50 shadow-elev-1"
         style={{
           left: `${dockPosition.left + LAST_CARD_LAYOUT.offsetX}%`,
           top: `${dockPosition.top + LAST_CARD_LAYOUT.offsetY}%`,
@@ -380,14 +172,14 @@ const LastPlayedCard = ({ player, dockPosition, isMe, isMyTurn }) => {
         })()}
         {/* Card count badge */}
         {playedCards.length > 1 && (
-          <div className="absolute top-0 right-0 bg-black/70 text-white text-xs px-1 rounded-bl">
+          <div className="absolute right-0 top-0 rounded-bl bg-rock-950/85 px-1.5 text-xs font-bold text-fg">
             {playedCards.length}
           </div>
         )}
-        {/* Click hint for me */}
+        {/* my pile opens the list (with Rest) */}
         {isMe && (
-          <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs text-center py-0.5">
-            Click
+          <div className="absolute bottom-0 left-0 right-0 bg-rock-950/80 py-0.5 text-center text-xs font-semibold text-bronze-100">
+            Played
           </div>
         )}
       </motion.div>
@@ -441,83 +233,22 @@ const LastPlayedCard = ({ player, dockPosition, isMe, isMyTurn }) => {
         )}
       </AnimatePresence>
 
-      {/* For me: Graveyard modal with all played cards */}
-      <AnimatePresence>
-        {isMe && showGraveyard && (
-          <motion.div
-            className="fixed inset-0 z-50 flex items-center justify-center"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            onClick={() => setShowGraveyard(false)}
-          >
-            {/* Backdrop */}
-            <div className="absolute inset-0 bg-black/70" />
-            {/* Graveyard panel */}
-            <motion.div
-              className="relative bg-gray-900/95 rounded-xl p-6 min-w-[60vw] max-w-[90vw] max-h-[85vh] overflow-auto"
-              initial={{ scale: 0.8, y: 50 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.8, y: 50 }}
-              transition={{ duration: 0.2 }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Header */}
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-white font-bold text-2xl">
-                  🗑️ Graveyard ({playedCards.length} cards)
-                </h3>
-                <div className="flex items-center gap-4">
-                  {/* Rest Button */}
-                  {canRest && (
-                    <button
-                      onClick={() => {
-                        rest()
-                        setShowGraveyard(false)
-                      }}
-                      className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold rounded-lg px-6 py-2 text-lg shadow-lg transition-all"
-                    >
-                      🔄 Rest
-                    </button>
-                  )}
-                  <button 
-                    onClick={() => setShowGraveyard(false)}
-                    className="text-white/70 hover:text-white text-3xl"
-                  >
-                    ✕
-                  </button>
-                </div>
-              </div>
-              {/* Cards grid - larger cards */}
-              <div className="grid grid-cols-4 gap-4">
-                {playedCards.map((card, idx) => (
-                  <div 
-                    key={idx}
-                    className="rounded-xl overflow-hidden shadow-lg"
-                    style={{ aspectRatio: '2/3', minWidth: '120px' }}
-                  >
-                    {(() => {
-                      const spriteStyle = getCardSpriteStyle(card.name)
-                      if (spriteStyle) {
-                        return <div className="w-full h-full" style={spriteStyle} />
-                      }
-                      return (
-                        <img
-                          src={getCardImagePath(card.name)}
-                          alt={card.name}
-                          className="w-full h-full object-cover"
-                          onError={(e) => { e.target.src = '/assets/images/golem_bg.JPG' }}
-                        />
-                      )
-                    })()}
-                  </div>
-                ))}
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* For me: all played cards (+ Rest) */}
+      <Modal
+        open={isMe && showGraveyard}
+        onClose={() => setShowGraveyard(false)}
+        title={`Played cards (${playedCards.length})`}
+        variant="stone"
+        size="lg"
+        footer={canRest ? <Button onClick={() => { rest(); setShowGraveyard(false) }}>Rest</Button> : null}
+      >
+        <p className="mb-3 text-sm text-fg-muted">Rest to take them all back to your hand.</p>
+        <div className="grid grid-cols-4 gap-3">
+          {playedCards.map((card, idx) => (
+            <CardImage key={idx} name={card.name} alt={card.name} className="aspect-[0.58] w-full rounded-stone-sm border border-black/50" />
+          ))}
+        </div>
+      </Modal>
     </>
   )
 }
@@ -596,8 +327,8 @@ const MyHandCards = ({ dockPosition }) => {
           <motion.div
             key={card.id || idx}
             className={`
-              absolute rounded-lg overflow-hidden shadow-lg cursor-pointer
-              ${isMyTurn ? 'ring-2 ring-green-400/50 hover:ring-green-400' : 'opacity-70'}
+              absolute cursor-pointer overflow-hidden rounded-stone-sm border shadow-elev-1
+              ${isMyTurn ? 'border-bronze-300 shadow-turn' : 'border-black/50 brightness-90'}
             `}
             style={{
               left: `${offset}%`,
@@ -642,28 +373,24 @@ const MyHandCards = ({ dockPosition }) => {
 // Main Layout Component
 // ============================================
 const FantasyGameLayout = ({ onNewGame, onBackToMenu }) => {
-  const { gameState, myPlayer, currentPlayer } = useGameStore()
+  const { gameState, myPlayer, currentPlayer, rest } = useGameStore()
+  const timer = useTurnTimer()
   const allPlayers = gameState?.players || []
 
   return (
-    <div 
-      className="h-screen h-[100dvh] relative overflow-hidden flex items-center justify-center"
-      style={{
-        backgroundImage: 'url(/assets/images/new_theme_bg.JPG)',
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundRepeat: 'no-repeat'
-      }}
-    >
+    <div className="relative flex h-screen h-[100dvh] items-center justify-center overflow-hidden">
+      <NightBackdrop />
       {/* MAIN CONTAINER - Contains both docks and game arena */}
       {/* Scales to fit viewport while maintaining aspect ratio */}
       <div 
         className="relative"
         style={{
+          // leave the top 56px to the HUD (round, sound, activity)
           aspectRatio: `${MAIN_ASPECT_RATIO}`,
           width: '98vw',
-          height: '98vh',
-          maxWidth: `calc(98vh * ${MAIN_ASPECT_RATIO})`,
+          height: 'calc(100dvh - 68px)',
+          marginTop: '56px',
+          maxWidth: `calc((100dvh - 68px) * ${MAIN_ASPECT_RATIO})`,
           maxHeight: `calc(98vw / ${MAIN_ASPECT_RATIO})`,
         }}
       >
@@ -708,39 +435,24 @@ const FantasyGameLayout = ({ onNewGame, onBackToMenu }) => {
             }}
           />
 
-          {/* Game Info Overlay - Top */}
-          <div className="absolute top-0 left-0 right-0 z-20 p-2">
-            <div className="flex items-center justify-between text-white text-xs">
-              {/* Round Info */}
-              <div className="flex items-center gap-2 bg-black/50 backdrop-blur-sm rounded-lg px-3 py-1.5">
-                <span className="font-semibold">Round {gameState?.round || 1}</span>
-                {gameState?.lastRound && (
-                  <span className="bg-red-500/80 text-white text-[10px] px-1.5 py-0.5 rounded animate-pulse">
-                    FINAL
-                  </span>
-                )}
-              </div>
-
-              {/* Current Turn */}
-              <div className="bg-black/50 backdrop-blur-sm rounded-lg px-3 py-1.5">
-                {currentPlayer?.id === myPlayer?.id ? (
-                  <span className="text-green-400 font-bold">Your Turn</span>
-                ) : (
-                  <span className="text-yellow-400 whitespace-nowrap">
-                    {currentPlayer?.name}'s Turn
-                    {currentPlayer?.isAI && gameState?.aiThinking?.playerID === currentPlayer?.id && (
-                      <AiThinkingIndicator className="ml-2 text-xs" />
-                    )}
-                  </span>
-                )}
-              </div>
-
-              {/* Deck Info */}
-              <div className="flex gap-2 bg-black/50 backdrop-blur-sm rounded-lg px-3 py-1.5">
-                <span>Action: {gameState?.market?.actionDeck || 0}</span>
-                <span>|</span>
-                <span>Point: {gameState?.market?.pointDeck || 0}</span>
-              </div>
+          {/* Turn strip on the board: your turn + seconds + Rest, or who is moving; deck sizes */}
+          <div className="absolute left-0 right-0 top-0 z-20 p-2">
+            <div className="flex items-center justify-between gap-2 text-sm">
+              <span className="surface-stone px-3 py-1.5 text-xs text-fg-muted">
+                <b className="font-display text-bronze-100">Round {gameState?.round || 1}</b>{gameState?.lastRound ? <b className="text-[rgb(255_200_185)]"> · last round</b> : null} · deck {gameState?.market?.actionDeck || 0} cards, {gameState?.market?.pointDeck || 0} golems
+              </span>
+              {currentPlayer?.id === myPlayer?.id ? (
+                <span className="flex items-center gap-2">
+                  <TurnBanner show seconds={timer.remaining} />
+                  <Button size="sm" variant="secondary" onClick={() => rest()} disabled={!(myPlayer?.playedCards?.length > 0)} title="Take all played cards back to your hand">Rest</Button>
+                </span>
+              ) : (
+                <span className="surface-stone max-w-[50%] truncate px-3 py-1.5 text-fg">
+                  {currentPlayer?.isAI && gameState?.aiThinking?.playerID === currentPlayer?.id
+                    ? <AiThinkingIndicator label={`${currentPlayer?.name} is thinking`} />
+                    : `${currentPlayer?.name || 'Next player'} to move · ${timer.remaining}s`}
+                </span>
+              )}
             </div>
           </div>
 

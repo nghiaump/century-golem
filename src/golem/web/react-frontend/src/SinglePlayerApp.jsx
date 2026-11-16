@@ -40,7 +40,7 @@ function GameContentWithTheme({ useWebLayout, isMobile, isPortrait, sessionId, o
   if (isFantasy && useWebLayout) {
     return (
       <>
-        <Hud sessionId={sessionId} showSkinToggle />
+        <Hud sessionId={sessionId} showSkinToggle showRound={false} />
         <FantasyGameLayout
           onNewGame={handleNewGame}
           onBackToMenu={handleBackToMenu}

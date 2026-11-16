@@ -1,6 +1,8 @@
 import React, { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import DepositModal from './DepositModal'
+import Coin from './ui/Coin'
+import Gem from './ui/Gem'
 import ConfirmGolemModal from './ConfirmGolemModal'
 import UpgradeModal from './UpgradeModal'
 import TradeModal from './TradeModal'
@@ -66,7 +68,7 @@ const FantasyCard = ({
     <motion.div
       className={`
         relative rounded-md overflow-hidden cursor-pointer
-        ${isAffordable || isPlayable ? 'ring-2 ring-green-400 ring-offset-1 ring-offset-black/50' : ''}
+        ${isAffordable || isPlayable ? 'ring-2 ring-bronze-300 shadow-turn' : ''}
       `}
       style={{
         ...style,
@@ -131,7 +133,7 @@ const FantasyHandCard = ({ card, index, isMyTurn, onClick }) => {
       className={`
         relative rounded-lg overflow-hidden cursor-pointer
         border-2 ${cardTypeColors[actionType]}
-        ${isMyTurn ? 'ring-2 ring-green-400' : ''}
+        ${isMyTurn ? 'ring-2 ring-bronze-300' : ''}
         bg-white shadow-lg
       `}
       style={{ width: '60px', height: '85px' }}
@@ -352,19 +354,17 @@ const FantasyMarketArea = () => {
             const coinBonus = coinInfo !== null
             const coinAmount = coinInfo ? coinInfo.coin.amount : 0
             const isCopperCoin = coinInfo ? coinInfo.isCopper : false
-            const coinEmoji = isCopperCoin ? '🥉' : '🥈'
 
             return (
               <div key={`point-${index}`} style={getSlotStyle(index, LAYOUT.pointCards)}>
                 <div className="w-full h-full flex items-center justify-center p-[4%] relative">
                   {/* Coin Bonus Badge - Top Right */}
                   {coinBonus && (
-                    <div 
-                      className="absolute top-0 right-0 z-30 flex items-center gap-0.5 bg-black/80 backdrop-blur-sm rounded-full px-1.5 py-0.5 border border-yellow-500/50 pointer-events-none shadow-lg"
-                      title={`${isCopperCoin ? 'Copper (3pts)' : 'Silver (1pt)'} - ${coinAmount} left`}
+                    <div
+                      className="pointer-events-none absolute right-0 top-0 z-30 flex items-center gap-0.5 rounded-full bg-rock-950/85 py-0.5 pl-0.5 pr-1.5 text-xs font-bold text-fg shadow-elev-1"
+                      title={`${isCopperCoin ? 'Copper (3 points)' : 'Silver (1 point)'} — ${coinAmount} left`}
                     >
-                      <span className="text-sm">{coinEmoji}</span>
-                      <span className="text-[10px] text-white font-bold">{coinAmount}</span>
+                      <Coin kind={isCopperCoin ? 'copper' : 'silver'} size={18} label={false} />{coinAmount}
                     </div>
                   )}
                   <FantasyCard
@@ -398,34 +398,17 @@ const FantasyMarketArea = () => {
             const isAffordable = canAfford(cost)
             const deposits = cardData.deposits || {}
             
-            // Build crystal badges array for deposits
-            const crystalBadges = []
-            const crystalImages = {
-              yellow: '/assets/images/stone_yellow.JPG',
-              green: '/assets/images/stone_green.JPG',
-              blue: '/assets/images/stone_blue.JPG',
-              pink: '/assets/images/stone_pink.JPG'
-            }
-            Object.entries(deposits).forEach(([type, count]) => {
-              for (let i = 0; i < parseInt(count || 0); i++) {
-                crystalBadges.push({ type, src: crystalImages[type] || crystalImages.yellow })
-              }
-            })
+            // crystals lying on the card (counts arrive as strings)
+            const crystalBadges = ['yellow', 'green', 'blue', 'pink'].flatMap((c) => Array(Number(deposits[c]) || 0).fill(c))
 
             return (
               <div key={`action-${index}`} style={getSlotStyle(index, LAYOUT.actionCards)}>
                 <div className="w-full h-full flex items-center justify-center p-[3%] relative">
                   {/* Deposit Crystals Badge - Top Right */}
                   {crystalBadges.length > 0 && (
-                    <div className="absolute top-0 right-0 z-30 flex flex-wrap gap-0.5 max-w-[50%] justify-end p-1 pointer-events-none">
-                      {crystalBadges.map((crystal, i) => (
-                        <img
-                          key={i}
-                          src={crystal.src}
-                          alt={crystal.type}
-                          className="w-4 h-4 rounded-full object-cover border-2 border-white shadow-lg"
-                          onError={(e) => { e.target.src = '/assets/images/stone_yellow.JPG' }}
-                        />
+                    <div className="pointer-events-none absolute right-0 top-0 z-30 flex max-w-[55%] flex-wrap justify-end gap-0.5 rounded-full bg-rock-950/80 p-0.5">
+                      {crystalBadges.map((c, i) => (
+                        <Gem key={i} color={c} size={15} label={false} />
                       ))}
                     </div>
                   )}
@@ -458,25 +441,7 @@ const FantasyMarketArea = () => {
           }}
         >
           <div className="w-full h-full overflow-hidden rounded-md">
-            {(() => {
-              const spriteStyle = getCardSpriteStyle('golem_0')
-              if (spriteStyle) {
-                return (
-                  <div 
-                    className="w-full h-full"
-                    style={spriteStyle}
-                    title="Golem Deck"
-                  />
-                )
-              }
-              return (
-                <img
-                  src={getCardImagePath('golem_0')}
-                  alt="Golem Deck"
-                  className="w-full h-full object-cover"
-                />
-              )
-            })()}
+            <img src="/assets/images/golem_bg.JPG" alt="Golem deck" className="h-full w-full object-cover" draggable="false" />
           </div>
         </div>
       )}
@@ -493,25 +458,7 @@ const FantasyMarketArea = () => {
           }}
         >
           <div className="w-full h-full overflow-hidden rounded-md">
-            {(() => {
-              const spriteStyle = getCardSpriteStyle('card_0')
-              if (spriteStyle) {
-                return (
-                  <div 
-                    className="w-full h-full"
-                    style={spriteStyle}
-                    title="Action Deck"
-                  />
-                )
-              }
-              return (
-                <img
-                  src={getCardImagePath('card_0')}
-                  alt="Action Deck"
-                  className="w-full h-full object-cover"
-                />
-              )
-            })()}
+            <img src="/assets/images/merchant_bg.JPG" alt="Merchant deck" className="h-full w-full object-cover" draggable="false" />
           </div>
         </div>
       )}
