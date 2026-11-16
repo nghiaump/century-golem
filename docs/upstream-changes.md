@@ -123,8 +123,8 @@ Crystals!" và không quay lại được.
 - Toast ý đồ AI (`aiIntent`) **tắt mặc định** (`AI_INTENT_MESSAGES=0`) — người dùng thấy thông báo quá tường minh.
 
 ### 0002 (f) UI AI 4 mức (2026-11-14)
-- `SinglePlayerLobby.jsx`: chọn độ khó (XP list + badge, mặc định Medium, nhớ trong localStorage, ghi chú liên minh ở
-  Very Hard), gửi `difficulty`. `XpWaitingRoom.jsx`: dòng AI kèm mức, sửa key trùng.
+- `SinglePlayerLobby.jsx`: chọn độ khó (XP list + badge, nhớ trong localStorage), gửi `difficulty`. Mặc định
+  **3 AI, Very Hard** (2026-11-16, ý người dùng; trước: 1 AI, Medium — API `/api/single` vẫn mặc định `medium`). `XpWaitingRoom.jsx`: dòng AI kèm mức, sửa key trùng.
 - Bàn chơi (style upstream): **một** badge độ khó `DifficultyBadge.jsx` dưới nút ✨ (góc trái; 2026-11-15 thay cho badge
   trong từng ô người chơi — người dùng thấy thừa và che tên); `AiThinkingIndicator.jsx` ở thanh bài (desktop) / thanh người
   chơi (mobile); ô người chơi desktop: avatar cao bằng 2 hàng (tên + crystal); AI không hiện "(offline)"; timer đọc
@@ -145,6 +145,13 @@ Crystals!" và không quay lại được.
   lá cũ che. Sửa: `RestPopup.jsx` ("💤 <tên> rested · took back N cards", ~2 s, kèm âm thanh rest), state
   `restPopup`/`showRestPopup` trong `gameStore.js`, `utils/rest.js` (`restedCards`, + test), gắn ở cả 2 theme trong
   `SinglePlayerApp.jsx`. `HistorySection.jsx` hiện đúng nước mới nhất (Rest ⇒ 💤).
+- 2026-11-16 (phản hồi người dùng):
+  - Desktop: popup Rest bật ra **ngay dưới avatar** người vừa Rest, có mũi nhọn chỉ lên (trước: giữa màn hình, dễ nhầm ai
+    Rest). `PlayerAvatar` nhận `restAnchor` ⇒ `data-rest-anchor=<id>` (bật ở `PlayerCard` và dock đối thủ của skin ✨);
+    `utils/rest.js` `restAnchorPosition` đo vị trí, giữ popup trong cửa sổ. Không thấy avatar (mobile) ⇒ vẫn ở giữa.
+  - Âm thanh khi **mình** Rest: upstream coi tay bài tăng là "mua lá" nên phát cả `acquireMerchant` lẫn `rest`. Giờ chỉ
+    phát `rest` (giống Rest của đối thủ); `useGameSounds.js` chỉ phát âm mua lá khi tay tăng mà số lá đã chơi không đổi
+    (Rest/Undo đều lấy lá từ đống đã chơi). `restedCards` không coi Undo (đang chờ discard) là Rest.
 
 ## 2. Asset — sinh bởi script
 | Thứ | Script | Chi tiết |
@@ -167,8 +174,8 @@ Avatar: 1 Goomba · 2 Koopa Troopa · 3 Lakitu · 4 Bowser · 5 Hammer Bro · 6 
 ## Test
 - Frontend (vitest, chạy trong `node:18-alpine` trên bản sao có `node_modules`): cấu hình vitest upstream không bật DOM
   (khoá `vitest.environment` trong package.json không có tác dụng) ⇒ chạy `vitest run --environment jsdom`. Khi đó upstream
-  12 pass / 2 fail (useGameSounds) + 2 file không chạy (cardNames, sounds); bản này **giống hệt phần lỗi**, 33 pass
-  (2026-11-15; thêm test avatar, aiLevel, lobby, rest, RestPopup, undo, DiscardModal).
+  12 pass / 2 fail (useGameSounds) + 2 file không chạy (cardNames, sounds); bản này **giống hệt phần lỗi**, 42 pass
+  (2026-11-16; thêm test avatar, aiLevel, lobby, rest, RestPopup, undo, DiscardModal, `hooks/__tests__/useGameSounds.rest.test.jsx`).
 - Backend (`go test -race ./internal/...` trong `golang:1.24`): `auth`, `eventstore`, `game`, `server`, `telegram` pass.
   `session` **fail sẵn ở upstream** (10 test, 25 data race, panic "send on closed channel" tại `sendToPlayer` khi
   test gỡ người chơi trong lúc broadcast — xem "Lỗi upstream đã biết" trong CLAUDE.md); sau patch 0003: 7 fail, 22 race,

@@ -48,7 +48,7 @@ const useGameStore = create((set, get) => ({
   tradeModalCardIndex: null, // Card index for trade modal
   acquiringCardIds: [], // Array of card IDs that are being acquired (for animation)
   acquiredCardOverlay: null, // { card, type: 'market'|'golem', playerName } for overlay animation
-  restPopup: null, // { id, playerName, avatarId, cards } — short popup when an opponent rests
+  restPopup: null, // { id, playerId, playerName, avatarId, cards } — short popup when an opponent rests
   lastPlay: null, // { kind: 'produce'|'upgrade'|'trade', card, cardIndex } — my last card play (for undo)
   pendingUndo: null, // lastPlay at the time "Undo" was sent, until the server's answer arrives
   reopenPlay: null, // the play to reopen the picker for after an undo (useReopenAfterUndo)
@@ -872,7 +872,7 @@ const useGameStore = create((set, get) => ({
   // this an opponent's rest only showed up as one line in the history.
   showRestPopup: (player, cards, players) => {
     const id = `${player.id}-${Date.now()}`
-    set({ restPopup: { id, playerName: player.name, avatarId: resolveAvatarId(player, players || []), cards } })
+    set({ restPopup: { id, playerId: player.id, playerName: player.name, avatarId: resolveAvatarId(player, players || []), cards } })
     setTimeout(() => {
       if (get().restPopup?.id === id) set({ restPopup: null })
     }, 2200)

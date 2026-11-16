@@ -119,7 +119,7 @@ const PlayerDock = ({ player, isCurrentTurn, isMe, position }) => {
           {/* Top row: Name & Golem count */}
           <div className="flex items-start justify-between mb-1">
             <div className="flex items-center gap-1 flex-wrap">
-              <PlayerAvatar player={player} className="w-6 h-6 rounded-full text-xs bg-purple-600 text-white border border-white/70" />
+              <PlayerAvatar player={player} restAnchor={!isMe} className="w-6 h-6 rounded-full text-xs bg-purple-600 text-white border border-white/70" />
               <span className="text-white font-bold text-sm" style={{ textShadow: '0 0 4px #000, 0 0 8px #000, 1px 1px 2px #000' }}>
                 {player.name || 'Player'}
               </span>

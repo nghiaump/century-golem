@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import useGameStore from '../store/gameStore';
 import soundManager from '../utils/sounds';
 import { createLogger } from '../utils/logger';
+import { restedCards } from '../utils/rest';
 
 const logger = createLogger('GameSounds');
 
@@ -92,13 +93,15 @@ export default function useGameSounds() {
     
     const prevHandCount = prevMyPlayer.hand?.length || 0;
     const currentHandCount = myPlayer.hand?.length || 0;
+    const samePlayed = (prevMyPlayer.playedCards?.length || 0) === (myPlayer.playedCards?.length || 0);
     
-    // If hand increased (acquired a card)
-    if (currentHandCount > prevHandCount) {
+    // If hand increased (acquired a card). A rest or an undo also grows the hand, but they take cards
+    // back from the played pile: the rest has its own sound, and the undo none.
+    if (currentHandCount > prevHandCount && samePlayed) {
       logger.info(`🛒 Playing acquire merchant sound (${prevHandCount} -> ${currentHandCount})`);
       soundManager.play('acquireMerchant');
     }
-  }, [myPlayer?.hand?.length, isSpectator, playerId, previousGameState]);
+  }, [myPlayer?.hand?.length, myPlayer?.playedCards?.length, isSpectator, playerId, previousGameState]);
   
   // Detect when current player claims a point card (golem)
   useEffect(() => {
@@ -124,14 +127,10 @@ export default function useGameSounds() {
     const prevMyPlayer = previousGameState.players?.find(p => p.id === playerId);
     if (!prevMyPlayer) return;
     
-    const prevPlayedCount = prevMyPlayer.playedCards?.length || 0;
-    const currentPlayedCount = myPlayer.playedCards?.length || 0;
-    const prevHandCount = prevMyPlayer.hand?.length || 0;
-    const currentHandCount = myPlayer.hand?.length || 0;
-    
-    // If rested: played cards went to 0 and hand increased
-    if (prevPlayedCount > 0 && currentPlayedCount === 0 && currentHandCount > prevHandCount) {
-      logger.info(`😴 Playing rest sound (played: ${prevPlayedCount} -> ${currentPlayedCount}, hand: ${prevHandCount} -> ${currentHandCount})`);
+    // Same sound as an opponent's rest (RestPopup)
+    const rested = restedCards(prevMyPlayer, myPlayer);
+    if (rested > 0) {
+      logger.info(`😴 Playing rest sound (took back ${rested} cards)`);
       soundManager.play('rest');
     }
   }, [myPlayer?.playedCards?.length, myPlayer?.hand?.length, isSpectator, playerId, previousGameState]);

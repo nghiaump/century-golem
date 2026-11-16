@@ -31,6 +31,30 @@ describe('RestPopup', () => {
     expect(useGameStore.getState().restPopup).toBeNull()
   })
 
+  test('desktop: shows just below the resting player\'s avatar', () => {
+    const anchor = document.createElement('div')
+    anchor.setAttribute('data-rest-anchor', '3')
+    anchor.getBoundingClientRect = () => ({ left: 300, width: 48, top: 20, bottom: 68, height: 48, right: 348 })
+    document.body.appendChild(anchor)
+    try {
+      render(<RestPopup />)
+      act(() => useGameStore.getState().showRestPopup({ id: 3, name: 'AI 2' }, 4, []))
+      const box = screen.getByTestId('rest-popup-anchored')
+      expect(box.style.top).toBe('76px')
+      expect(box.style.left).toBe('324px')
+      expect(screen.getByText(/AI 2 rested/)).toBeTruthy()
+    } finally {
+      anchor.remove()
+    }
+  })
+
+  test('without an avatar on screen it shows centered (mobile)', () => {
+    render(<RestPopup />)
+    act(() => useGameStore.getState().showRestPopup({ id: 3, name: 'AI 2' }, 4, []))
+    expect(screen.getByText(/AI 2 rested/)).toBeTruthy()
+    expect(screen.queryByTestId('rest-popup-anchored')).toBeNull()
+  })
+
   test('a newer rest is not cleared by the older timer', () => {
     vi.useFakeTimers()
     const st = useGameStore.getState()

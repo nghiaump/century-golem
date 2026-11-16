@@ -49,7 +49,7 @@
            <div className="flex items-start justify-between mb-1">
              <div className="flex items-center gap-1 flex-wrap">
 -              {player.isAI && <span className="text-sm">🤖</span>}
-+              <PlayerAvatar player={player} className="w-6 h-6 rounded-full text-xs bg-purple-600 text-white border border-white/70" />
++              <PlayerAvatar player={player} restAnchor={!isMe} className="w-6 h-6 rounded-full text-xs bg-purple-600 text-white border border-white/70" />
                <span className="text-white font-bold text-sm" style={{ textShadow: '0 0 4px #000, 0 0 8px #000, 1px 1px 2px #000' }}>
                  {player.name || 'Player'}
                </span>
@@ -1160,14 +1160,15 @@
                    {isCurrentTurn && (
 --- a/web/react-frontend/src/components/PlayerAvatar.jsx
 +++ b/web/react-frontend/src/components/PlayerAvatar.jsx
-@@ -0,0 +1,33 @@
+@@ -0,0 +1,37 @@
 +import React, { useState } from 'react'
 +import useGameStore from '../store/gameStore'
 +import { avatarSrc, resolveAvatarId } from '../utils/avatar'
 +
 +// In-game player avatar image. Size, shape and border come from `className`; falls back to the name initial
 +// if the image fails to load. Looks the player up in the game state so partial objects (e.g. `winner`) work.
-+const PlayerAvatar = ({ player, className = '' }) => {
++// `restAnchor`: the opponent rest popup (RestPopup) shows just below this avatar (desktop boards).
++const PlayerAvatar = ({ player, className = '', restAnchor = false }) => {
 +  const players = useGameStore((state) => state.gameState?.players) || []
 +  const [failedSrc, setFailedSrc] = useState(null)
 +
@@ -1178,7 +1179,10 @@
 +  const initial = fullPlayer?.name?.charAt(0)?.toUpperCase() || '?'
 +
 +  return (
-+    <div className={`overflow-hidden flex items-center justify-center font-bold ${className}`}>
++    <div
++      className={`overflow-hidden flex items-center justify-center font-bold ${className}`}
++      data-rest-anchor={restAnchor && fullPlayer?.id ? fullPlayer.id : undefined}
++    >
 +      {failedSrc === src ? (
 +        initial
 +      ) : (
@@ -1202,7 +1206,7 @@
  
  const PlayerCard = ({ player, isCurrentPlayer }) => {
    if (!player) return null
-@@ -28,56 +29,58 @@
+@@ -28,56 +29,59 @@
          <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-pulse" />
        )}
  
@@ -1225,6 +1229,7 @@
 -            <div 
 +          <PlayerAvatar
 +            player={player}
++            restAnchor
 +            className={`
 +              w-12 h-12 rounded-full text-base
 +              border-2 ${isCurrentPlayer ? 'border-yellow-400' : 'border-white'} shadow
@@ -1373,29 +1378,71 @@
                  </div>
 --- a/web/react-frontend/src/components/RestPopup.jsx
 +++ b/web/react-frontend/src/components/RestPopup.jsx
-@@ -0,0 +1,49 @@
-+import React, { useEffect } from 'react'
+@@ -0,0 +1,86 @@
++import React, { useEffect, useLayoutEffect, useState } from 'react'
 +import { createPortal } from 'react-dom'
 +import { motion, AnimatePresence } from 'framer-motion'
 +import useGameStore from '../store/gameStore'
 +import soundManager from '../utils/sounds'
 +import { avatarSrc } from '../utils/avatar'
++import { restAnchorPosition } from '../utils/rest'
 +
 +// "<name> rested · took back N cards", shown for ~2 s when an opponent rests (store.restPopup).
++// Desktop boards: just below the resting player's avatar, with a caret pointing at it, so it is clear
++// who rested. Elsewhere (mobile, avatar not on screen): centered at the top, with the avatar.
 +const RestPopup = () => {
 +  const restPopup = useGameStore((s) => s.restPopup)
 +  const id = restPopup?.id
++  const [placed, setPlaced] = useState(null) // { id, pos } — measured before paint
 +
 +  useEffect(() => {
 +    if (id) soundManager.play('rest')
 +  }, [id])
 +
++  useLayoutEffect(() => {
++    if (id) setPlaced({ id, pos: restAnchorPosition(restPopup.playerId) })
++  }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
++
++  const show = restPopup && placed?.id === id ? restPopup : null
++  const pos = show ? placed.pos : null
++  const text = show && (
++    <div className="leading-tight">
++      <div className="font-bold text-sm">💤 {show.playerName} rested</div>
++      <div className="text-xs text-purple-100">
++        took back {show.cards} card{show.cards === 1 ? '' : 's'}
++      </div>
++    </div>
++  )
++
 +  return createPortal(
-+    <div className="fixed inset-x-0 top-24 z-[9998] flex justify-center px-4 pointer-events-none">
-+      <AnimatePresence>
-+        {restPopup && (
++    <AnimatePresence>
++      {show && pos && (
++        <div
++          key={show.id}
++          data-testid="rest-popup-anchored"
++          className="fixed z-[9998] pointer-events-none"
++          style={{ top: pos.top, left: pos.left, transform: 'translateX(-50%)' }}
++        >
 +          <motion.div
-+            key={restPopup.id}
++            role="status"
++            aria-live="polite"
++            initial={{ opacity: 0, y: -8, scale: 0.9 }}
++            animate={{ opacity: 1, y: 0, scale: 1 }}
++            exit={{ opacity: 0, y: -8, scale: 0.9 }}
++            className="relative px-3 py-2 rounded-xl bg-purple-700 border-2 border-purple-300 text-white shadow-2xl whitespace-nowrap"
++          >
++            <span
++              aria-hidden="true"
++              className="absolute -top-[7px] w-3 h-3 rotate-45 bg-purple-700 border-l-2 border-t-2 border-purple-300"
++              style={{ left: `calc(50% + ${pos.caret}px - 6px)` }}
++            />
++            {text}
++          </motion.div>
++        </div>
++      )}
++      {show && !pos && (
++        <div key={show.id} className="fixed inset-x-0 top-24 z-[9998] flex justify-center px-4 pointer-events-none">
++          <motion.div
 +            role="status"
 +            aria-live="polite"
 +            initial={{ opacity: 0, y: -16, scale: 0.9 }}
@@ -1404,20 +1451,15 @@
 +            className="flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-purple-700/90 border-2 border-purple-300 text-white shadow-2xl backdrop-blur-md"
 +          >
 +            <img
-+              src={avatarSrc(restPopup.avatarId)}
++              src={avatarSrc(show.avatarId)}
 +              alt=""
 +              className="w-10 h-10 rounded-full border-2 border-white/60 object-cover flex-shrink-0"
 +            />
-+            <div className="leading-tight">
-+              <div className="font-bold text-sm">💤 {restPopup.playerName} rested</div>
-+              <div className="text-xs text-purple-100">
-+                took back {restPopup.cards} card{restPopup.cards === 1 ? '' : 's'}
-+              </div>
-+            </div>
++            {text}
 +          </motion.div>
-+        )}
-+      </AnimatePresence>
-+    </div>,
++        </div>
++      )}
++    </AnimatePresence>,
 +    document.body
 +  )
 +}
@@ -1440,7 +1482,8 @@
 -const SinglePlayerLobby = ({ onStartGame }) => {
 +const SinglePlayerLobby = ({ onStartGame, onBack }) => {
    const [playerName, setPlayerName] = useState('Player 1')
-   const [numAI, setNumAI] = useState(1)
+-  const [numAI, setNumAI] = useState(1)
++  const [numAI, setNumAI] = useState(3)
    const [selectedAvatar, setSelectedAvatar] = useState('4')
 +  const [difficulty, setDifficulty] = useState(loadAiLevel)
    const [loading, setLoading] = useState(false)
@@ -1760,7 +1803,7 @@
 +})
 --- a/web/react-frontend/src/components/__tests__/RestPopup.test.jsx
 +++ b/web/react-frontend/src/components/__tests__/RestPopup.test.jsx
-@@ -0,0 +1,43 @@
+@@ -0,0 +1,67 @@
 +import React from 'react'
 +import { render, screen, cleanup, act } from '@testing-library/react'
 +import { describe, test, expect, vi, afterEach } from 'vitest'
@@ -1794,6 +1837,30 @@
 +    expect(useGameStore.getState().restPopup).toBeNull()
 +  })
 +
++  test('desktop: shows just below the resting player\'s avatar', () => {
++    const anchor = document.createElement('div')
++    anchor.setAttribute('data-rest-anchor', '3')
++    anchor.getBoundingClientRect = () => ({ left: 300, width: 48, top: 20, bottom: 68, height: 48, right: 348 })
++    document.body.appendChild(anchor)
++    try {
++      render(<RestPopup />)
++      act(() => useGameStore.getState().showRestPopup({ id: 3, name: 'AI 2' }, 4, []))
++      const box = screen.getByTestId('rest-popup-anchored')
++      expect(box.style.top).toBe('76px')
++      expect(box.style.left).toBe('324px')
++      expect(screen.getByText(/AI 2 rested/)).toBeTruthy()
++    } finally {
++      anchor.remove()
++    }
++  })
++
++  test('without an avatar on screen it shows centered (mobile)', () => {
++    render(<RestPopup />)
++    act(() => useGameStore.getState().showRestPopup({ id: 3, name: 'AI 2' }, 4, []))
++    expect(screen.getByText(/AI 2 rested/)).toBeTruthy()
++    expect(screen.queryByTestId('rest-popup-anchored')).toBeNull()
++  })
++
 +  test('a newer rest is not cleared by the older timer', () => {
 +    vi.useFakeTimers()
 +    const st = useGameStore.getState()
@@ -1825,12 +1892,12 @@
 +    try { window.localStorage.clear() } catch { /* ignore */ }
 +  })
 +
-+  test('defaults to Medium and sends the chosen difficulty', async () => {
++  test('defaults to 3 AIs at Very Hard and sends the chosen difficulty', async () => {
 +    const onStartGame = vi.fn()
 +    render(<SinglePlayerLobby onStartGame={onStartGame} onBack={() => {}} />)
 +
-+    const medium = screen.getByDisplayValue('medium')
-+    expect(medium.checked).toBe(true)
++    expect(screen.getByDisplayValue('veryhard').checked).toBe(true)
++    expect(screen.getByDisplayValue('3').checked).toBe(true)
 +
 +    fireEvent.click(screen.getByDisplayValue('hard'))
 +    fireEvent.click(screen.getByRole('button', { name: /start game/i }))
@@ -1838,7 +1905,7 @@
 +    await waitFor(() => expect(onStartGame).toHaveBeenCalled())
 +    const body = JSON.parse(apiFetch.mock.calls[0][1].body)
 +    expect(body.difficulty).toBe('hard')
-+    expect(body.numAI).toBe(1)
++    expect(body.numAI).toBe(3)
 +  })
 +
 +  test('Very Hard shows no extra note about how the AIs play', () => {
@@ -1952,6 +2019,94 @@
 +)
 +
 +export default XpWindow
+--- a/web/react-frontend/src/hooks/__tests__/useGameSounds.rest.test.jsx
++++ b/web/react-frontend/src/hooks/__tests__/useGameSounds.rest.test.jsx
+@@ -0,0 +1,37 @@
++import { renderHook, cleanup, act } from '@testing-library/react'
++import { describe, test, expect, vi, afterEach } from 'vitest'
++
++const play = vi.fn()
++vi.mock('../../utils/sounds', () => ({ default: { play: (...a) => play(...a), toggleMute: vi.fn(), setMuted: vi.fn(), getMuted: () => false } }))
++
++import useGameSounds from '../useGameSounds'
++import useGameStore from '../../store/gameStore'
++
++const me = (hand, played, extra = {}) => ({ id: 1, name: 'Me', hand: Array(hand).fill({}), playedCards: Array(played).fill({}), pointCards: [], ...extra })
++
++// My player goes from `prev` to `cur`; another player is to move (no "my turn" sound).
++const soundsFor = (prev, cur) => {
++  act(() => useGameStore.setState({
++    playerId: 1, isSpectator: false, myPlayer: cur, currentPlayer: { id: 2 },
++    previousGameState: { players: [prev] }, gameState: { players: [cur], gameOver: false },
++  }))
++  renderHook(() => useGameSounds())
++  return play.mock.calls.map((c) => c[0])
++}
++
++describe('useGameSounds', () => {
++  afterEach(() => {
++    cleanup()
++    play.mockReset()
++  })
++
++  test('my rest plays only the rest sound (same as an opponent rest)', () => {
++    expect(soundsFor(me(3, 4), me(7, 0))).toEqual(['rest'])
++  })
++  test('buying a card plays the acquire sound', () => {
++    expect(soundsFor(me(3, 2), me(4, 2))).toEqual(['acquireMerchant'])
++  })
++  test('taking back an overflowing card play is silent', () => {
++    expect(soundsFor(me(3, 1, { pendingDiscard: 2 }), me(4, 0))).toEqual([])
++  })
++})
+--- a/web/react-frontend/src/hooks/useGameSounds.js
++++ b/web/react-frontend/src/hooks/useGameSounds.js
+@@ -2,6 +2,7 @@
+ import useGameStore from '../store/gameStore';
+ import soundManager from '../utils/sounds';
+ import { createLogger } from '../utils/logger';
++import { restedCards } from '../utils/rest';
+ 
+ const logger = createLogger('GameSounds');
+ 
+@@ -92,13 +93,15 @@
+     
+     const prevHandCount = prevMyPlayer.hand?.length || 0;
+     const currentHandCount = myPlayer.hand?.length || 0;
++    const samePlayed = (prevMyPlayer.playedCards?.length || 0) === (myPlayer.playedCards?.length || 0);
+     
+-    // If hand increased (acquired a card)
+-    if (currentHandCount > prevHandCount) {
++    // If hand increased (acquired a card). A rest or an undo also grows the hand, but they take cards
++    // back from the played pile: the rest has its own sound, and the undo none.
++    if (currentHandCount > prevHandCount && samePlayed) {
+       logger.info(`🛒 Playing acquire merchant sound (${prevHandCount} -> ${currentHandCount})`);
+       soundManager.play('acquireMerchant');
+     }
+-  }, [myPlayer?.hand?.length, isSpectator, playerId, previousGameState]);
++  }, [myPlayer?.hand?.length, myPlayer?.playedCards?.length, isSpectator, playerId, previousGameState]);
+   
+   // Detect when current player claims a point card (golem)
+   useEffect(() => {
+@@ -124,14 +127,10 @@
+     const prevMyPlayer = previousGameState.players?.find(p => p.id === playerId);
+     if (!prevMyPlayer) return;
+     
+-    const prevPlayedCount = prevMyPlayer.playedCards?.length || 0;
+-    const currentPlayedCount = myPlayer.playedCards?.length || 0;
+-    const prevHandCount = prevMyPlayer.hand?.length || 0;
+-    const currentHandCount = myPlayer.hand?.length || 0;
+-    
+-    // If rested: played cards went to 0 and hand increased
+-    if (prevPlayedCount > 0 && currentPlayedCount === 0 && currentHandCount > prevHandCount) {
+-      logger.info(`😴 Playing rest sound (played: ${prevPlayedCount} -> ${currentPlayedCount}, hand: ${prevHandCount} -> ${currentHandCount})`);
++    // Same sound as an opponent's rest (RestPopup)
++    const rested = restedCards(prevMyPlayer, myPlayer);
++    if (rested > 0) {
++      logger.info(`😴 Playing rest sound (took back ${rested} cards)`);
+       soundManager.play('rest');
+     }
+   }, [myPlayer?.playedCards?.length, myPlayer?.hand?.length, isSpectator, playerId, previousGameState]);
 --- a/web/react-frontend/src/hooks/useReopenAfterUndo.js
 +++ b/web/react-frontend/src/hooks/useReopenAfterUndo.js
 @@ -0,0 +1,14 @@
@@ -2494,7 +2649,7 @@
    tradeModalCardIndex: null, // Card index for trade modal
    acquiringCardIds: [], // Array of card IDs that are being acquired (for animation)
    acquiredCardOverlay: null, // { card, type: 'market'|'golem', playerName } for overlay animation
-+  restPopup: null, // { id, playerName, avatarId, cards } — short popup when an opponent rests
++  restPopup: null, // { id, playerId, playerName, avatarId, cards } — short popup when an opponent rests
 +  lastPlay: null, // { kind: 'produce'|'upgrade'|'trade', card, cardIndex } — my last card play (for undo)
 +  pendingUndo: null, // lastPlay at the time "Undo" was sent, until the server's answer arrives
 +  reopenPlay: null, // the play to reopen the picker for after an undo (useReopenAfterUndo)
@@ -2655,7 +2810,7 @@
 +  // this an opponent's rest only showed up as one line in the history.
 +  showRestPopup: (player, cards, players) => {
 +    const id = `${player.id}-${Date.now()}`
-+    set({ restPopup: { id, playerName: player.name, avatarId: resolveAvatarId(player, players || []), cards } })
++    set({ restPopup: { id, playerId: player.id, playerName: player.name, avatarId: resolveAvatarId(player, players || []), cards } })
 +    setTimeout(() => {
 +      if (get().restPopup?.id === id) set({ restPopup: null })
 +    }, 2200)
@@ -3039,7 +3194,7 @@
 +    description: 'The toughest opponents. Good luck.' },
 +]
 +
-+export const DEFAULT_AI_LEVEL = 'medium'
++export const DEFAULT_AI_LEVEL = 'veryhard'
 +
 +export const aiLevelInfo = (value) => AI_LEVELS.find((l) => l.value === value) || null
 +
@@ -3083,9 +3238,9 @@
 +import { AI_LEVELS, aiLevelInfo, aiLevelLabel, crystalsToPlace, totalCrystals, DEFAULT_AI_LEVEL } from './aiLevel'
 +
 +describe('aiLevel', () => {
-+  it('lists the four levels in order with Medium as default', () => {
++  it('lists the four levels in order with Very Hard as default', () => {
 +    expect(AI_LEVELS.map((l) => l.value)).toEqual(['easy', 'medium', 'hard', 'veryhard'])
-+    expect(DEFAULT_AI_LEVEL).toBe('medium')
++    expect(DEFAULT_AI_LEVEL).toBe('veryhard')
 +  })
 +  it('maps wire values to labels', () => {
 +    expect(aiLevelLabel('veryhard')).toBe('Very Hard')
@@ -3182,11 +3337,13 @@
 +})
 --- a/web/react-frontend/src/utils/rest.js
 +++ b/web/react-frontend/src/utils/rest.js
-@@ -0,0 +1,11 @@
+@@ -0,0 +1,28 @@
 +// Number of cards a player took back by resting between two states, 0 if they did not rest.
 +// A rest moves every played card back to the hand: played goes to 0 and the hand grows.
++// Taking back an overflowing card play (undo) can look the same when it was the only played card,
++// but it happens while a discard is pending, and a rest never does.
 +export function restedCards(prev, cur) {
-+  if (!prev || !cur) return 0
++  if (!prev || !cur || prev.pendingDiscard > 0) return 0
 +  const prevPlayed = prev.playedCards?.length || 0
 +  const curPlayed = cur.playedCards?.length || 0
 +  const prevHand = prev.hand?.length || 0
@@ -3194,13 +3351,28 @@
 +  if (prevPlayed > 0 && curPlayed === 0 && curHand > prevHand) return prevPlayed
 +  return 0
 +}
++
++// Where the "<name> rested" popup goes: just below that player's avatar on the desktop boards
++// (PlayerCard / PlayerDock mark it with data-rest-anchor). null when the avatar is not on screen
++// (mobile layouts, hidden panel): the popup then shows centered at the top.
++export function restAnchorPosition(playerId, doc = document, win = window) {
++  if (playerId == null) return null
++  const el = doc.querySelector(`[data-rest-anchor="${playerId}"]`)
++  if (!el) return null
++  const r = el.getBoundingClientRect()
++  if (!r.width || !r.height) return null
++  const half = 150 // about half the popup width: keep it inside the window
++  const center = r.left + r.width / 2
++  const left = Math.min(Math.max(center, half + 8), Math.max(half + 8, win.innerWidth - half - 8))
++  return { top: Math.round(r.bottom + 8), left: Math.round(left), caret: Math.round(center - left) }
++}
 --- a/web/react-frontend/src/utils/rest.test.js
 +++ b/web/react-frontend/src/utils/rest.test.js
-@@ -0,0 +1,16 @@
+@@ -0,0 +1,40 @@
 +import { describe, test, expect } from 'vitest'
-+import { restedCards } from './rest'
++import { restedCards, restAnchorPosition } from './rest'
 +
-+const p = (hand, played) => ({ hand: Array(hand).fill({}), playedCards: Array(played).fill({}) })
++const p = (hand, played, extra = {}) => ({ hand: Array(hand).fill({}), playedCards: Array(played).fill({}), ...extra })
 +
 +describe('restedCards', () => {
 +  test('counts the cards taken back on a rest', () => {
@@ -3211,6 +3383,30 @@
 +    expect(restedCards(p(4, 2), p(5, 2))).toBe(0) // acquired a card
 +    expect(restedCards(p(4, 0), p(4, 0))).toBe(0) // nothing played, nothing to take back
 +    expect(restedCards(null, p(4, 0))).toBe(0)
++  })
++  test('taking back the only played card (undo) is not a rest', () => {
++    expect(restedCards(p(3, 1, { pendingDiscard: 2 }), p(4, 0))).toBe(0)
++  })
++})
++
++describe('restAnchorPosition', () => {
++  const docWith = (rect) => ({
++    querySelector: (sel) => (sel === '[data-rest-anchor="3"]' && rect ? { getBoundingClientRect: () => rect } : null),
++  })
++  const win = { innerWidth: 1200 }
++
++  test('just below the avatar, centered on it', () => {
++    const rect = { left: 500, width: 48, top: 40, bottom: 88, height: 48 }
++    expect(restAnchorPosition(3, docWith(rect), win)).toEqual({ top: 96, left: 524, caret: 0 })
++  })
++  test('kept inside the window; the caret still points at the avatar', () => {
++    const rect = { left: 10, width: 40, top: 40, bottom: 80, height: 40 }
++    expect(restAnchorPosition(3, docWith(rect), win)).toEqual({ top: 88, left: 158, caret: -128 })
++  })
++  test('null when the avatar is not on screen', () => {
++    expect(restAnchorPosition(3, docWith(null), win)).toBeNull()
++    expect(restAnchorPosition(3, docWith({ left: 0, width: 0, top: 0, bottom: 0, height: 0 }), win)).toBeNull()
++    expect(restAnchorPosition(undefined, docWith(null), win)).toBeNull()
 +  })
 +})
 --- a/web/react-frontend/src/utils/undo.js

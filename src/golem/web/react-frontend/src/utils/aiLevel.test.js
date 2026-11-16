@@ -2,9 +2,9 @@ import { describe, it, expect } from 'vitest'
 import { AI_LEVELS, aiLevelInfo, aiLevelLabel, crystalsToPlace, totalCrystals, DEFAULT_AI_LEVEL } from './aiLevel'
 
 describe('aiLevel', () => {
-  it('lists the four levels in order with Medium as default', () => {
+  it('lists the four levels in order with Very Hard as default', () => {
     expect(AI_LEVELS.map((l) => l.value)).toEqual(['easy', 'medium', 'hard', 'veryhard'])
-    expect(DEFAULT_AI_LEVEL).toBe('medium')
+    expect(DEFAULT_AI_LEVEL).toBe('veryhard')
   })
   it('maps wire values to labels', () => {
     expect(aiLevelLabel('veryhard')).toBe('Very Hard')

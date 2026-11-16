@@ -11,7 +11,7 @@ export const AI_LEVELS = [
     description: 'The toughest opponents. Good luck.' },
 ]
 
-export const DEFAULT_AI_LEVEL = 'medium'
+export const DEFAULT_AI_LEVEL = 'veryhard'
 
 export const aiLevelInfo = (value) => AI_LEVELS.find((l) => l.value === value) || null
 

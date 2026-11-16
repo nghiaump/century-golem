@@ -34,6 +34,7 @@ const PlayerCard = ({ player, isCurrentPlayer }) => {
         <div className="relative flex-shrink-0">
           <PlayerAvatar
             player={player}
+            restAnchor
             className={`
               w-12 h-12 rounded-full text-base
               border-2 ${isCurrentPlayer ? 'border-yellow-400' : 'border-white'} shadow

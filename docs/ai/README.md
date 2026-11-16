@@ -6,8 +6,8 @@
 
 ## Levels
 
-Pick one level for every AI in the single-player lobby (default **Medium**, remembered per browser). The lobby only
-says Very Hard is the toughest level.
+Pick one level for every AI in the single-player lobby (default **3 AIs at Very Hard**; the level is remembered per
+browser). The lobby only says Very Hard is the toughest level.
 
 | Level | How it plays | Think time* |
 |---|---|---|

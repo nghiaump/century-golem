@@ -10,7 +10,7 @@ const logger = createLogger('SinglePlayerLobby');
 
 const SinglePlayerLobby = ({ onStartGame, onBack }) => {
   const [playerName, setPlayerName] = useState('Player 1')
-  const [numAI, setNumAI] = useState(1)
+  const [numAI, setNumAI] = useState(3)
   const [selectedAvatar, setSelectedAvatar] = useState('4')
   const [difficulty, setDifficulty] = useState(loadAiLevel)
   const [loading, setLoading] = useState(false)
