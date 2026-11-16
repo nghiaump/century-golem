@@ -14,6 +14,7 @@ import ConnectionDialog from './components/start/ConnectionDialog'
 import ReconnectBanner from './components/start/ReconnectBanner'
 import NightBackdrop from './components/ui/NightBackdrop'
 import { apiFetch } from './utils/api'
+import { resolveAvatar } from './utils/customAvatar'
 import { showToast } from './utils/toast'
 import WebGameLayout from './components/desktop/WebGameLayout'
 import Hud from './components/board/Hud'
@@ -195,7 +196,7 @@ function SinglePlayerApp() {
     const st = useGameStore.getState()
     const finished = st.gameState
     const name = st.myPlayer?.name || st.playerName || 'Player 1'
-    const avatar = String(st.myPlayer?.avatar || st.playerAvatar || '4')
+    let avatar = String(st.myPlayer?.avatar || st.playerAvatar || '4')
     if (finished?.mode !== 'single') {
       leaveGame()
       setPendingRoomId(null)
@@ -210,6 +211,7 @@ function SinglePlayerApp() {
     if (levels.length === ais.length && levels.length > 0) body.aiLevels = levels
     leaveGame()
     try {
+      avatar = await resolveAvatar(avatar) // own picture: upload it again for the new room
       const response = await apiFetch('/api/single', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

@@ -17,6 +17,124 @@
 +)
 +
 +export default AiThinkingIndicator
+--- a/web/react-frontend/src/components/AvatarCropper.jsx
++++ b/web/react-frontend/src/components/AvatarCropper.jsx
+@@ -0,0 +1,115 @@
++import React, { useEffect, useRef, useState } from 'react'
++import Modal from './ui/Modal'
++import Button from './ui/Button'
++import { renderCrop } from '../utils/customAvatar'
++
++const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v))
++
++/**
++ * Fit a picked photo into the round avatar: drag to move, slider / mouse wheel to zoom. The square
++ * shown is what gets saved (shown as a circle in the game). onDone(dataUrl) with a 256×256 JPEG.
++ */
++const AvatarCropper = ({ image, onCancel, onDone }) => {
++  const { img, url } = image
++  const V = typeof window !== 'undefined' ? Math.min(280, window.innerWidth - 72) : 280 // viewport side (px)
++  const w = img.naturalWidth
++  const h = img.naturalHeight
++  const cover = V / Math.min(w, h)
++  const [zoom, setZoom] = useState(1)
++  const s = cover * zoom
++  const [pos, setPos] = useState({ x: (V - w * cover) / 2, y: (V - h * cover) / 2 })
++  const drag = useRef(null)
++
++  const bound = (p, scale) => ({ x: clamp(p.x, V - w * scale, 0), y: clamp(p.y, V - h * scale, 0) })
++
++  // zoom around the centre of the viewport
++  const zoomTo = (z) => {
++    const nz = clamp(z, 1, 4)
++    const ns = cover * nz
++    setPos((p) => {
++      const cx = (V / 2 - p.x) / s
++      const cy = (V / 2 - p.y) / s
++      return bound({ x: V / 2 - cx * ns, y: V / 2 - cy * ns }, ns)
++    })
++    setZoom(nz)
++  }
++
++  useEffect(() => () => URL.revokeObjectURL(url), [url])
++
++  const onPointerDown = (e) => {
++    e.currentTarget.setPointerCapture(e.pointerId)
++    drag.current = { x: e.clientX, y: e.clientY, start: pos }
++  }
++  const onPointerMove = (e) => {
++    if (!drag.current) return
++    const { x, y, start } = drag.current
++    setPos(bound({ x: start.x + e.clientX - x, y: start.y + e.clientY - y }, s))
++  }
++  const onPointerUp = () => { drag.current = null }
++  const onKeyDown = (e) => {
++    const step = 8
++    const d = { ArrowLeft: [step, 0], ArrowRight: [-step, 0], ArrowUp: [0, step], ArrowDown: [0, -step] }[e.key]
++    if (d) {
++      e.preventDefault()
++      setPos((p) => bound({ x: p.x + d[0], y: p.y + d[1] }, s))
++    }
++  }
++
++  const save = () => onDone(renderCrop(img, { x: -pos.x / s, y: -pos.y / s, size: V / s }))
++
++  return (
++    <Modal
++      open
++      onClose={onCancel}
++      title="Your Picture"
++      size="sm"
++      footer={(
++        <>
++          <Button variant="outline" onClick={onCancel}>Cancel</Button>
++          <Button onClick={save} data-autofocus>Use Picture</Button>
++        </>
++      )}
++    >
++      <div className="flex flex-col items-center gap-4">
++        <div
++          role="application"
++          aria-label="Picture position: drag or use the arrow keys"
++          tabIndex={0}
++          onPointerDown={onPointerDown}
++          onPointerMove={onPointerMove}
++          onPointerUp={onPointerUp}
++          onPointerCancel={onPointerUp}
++          onWheel={(e) => zoomTo(zoom - Math.sign(e.deltaY) * 0.1)}
++          onKeyDown={onKeyDown}
++          className="relative cursor-grab touch-none select-none overflow-hidden rounded-stone border border-ink/30 bg-rock-950 active:cursor-grabbing"
++          style={{ width: V, height: V }}
++        >
++          <img
++            src={url}
++            alt=""
++            draggable="false"
++            className="pointer-events-none absolute max-w-none"
++            style={{ left: pos.x, top: pos.y, width: w * s, height: h * s }}
++          />
++          {/* the round avatar: everything outside the circle is dimmed */}
++          <div className="pointer-events-none absolute inset-0 rounded-full shadow-[0_0_0_9999px_rgb(18_19_28/0.55)] ring-2 ring-bronze-300" />
++        </div>
++        <label className="flex w-full items-center gap-3 text-sm text-ink-muted">
++          <span>Zoom</span>
++          <input
++            type="range"
++            min="1"
++            max="4"
++            step="0.01"
++            value={zoom}
++            onChange={(e) => zoomTo(parseFloat(e.target.value))}
++            className="h-11 flex-1 accent-[rgb(var(--bronze-500))]"
++          />
++        </label>
++        <p className="text-center text-xs text-ink-muted">Drag to move · it is saved small (256 px) and only kept on the server while your game runs.</p>
++      </div>
++    </Modal>
++  )
++}
++
++export default AvatarCropper
 --- a/web/react-frontend/src/components/board/BoardModals.jsx
 +++ b/web/react-frontend/src/components/board/BoardModals.jsx
 @@ -0,0 +1,55 @@
@@ -4287,7 +4405,7 @@
 +export default LevelPill
 --- a/web/react-frontend/src/components/Lobby.jsx
 +++ b/web/react-frontend/src/components/Lobby.jsx
-@@ -1,12 +1,15 @@
+@@ -1,12 +1,16 @@
  import React, { useState, useEffect } from "react";
 -import { useNavigate } from "react-router-dom";
 -import { motion, AnimatePresence } from "framer-motion";
@@ -4298,6 +4416,7 @@
 -import useOrientation from "../hooks/useOrientation";
  import { apiFetch } from "../utils/api";
 +import { showToast } from "../utils/toast";
++import { CUSTOM, loadStoredPicture, resolveAvatar } from "../utils/customAvatar";
 +import StartShell from "./start/StartShell";
 +import Button from "./ui/Button";
 +import Field, { FieldLabel } from "./ui/Field";
@@ -4307,7 +4426,7 @@
  
  const logger = createLogger('Lobby');
  
-@@ -22,16 +25,38 @@
+@@ -22,27 +26,66 @@
  
  // Load player name from localStorage or generate a new one
  const getInitialPlayerName = () => {
@@ -4353,7 +4472,9 @@
    const { user, isAuthenticated, loading: authLoading, authAvailable } = useAuth();
    const [playerName, setPlayerName] = useState(getInitialPlayerName);
    const [numPlayers, setNumPlayers] = useState(2);
-@@ -40,9 +65,26 @@
+   const [customSessionId, setCustomSessionId] = useState("");
+-  const [selectedAvatar, setSelectedAvatar] = useState("4");
++  const [selectedAvatar, setSelectedAvatar] = useState(() => (loadStoredPicture() ? CUSTOM : "4"));
    const [sessionInfo, setSessionInfo] = useState(null);
    const [rooms, setRooms] = useState([]);
    const [loading, setLoading] = useState(false);
@@ -4382,7 +4503,7 @@
  
    // Auto-populate player name from user profile
    useEffect(() => {
-@@ -66,9 +108,8 @@
+@@ -66,9 +109,8 @@
  
    // Cache playerName to localStorage whenever it changes
    useEffect(() => {
@@ -4394,7 +4515,7 @@
    }, [playerName]);
  
    // Auto-refresh rooms list
-@@ -127,6 +168,7 @@
+@@ -127,6 +169,7 @@
          logger.warn("Authentication required for game creation");
        } else {
          logger.error("Error creating game:", data);
@@ -4402,8 +4523,36 @@
        }
      } catch (error) {
        logger.error("Error creating game:", error);
-@@ -151,438 +193,178 @@
+@@ -136,7 +179,7 @@
      }
+   };
+ 
+-  const joinGame = (sessionId, asSpectator = false) => {
++  const joinGame = async (sessionId, asSpectator = false) => {
+     if (authAvailable && !asSpectator && !isAuthenticated) {
+       setAuthError("Please login to join a game as a player");
+       logger.warn("User attempted to join game without authentication");
+@@ -144,445 +187,193 @@
+     }
+ 
+     setAuthError(null);
+-    if (sessionId) {
+-      // For spectators, use a random name
+-      const name = asSpectator ? generatePlayerName() : playerName;
+-      onJoinGame(sessionId, name, selectedAvatar, asSpectator);
++    if (!sessionId) return;
++    // For spectators, use a random name and no picture
++    const name = asSpectator ? generatePlayerName() : playerName;
++    let avatar = "4";
++    if (!asSpectator) {
++      try {
++        avatar = await resolveAvatar(selectedAvatar); // own picture: upload it for this room
++      } catch (error) {
++        showToast(`Could not upload your picture: ${error.message}`, "error");
++        return;
++      }
+     }
++    onJoinGame(sessionId, name, avatar, asSpectator);
    };
  
 -  const copySessionId = (sessionId) => {
@@ -6613,12 +6762,13 @@
  }
 --- a/web/react-frontend/src/components/SinglePlayerLobby.jsx
 +++ b/web/react-frontend/src/components/SinglePlayerLobby.jsx
-@@ -1,25 +1,27 @@
+@@ -1,213 +1,87 @@
  import React, { useState } from 'react'
 -import { motion } from 'framer-motion'
  import { createLogger } from '../utils/logger'
  import { apiFetch } from '../utils/api'
 +import { showToast } from '../utils/toast'
++import { CUSTOM, loadStoredPicture, resolveAvatar } from '../utils/customAvatar'
  import useOrientation from '../hooks/useOrientation'
 +import { AI_LEVELS, loadAiLevel, saveAiLevel, aiLevelInfo } from '../utils/aiLevel'
 +import StartShell from './start/StartShell'
@@ -6637,8 +6787,9 @@
 +const SinglePlayerLobby = ({ onStartGame, onBack }) => {
    const [playerName, setPlayerName] = useState('Player 1')
 -  const [numAI, setNumAI] = useState(1)
+-  const [selectedAvatar, setSelectedAvatar] = useState('4')
 +  const [numAI, setNumAI] = useState(3)
-   const [selectedAvatar, setSelectedAvatar] = useState('4')
++  const [selectedAvatar, setSelectedAvatar] = useState(() => (loadStoredPicture() ? CUSTOM : '4'))
 +  const [difficulty, setDifficulty] = useState(loadAiLevel)
    const [loading, setLoading] = useState(false)
 -  const { isMobile, isTablet, isPortrait } = useOrientation()
@@ -6654,7 +6805,9 @@
  
    const startGame = async () => {
      setLoading(true)
-@@ -27,187 +29,56 @@
+     try {
++      // own picture: upload it first (the server keeps it only while this game's room exists)
++      const avatar = await resolveAvatar(selectedAvatar)
        const response = await apiFetch('/api/single', {
          method: 'POST',
          headers: { 'Content-Type': 'application/json' },
@@ -6667,8 +6820,9 @@
 -
        const data = await response.json()
        if (response.ok) {
+-        onStartGame(data.sessionID, playerName, selectedAvatar)
 +        saveAiLevel(difficulty)
-         onStartGame(data.sessionID, playerName, selectedAvatar)
++        onStartGame(data.sessionID, playerName, avatar)
        } else {
          logger.error('Failed to create single-player game:', data.error)
 -        alert('Failed to create game: ' + (data.error || 'Unknown error'))
@@ -7956,39 +8110,110 @@
 +export default Avatar
 --- a/web/react-frontend/src/components/ui/AvatarPicker.jsx
 +++ b/web/react-frontend/src/components/ui/AvatarPicker.jsx
-@@ -0,0 +1,34 @@
-+import React from 'react'
+@@ -0,0 +1,105 @@
++import React, { useRef, useState } from 'react'
 +import { AVATAR_IDS, avatarName, avatarSrc } from '../../utils/avatar'
++import { CUSTOM, loadImageFile, loadStoredPicture, storePicture } from '../../utils/customAvatar'
++import { showToast } from '../../utils/toast'
++import AvatarCropper from '../AvatarCropper'
 +import { FieldLabel } from './Field'
 +
-+/** Grid of golem portraits; the picked one is ringed and named. */
-+const AvatarPicker = ({ value, onChange, label = 'Your Golem', className = '' }) => (
-+  <div className={`flex flex-col gap-1.5 ${className}`}>
-+    <div className="flex items-baseline justify-between gap-2">
-+      <FieldLabel id="avatar-picker-label">{label}</FieldLabel>
-+      <span className="truncate font-display text-sm font-bold text-bronze-100">{avatarName(value)}</span>
-+    </div>
-+    <div role="group" aria-labelledby="avatar-picker-label" className="grid grid-cols-6 gap-1.5 sm:grid-cols-8 md:grid-cols-12">
-+      {AVATAR_IDS.map((id) => {
-+        const selected = String(value) === id
-+        return (
++const tile = (selected) => `relative aspect-square min-h-[44px] overflow-hidden rounded-full border-2 transition-[transform,border-color] duration-150
++  ${selected ? 'scale-105 border-bronze-300 shadow-turn' : 'border-black/50 opacity-80 hover:opacity-100 hover:border-bronze-500/70'}`
++
++/**
++ * Grid of golem portraits, plus the player's own picture: "Upload" picks an image (≤ 5 MB), the
++ * cropper fits it into the circle, and the result (256 px) is kept in this browser. `value` CUSTOM =
++ * "my picture" (uploaded when the game starts — see utils/customAvatar).
++ */
++const AvatarPicker = ({ value, onChange, label = 'Your Golem', allowUpload = true, className = '' }) => {
++  const [picture, setPicture] = useState(loadStoredPicture)
++  const [cropping, setCropping] = useState(null)
++  const fileRef = useRef(null)
++
++  const pick = async (e) => {
++    const file = e.target.files?.[0]
++    e.target.value = '' // picking the same file again still fires
++    if (!file) return
++    try {
++      setCropping(await loadImageFile(file))
++    } catch (err) {
++      showToast(err.message, 'error')
++    }
++  }
++
++  const done = (dataUrl) => {
++    setCropping(null)
++    setPicture(dataUrl)
++    storePicture(dataUrl)
++    onChange(CUSTOM)
++  }
++
++  const remove = () => {
++    setPicture(null)
++    storePicture(null)
++    if (value === CUSTOM) onChange('4')
++  }
++
++  return (
++    <div className={`flex flex-col gap-1.5 ${className}`}>
++      <div className="flex items-baseline justify-between gap-2">
++        <FieldLabel id="avatar-picker-label">{label}</FieldLabel>
++        <span className="truncate font-display text-sm font-bold text-bronze-100">{value === CUSTOM ? 'Your picture' : avatarName(value)}</span>
++      </div>
++      <div role="group" aria-labelledby="avatar-picker-label" className="grid grid-cols-6 gap-1.5 sm:grid-cols-8 md:grid-cols-12">
++        {allowUpload && picture ? (
++          <span className="relative">
++            <button type="button" onClick={() => onChange(CUSTOM)} aria-pressed={value === CUSTOM} aria-label="Your picture" title="Your picture" className={`${tile(value === CUSTOM)} w-full`}>
++              <img src={picture} alt="" className="h-full w-full object-cover" draggable="false" />
++            </button>
++            <button
++              type="button"
++              onClick={remove}
++              aria-label="Remove your picture"
++              title="Remove your picture"
++              data-allow-small
++              className="absolute -right-1 -top-1 z-10 flex h-6 w-6 items-center justify-center rounded-full border border-black/60 bg-rock-800 text-xs font-bold text-fg hover:bg-ember"
++            >
++              ×
++            </button>
++          </span>
++        ) : null}
++        {allowUpload ? (
 +          <button
 +            type="button"
-+            key={id}
-+            onClick={() => onChange(id)}
-+            aria-pressed={selected}
-+            aria-label={avatarName(id)}
-+            title={avatarName(id)}
-+            className={`relative aspect-square min-h-[44px] overflow-hidden rounded-full border-2 transition-[transform,border-color] duration-150
-+              ${selected ? 'scale-105 border-bronze-300 shadow-turn' : 'border-black/50 opacity-80 hover:opacity-100 hover:border-bronze-500/70'}`}
++            onClick={() => fileRef.current?.click()}
++            aria-label={picture ? 'Upload a different picture' : 'Upload your own picture'}
++            title={picture ? 'Upload a different picture' : 'Upload your own picture (up to 5 MB)'}
++            className="flex aspect-square min-h-[44px] flex-col items-center justify-center rounded-full border-2 border-dashed border-bronze-500/70 text-bronze-300 hover:border-bronze-300 hover:bg-rock-700/50"
 +          >
-+            <img src={avatarSrc(id)} alt="" className="h-full w-full object-cover" draggable="false" />
++            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
++              <path d="M12 16V5M7.5 9.5L12 5l4.5 4.5M5 19h14" />
++            </svg>
 +          </button>
-+        )
-+      })}
++        ) : null}
++        {AVATAR_IDS.map((id) => {
++          const selected = String(value) === id
++          return (
++            <button
++              type="button"
++              key={id}
++              onClick={() => onChange(id)}
++              aria-pressed={selected}
++              aria-label={avatarName(id)}
++              title={avatarName(id)}
++              className={tile(selected)}
++            >
++              <img src={avatarSrc(id)} alt="" className="h-full w-full object-cover" draggable="false" />
++            </button>
++          )
++        })}
++      </div>
++      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={pick} aria-hidden="true" tabIndex={-1} />
++      {cropping ? <AvatarCropper image={cropping} onCancel={() => setCropping(null)} onDone={done} /> : null}
 +    </div>
-+  </div>
-+)
++  )
++}
 +
 +export default AvatarPicker
 --- a/web/react-frontend/src/components/ui/Button.jsx
@@ -9958,7 +10183,7 @@
  
 --- a/web/react-frontend/src/SinglePlayerApp.jsx
 +++ b/web/react-frontend/src/SinglePlayerApp.jsx
-@@ -1,18 +1,22 @@
+@@ -1,18 +1,23 @@
 -import React, { useState, useEffect } from 'react'
 +import React, { useState, useEffect, useRef } from 'react'
  import { useParams, useNavigate } from 'react-router-dom'
@@ -9978,6 +10203,7 @@
 +import ReconnectBanner from './components/start/ReconnectBanner'
 +import NightBackdrop from './components/ui/NightBackdrop'
 +import { apiFetch } from './utils/api'
++import { resolveAvatar } from './utils/customAvatar'
 +import { showToast } from './utils/toast'
  import WebGameLayout from './components/desktop/WebGameLayout'
 -import ThemeToggleButton from './components/ThemeToggleButton'
@@ -9986,7 +10212,7 @@
  import FantasyGameLayout from './components/desktop/FantasyGameLayout'
  import useGameStore from './store/gameStore'
  import useOrientation from './hooks/useOrientation'
-@@ -21,59 +25,44 @@
+@@ -21,59 +26,44 @@
  import { ThemeProvider, useTheme } from './contexts/ThemeContext'
  
  // Game Content with Theme Support
@@ -10065,7 +10291,7 @@
        {useWebLayout ? (
          /* Desktop/Tablet - WebGameLayout */
          <div className="h-screen h-[100dvh] relative z-10">
-@@ -83,48 +72,31 @@
+@@ -83,48 +73,31 @@
            <DiscardModal />
          </div>
        ) : (
@@ -10137,7 +10363,7 @@
        )}
  
        {/* Game Over Modal */}
-@@ -144,6 +116,7 @@
+@@ -144,6 +117,7 @@
    const navigate = useNavigate()
    const [gameMode, setGameMode] = useState(null) // null, 'single', 'multi'
    const [inGame, setInGame] = useState(false)
@@ -10145,7 +10371,7 @@
    const { 
      connectWebSocket, 
      gameState, 
-@@ -158,13 +131,30 @@
+@@ -158,13 +132,30 @@
      playerAvatar: storedPlayerAvatar,
      isSpectator,
    } = useGameStore()
@@ -10179,7 +10405,7 @@
      }
    }, [roomId, inGame, isConnecting])
  
-@@ -183,250 +173,142 @@
+@@ -183,250 +174,143 @@
    }
  
    const handleBackToMenu = () => {
@@ -10206,7 +10432,7 @@
 +    const st = useGameStore.getState()
 +    const finished = st.gameState
 +    const name = st.myPlayer?.name || st.playerName || 'Player 1'
-+    const avatar = String(st.myPlayer?.avatar || st.playerAvatar || '4')
++    let avatar = String(st.myPlayer?.avatar || st.playerAvatar || '4')
 +    if (finished?.mode !== 'single') {
 +      leaveGame()
 +      setPendingRoomId(null)
@@ -10221,6 +10447,7 @@
 +    if (levels.length === ais.length && levels.length > 0) body.aiLevels = levels
 +    leaveGame()
 +    try {
++      avatar = await resolveAvatar(avatar) // own picture: upload it again for the new room
 +      const response = await apiFetch('/api/single', {
 +        method: 'POST',
 +        headers: { 'Content-Type': 'application/json' },
@@ -10981,7 +11208,9 @@
 +})
 --- a/web/react-frontend/src/utils/avatar.js
 +++ b/web/react-frontend/src/utils/avatar.js
-@@ -0,0 +1,56 @@
+@@ -0,0 +1,66 @@
++import { apiUrl } from './api'
++
 +// Player avatars: /assets/images/avatar/<id>.svg — 24 original golems drawn by deploy/make-golem-avatars.py
 +// (12 golems, then one variant of each). Names and count must match `avatarNames` in
 +// internal/session/ai_turns.go: the server picks random AI avatars and names the AI after its golem.
@@ -11018,8 +11247,16 @@
 +// and the query string makes them fetch the new files.
 +const AVATAR_VERSION = 'golem1'
 +
++// A player's own picture: "u_<16 hex>" (uploaded for the current room, kept by the server only while a
++// room uses it — internal/avatars). Anything else unknown falls back to the first golem.
++const CUSTOM_AVATAR = /^u_([0-9a-f]{16})$/
++export const isCustomAvatar = (id) => CUSTOM_AVATAR.test(String(id || ''))
++
 +export function avatarSrc(id) {
-+  return `/assets/images/avatar/${id}.svg?v=${AVATAR_VERSION}`
++  const custom = CUSTOM_AVATAR.exec(String(id || ''))
++  if (custom) return apiUrl(`/api/avatars/${custom[1]}.jpg`)
++  const known = AVATAR_IDS.includes(String(id)) ? String(id) : AVATAR_IDS[0]
++  return `/assets/images/avatar/${known}.svg?v=${AVATAR_VERSION}`
 +}
 +
 +// Avatar id to show for a player. Humans get the avatar they picked. The server gives AIs their player ID as
@@ -11146,6 +11383,172 @@
 +    expect(total({ yellow: 3, pink: 2 })).toBe(5)
 +    expect(levels({ yellow: 1, green: 1, blue: 1, pink: 1 })).toBe(10)
 +    expect(sub(add({ yellow: 2 }, { green: 1 }), { yellow: 1 })).toEqual({ yellow: 1, green: 1, blue: 0, pink: 0 })
++  })
++})
+--- a/web/react-frontend/src/utils/customAvatar.js
++++ b/web/react-frontend/src/utils/customAvatar.js
+@@ -0,0 +1,108 @@
++// The player's own avatar picture, handled in the browser: pick (≤ 5 MB) → crop → 256×256 JPEG
++// (≈ 20–40 KB) kept in this browser, uploaded to the server when a game is started or joined. The
++// server only keeps it while a room uses it (internal/avatars), so every start uploads it again
++// (same picture → same value, cheap).
++import { apiFetch } from './api'
++import { isCustomAvatar } from './avatar'
++
++export const MAX_FILE_BYTES = 5 * 1024 * 1024
++export const OUTPUT_SIZE = 256
++export const CUSTOM = 'custom' // lobby selection meaning "my own picture"
++const MAX_PIXELS = 40e6 // refuse absurd dimensions before decoding into a canvas
++const STORAGE_KEY = 'golem.customAvatar'
++
++/** Load a picked file as an <img>; rejects with a message the lobby can show. */
++export function loadImageFile(file) {
++  return new Promise((resolve, reject) => {
++    if (!file) return reject(new Error('No file selected'))
++    if (!/^image\//.test(file.type)) return reject(new Error('Please choose an image (JPEG, PNG, WebP…)'))
++    if (file.size > MAX_FILE_BYTES) return reject(new Error('The image is larger than 5 MB'))
++    const url = URL.createObjectURL(file)
++    const img = new Image()
++    img.onload = () => {
++      if (img.naturalWidth * img.naturalHeight > MAX_PIXELS) {
++        URL.revokeObjectURL(url)
++        reject(new Error('The image has too many pixels'))
++      } else {
++        resolve({ img, url })
++      }
++    }
++    img.onerror = () => {
++      URL.revokeObjectURL(url)
++      reject(new Error('This file could not be read as an image'))
++    }
++    img.src = url
++  })
++}
++
++/**
++ * Draw the square `crop` ({x, y, size} in image pixels) of `img` to an OUTPUT_SIZE JPEG data URL.
++ * Large photos are halved step by step first, which keeps the small result sharp.
++ */
++export function renderCrop(img, crop, size = OUTPUT_SIZE) {
++  let source = img
++  let sx = crop.x
++  let sy = crop.y
++  let side = crop.size
++  while (side > size * 2) {
++    const half = Math.ceil(side / 2)
++    const c = document.createElement('canvas')
++    c.width = half
++    c.height = half
++    const ctx = c.getContext('2d')
++    ctx.imageSmoothingQuality = 'high'
++    ctx.drawImage(source, sx, sy, side, side, 0, 0, half, half)
++    source = c
++    sx = 0
++    sy = 0
++    side = half
++  }
++  const out = document.createElement('canvas')
++  out.width = size
++  out.height = size
++  const ctx = out.getContext('2d')
++  ctx.fillStyle = '#12131c' // transparent areas → page colour (JPEG has no alpha)
++  ctx.fillRect(0, 0, size, size)
++  ctx.imageSmoothingQuality = 'high'
++  ctx.drawImage(source, sx, sy, side, side, 0, 0, size, size)
++  return out.toDataURL('image/jpeg', 0.88)
++}
++
++export function loadStoredPicture() {
++  try {
++    const v = window.localStorage.getItem(STORAGE_KEY)
++    return v && v.startsWith('data:image/jpeg') ? v : null
++  } catch {
++    return null
++  }
++}
++
++export function storePicture(dataUrl) {
++  try {
++    if (dataUrl) window.localStorage.setItem(STORAGE_KEY, dataUrl)
++    else window.localStorage.removeItem(STORAGE_KEY)
++  } catch {
++    // storage blocked: the picture still works for this page
++  }
++}
++
++/** Upload the stored picture; resolves to the avatar value ("u_…") to join with. */
++export async function uploadPicture(dataUrl) {
++  if (!dataUrl) throw new Error('No picture to upload')
++  const blob = await (await fetch(dataUrl)).blob()
++  const res = await apiFetch('/api/avatars', { method: 'POST', headers: { 'Content-Type': 'image/jpeg' }, body: blob })
++  const data = await res.json().catch(() => ({}))
++  if (!res.ok || !isCustomAvatar(data.avatar)) throw new Error(data.error || `Upload failed (HTTP ${res.status})`)
++  return data.avatar
++}
++
++/**
++ * The avatar value to send when starting/joining: built-in ids as they are; CUSTOM (or an earlier
++ * "u_…" value) uploads the stored picture again. Falls back to `fallback` if there is no picture.
++ */
++export async function resolveAvatar(choice, fallback = '4') {
++  if (choice !== CUSTOM && !isCustomAvatar(choice)) return String(choice || fallback)
++  const picture = loadStoredPicture()
++  if (!picture) return isCustomAvatar(choice) ? choice : fallback
++  return uploadPicture(picture)
++}
+--- a/web/react-frontend/src/utils/customAvatar.test.js
++++ b/web/react-frontend/src/utils/customAvatar.test.js
+@@ -0,0 +1,52 @@
++import { describe, test, expect, vi, afterEach } from 'vitest'
++import { CUSTOM, MAX_FILE_BYTES, loadImageFile, resolveAvatar, storePicture, loadStoredPicture } from './customAvatar'
++import { avatarSrc, isCustomAvatar } from './avatar'
++
++const PICTURE = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ=='
++
++describe('custom avatar', () => {
++  afterEach(() => {
++    vi.unstubAllGlobals()
++    storePicture(null)
++  })
++
++  test('avatar values: built-in golems, own pictures, anything else falls back', () => {
++    expect(isCustomAvatar('u_0123456789abcdef')).toBe(true)
++    expect(isCustomAvatar('7')).toBe(false)
++    expect(avatarSrc('u_0123456789abcdef')).toBe('/api/avatars/0123456789abcdef.jpg')
++    expect(avatarSrc('u_../../x')).toMatch(/\/assets\/images\/avatar\/1\.svg/)
++    expect(avatarSrc('javascript:alert(1)')).toMatch(/\/assets\/images\/avatar\/1\.svg/)
++  })
++
++  test('files over 5 MB or not images are refused before decoding', async () => {
++    const big = new File([new Uint8Array(MAX_FILE_BYTES + 1)], 'big.jpg', { type: 'image/jpeg' })
++    await expect(loadImageFile(big)).rejects.toThrow(/5 MB/)
++    const txt = new File(['hello'], 'a.txt', { type: 'text/plain' })
++    await expect(loadImageFile(txt)).rejects.toThrow(/image/)
++  })
++
++  test('built-in avatars are sent as they are, no upload', async () => {
++    const fetchSpy = vi.fn()
++    vi.stubGlobal('fetch', fetchSpy)
++    expect(await resolveAvatar('12')).toBe('12')
++    expect(fetchSpy).not.toHaveBeenCalled()
++  })
++
++  test('my picture is uploaded when the game starts and its value is used', async () => {
++    storePicture(PICTURE)
++    expect(loadStoredPicture()).toBe(PICTURE)
++    const fetchSpy = vi.fn(async (url) => {
++      if (String(url).startsWith('data:')) return { blob: async () => new Blob(['x'], { type: 'image/jpeg' }) }
++      return { ok: true, status: 200, json: async () => ({ avatar: 'u_00000000000000ff' }) }
++    })
++    vi.stubGlobal('fetch', fetchSpy)
++    expect(await resolveAvatar(CUSTOM)).toBe('u_00000000000000ff')
++    const upload = fetchSpy.mock.calls.find(([u]) => u === '/api/avatars')
++    expect(upload[1].method).toBe('POST')
++    expect(upload[1].headers['Content-Type']).toBe('image/jpeg')
++  })
++
++  test('without a stored picture the choice falls back to a golem', async () => {
++    expect(await resolveAvatar(CUSTOM)).toBe('4')
 +  })
 +})
 --- a/web/react-frontend/src/utils/rest.js

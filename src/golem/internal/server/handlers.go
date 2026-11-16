@@ -10,6 +10,7 @@ import (
 
 	"golem_century/internal/ai"
 	"golem_century/internal/auth"
+	"golem_century/internal/avatars"
 	"golem_century/internal/session"
 
 	"github.com/gorilla/websocket"
@@ -137,6 +138,9 @@ func (gs *GameServer) HandleWebSocketV2(w http.ResponseWriter, r *http.Request) 
 	log.Info("Adding player to session")
 
 	err = session.AddPlayer(playerID, clientID, playerName, playerAvatar, conn)
+	if err == nil {
+		avatars.Default.Attach(sessionID, playerAvatar) // a custom picture lives as long as this room
+	}
 	if err != nil {
 		log.Error("❌ Failed to add player to session", zap.Error(err))
 		// Send error message to client before closing

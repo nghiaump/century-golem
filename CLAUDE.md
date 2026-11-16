@@ -11,7 +11,8 @@ XP; `docs/ui/`) · **24 avatar golem tự vẽ** (12 golem + 1 biến thể mỗ
 **luật chính thức** (hoà ⇒ ghế sau thắng, mua lá = đặt crystal bất kỳ lên lá bên trái, golem 6/5) · **AI 4 mức**
 (Easy/Medium/Hard/Very Hard; Very Hard = mỗi AI tự chơi để thắng, chặn đối thủ đe doạ nhất; người chơi chỉ là đối thủ chính
 khi **ngang** AI dẫn đầu (lệch < 1 điểm) — **không liên minh/không "biếu" nhau, không chặn người chỉ để hại**, ADR 0008) ·
-rút lại nước chơi lá làm tràn >10 crystal (nút Undo ở popup discard) — `docs/ai/`.
+rút lại nước chơi lá làm tràn >10 crystal (nút Undo ở popup discard) — `docs/ai/` · **avatar ảnh riêng** (≤ 5 MB, cắt/thu ở trình
+duyệt, server chỉ giữ trong RAM theo phòng — `internal/avatars`).
 
 > **Máy chạy từ 2026-11-14: `pixel3xl`** — Pixel 3 XL, Ubuntu 24.04 **aarch64**, 3.5 GB RAM, Wi-Fi; `ssh ubuntu@100.71.99.38`
 > (Tailscale), repo `/home/ubuntu/ai/rename-game`, tunnel `century-tunnel` (systemd --user, linger bật), `sudo` không cần mật khẩu.
@@ -143,6 +144,9 @@ docker run --rm -v "$PWD/../src/golem":/src:ro -v golem-gomod:/go/pkg -v golem-g
   trong `utils/crystals.js` (đã từng hiện đủ 4 viên trên mọi lá).
 - `useBoardActions` (hooks): logic chung của mọi bố cục; chỉ MỘT instance mỗi màn được `reopenAfterUndo: true` (instance đó tiêu thụ
   sự kiện mở lại popup trade/upgrade sau Undo). `Modal` giữ `onClose` trong ref — đừng đưa hàm inline vào deps (giật focus mỗi lần render).
+- **Thêm route HTTP mà không sửa `cmd/`**: mọi request đi qua `server.WrapWithCORS` ⇒ chặn path ở đó (vd `/api/avatars` →
+  `avatars.Default`). Ảnh riêng gắn với phòng ở `HandleWebSocketV2` (`Attach`) và bị xoá ở dọn phòng `startCleanupTimerV2`
+  (`ReleaseSession`) — thêm chỗ xoá phòng mới thì phải gọi `ReleaseSession` theo. ⛔ ghi ảnh người chơi ra đĩa/Mongo.
 - Chạm lá trên điện thoại mở `CardSheet` (xem + nút hành động), desktop click là hành động ngay + hover xem chi tiết (`CardInspect`).
 - Avatar AI do server chọn ngẫu nhiên (`aiAvatar: true`); frontend `resolveAvatarId` chỉ dùng luật cũ theo ghế khi thiếu cờ.
   `PlayerAvatar` ⛔ tra người chơi theo `id 0` (phòng chờ: mọi dòng chưa có ghế đều id 0).

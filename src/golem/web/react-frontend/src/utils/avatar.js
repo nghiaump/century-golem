@@ -1,3 +1,5 @@
+import { apiUrl } from './api'
+
 // Player avatars: /assets/images/avatar/<id>.svg — 24 original golems drawn by deploy/make-golem-avatars.py
 // (12 golems, then one variant of each). Names and count must match `avatarNames` in
 // internal/session/ai_turns.go: the server picks random AI avatars and names the AI after its golem.
@@ -34,8 +36,16 @@ export const avatarName = (id) => AVATAR_NAMES[Number(id) - 1] || ''
 // and the query string makes them fetch the new files.
 const AVATAR_VERSION = 'golem1'
 
+// A player's own picture: "u_<16 hex>" (uploaded for the current room, kept by the server only while a
+// room uses it — internal/avatars). Anything else unknown falls back to the first golem.
+const CUSTOM_AVATAR = /^u_([0-9a-f]{16})$/
+export const isCustomAvatar = (id) => CUSTOM_AVATAR.test(String(id || ''))
+
 export function avatarSrc(id) {
-  return `/assets/images/avatar/${id}.svg?v=${AVATAR_VERSION}`
+  const custom = CUSTOM_AVATAR.exec(String(id || ''))
+  if (custom) return apiUrl(`/api/avatars/${custom[1]}.jpg`)
+  const known = AVATAR_IDS.includes(String(id)) ? String(id) : AVATAR_IDS[0]
+  return `/assets/images/avatar/${known}.svg?v=${AVATAR_VERSION}`
 }
 
 // Avatar id to show for a player. Humans get the avatar they picked. The server gives AIs their player ID as

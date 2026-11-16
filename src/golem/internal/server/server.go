@@ -7,6 +7,7 @@ import (
 
 	"golem_century/internal/ai"
 	"golem_century/internal/auth"
+	"golem_century/internal/avatars"
 	"golem_century/internal/config"
 	"golem_century/internal/eventstore"
 	"golem_century/internal/logger"
@@ -146,6 +147,7 @@ func (gs *GameServer) startCleanupTimerV2(sessionID string) {
 		if err := s.Close(); err != nil {
 			gs.Logger.Error("Error closing idle session", zap.String("sessionID", sessionID), zap.Error(err))
 		}
+		avatars.Default.ReleaseSession(sessionID) // players' own pictures go with the room
 		gs.Logger.Info("Removed idle session",
 			zap.String("sessionID", sessionID),
 			zap.String("status", string(status)),

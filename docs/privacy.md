@@ -36,6 +36,10 @@ Không có token/secret thật nào trong code hay 220 commit lịch sử git (c
 - **AI** (2026-11-14): chạy hoàn toàn trong process `server` (Go stdlib), không gọi dịch vụ ngoài, không model tải về,
   không gửi dữ liệu ván đi đâu. Backend vẫn nằm trên mạng `internal` (privacy-audit kiểm).
 
+- **Ảnh avatar riêng** (2026-11-16): file gốc không rời trình duyệt — chỉ bản 256px đã cắt được tải lên; server giải mã và mã hoá
+  lại (xoá EXIF/GPS/dữ liệu thừa), giữ trong RAM đúng thời gian phòng tồn tại rồi xoá (ảnh chưa vào phòng nào: 15 phút), không ghi
+  đĩa/Mongo; phục vụ với `Cache-Control: private` để Cloudflare không giữ bản sao. Người cùng phòng thấy ảnh đó.
+
 ## Rủi ro còn lại (đã chấp nhận / cần biết)
 - **Ảnh lá bài và âm thanh giống bản gốc** ⇒ ai so sánh vẫn nhận ra cùng một game (giao diện, avatar, nền đã là bản tự làm từ 2026-11-16).
 - **Ảnh avatar cũ có thể còn trong cache Cloudflare** ở URL không version `/assets/images/avatar/1.webp` (tối đa 7

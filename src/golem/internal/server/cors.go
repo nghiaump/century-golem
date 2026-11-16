@@ -2,6 +2,8 @@ package server
 
 import (
 	"net/http"
+
+	"golem_century/internal/avatars"
 )
 
 // WrapWithCORS returns an http.Handler that adds permissive CORS headers
@@ -25,6 +27,13 @@ func WrapWithCORS(next http.Handler) http.Handler {
 		// Short-circuit OPTIONS preflight
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		// Players' own avatar pictures (upload + download). Routed here because every request passes
+		// through this wrapper and the route table in cmd/ is upstream code we don't patch.
+		if avatars.Match(r.URL.Path) {
+			avatars.Default.ServeHTTP(w, r)
 			return
 		}
 

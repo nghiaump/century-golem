@@ -63,6 +63,10 @@ Không còn liên tục quá ngưỡng ⇒ xoá khỏi map + `Close()` (dừng v
   chọn, không trùng nhau) và **đặt tên AI theo golem** (Basalt, Mossback, …; `avatarNames` trong `session/ai_turns.go`, khớp
   `AVATAR_NAMES` ở frontend — test Go kiểm). State gửi `aiAvatar: true`; phòng chờ và trong ván dùng cùng một avatar.
 - Ảnh: `/assets/images/avatar/<id>.svg?v=<AVATAR_VERSION>` — query version để vượt cache 7 ngày.
+- **Ảnh riêng** (cả 2 chế độ): trình duyệt nhận file ≤ 5 MB, người chơi kéo/zoom vào khung tròn, thu về JPEG 256px (~20 KB, nhớ
+  trong localStorage) và tải lên `POST /api/avatars` mỗi lần tạo/vào ván → avatar = `u_<16 hex>`. Server giải mã + cắt vuông + thu ≤ 256px
+  + mã hoá lại (mất EXIF/GPS), giữ **trong RAM**, gắn với phòng khi người chơi vào (WS); phòng bị dọn ⇒ xoá ngay; ảnh không vào phòng nào
+  ⇒ xoá sau 15 phút; trần 400 ảnh / 24 MB. Không ghi đĩa, không vào Mongo (event chỉ chứa chuỗi `u_…`).
 
 ## Giao diện (frontend) — chi tiết: `docs/ui/thiet-ke-giao-dien.md`
 Một hệ thống thiết kế "Đá & Pha lê" cho mọi màn: token `src/styles/tokens.css` (+ Tailwind), font OFL tự phục vụ
@@ -97,6 +101,7 @@ internal/ai: agent theo ghế (Easy 1-ply · Medium/Hard/Very Hard MCTS ensemble
 | POST | `/api/single` | `{numAI: 1..4, difficulty?: easy\|medium\|hard\|veryhard (mặc định medium), aiLevels?: [...], turnTimeout?, sessionID?}` → `{sessionID: "single_<ns>", difficulty, aiLevels, …}`; difficulty lạ ⇒ 400; ID tự đặt bị ép tiền tố `single_` |
 | POST | `/api/join` | vào phòng |
 | POST | `/api/sessions/start` | `{sessionID}` bắt đầu ván |
+| POST/GET | `/api/avatars`, `/api/avatars/<id>.jpg` | ảnh avatar riêng của người chơi (package `internal/avatars`, định tuyến trong `server.WrapWithCORS` vì không sửa `cmd/`): POST ảnh JPEG/PNG ≤ 1 MB → `{avatar:"u_<16 hex>"}`; chỉ giữ trong RAM khi còn phòng dùng |
 | WS | `/ws?session=&name=&avatar=[&spectate=true][&clientID=]` | kênh chơi; message `state`, `playerAssigned`, `aiThinking`, `aiIntent`, `turnTimeout`, ...; client gửi `action` (`playCard`, `acquireCard`, `claimPointCard`, `rest`, `discard`, `undo`) (bảng field: `docs/ai/thiet-ke.md` §8) |
 | GET | `/api/games`, `/api/events?gameId=`, `/api/snapshot?gameId=`, `/admin/sessions/state?sessionId=` | xem lịch sử — **công khai, không auth** (như upstream); ván còn đang chơi ⇒ deck trả theo thứ tự ID (ẩn thứ tự thật) |
 | — | `/auth/*` | chỉ đăng ký khi bật Firebase; hiện trả 404 (đúng ý) |

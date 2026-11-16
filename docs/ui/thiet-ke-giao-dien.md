@@ -89,7 +89,11 @@ mở popup qua `<BoardModals actions={…}/>`. **Chỉ một instance mỗi màn
 `deploy/make-golem-avatars.py` (stdlib, tất định) vẽ 24 SVG 512px vào `assets-src/avatars/` + `avatars.json`: id 1–12 là 12 nguyên
 mẫu (Basalt, Mossback, Rime, Cinder, Rivet, Dune, Quartz, Terra, Onyx, Rootling, Reef, Nimbus), 13–24 là đúng 1 biến thể mỗi
 nguyên mẫu (Granite … Squall). Lõi ngực + mắt mang hình crystal; mỗi màu lõi 6 con; khung nhìn phóng vào đầu-vai để đọc được ở 36px.
-`sanitize-src.sh` xoá avatar cũ (kể cả ảnh người thật của upstream) rồi chép SVG vào `web/static/images/avatar/`. Tên phải khớp
+`sanitize-src.sh` xoá avatar cũ (kể cả ảnh người thật của upstream) rồi chép SVG vào `web/static/images/avatar/`.
+**Ảnh riêng**: `AvatarPicker` có ô Upload (+ ô "Your picture" có nút ×) → `AvatarCropper` (kéo, thanh zoom, bánh xe, phím mũi tên; khung
+tròn đánh dấu phần sẽ hiện) → `utils/customAvatar.js` (≤ 5 MB, ≤ 40 MP, thu từng nửa rồi JPEG 256px q0.88, localStorage) → lúc Start/Join/
+Play Again `resolveAvatar()` tải lên lại (`POST /api/avatars`, cùng ảnh ⇒ cùng giá trị `u_…`). `avatarSrc('u_…')` → `/api/avatars/<id>.jpg`;
+ảnh đã bị xoá (phòng cũ) ⇒ `PlayerAvatar` hiện chữ cái đầu. Tên phải khớp
 `AVATAR_NAMES` (frontend) và `avatarNames` (server; test `TestAvatarNames_MatchFrontendAndAreUnique`). Đổi ảnh ⇒ bump `AVATAR_VERSION`.
 
 ## 8. Kiểm thử

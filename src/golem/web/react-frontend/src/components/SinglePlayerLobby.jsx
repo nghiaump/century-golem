@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { createLogger } from '../utils/logger'
 import { apiFetch } from '../utils/api'
 import { showToast } from '../utils/toast'
+import { CUSTOM, loadStoredPicture, resolveAvatar } from '../utils/customAvatar'
 import useOrientation from '../hooks/useOrientation'
 import { AI_LEVELS, loadAiLevel, saveAiLevel, aiLevelInfo } from '../utils/aiLevel'
 import StartShell from './start/StartShell'
@@ -18,7 +19,7 @@ const OPPONENTS = [1, 2, 3, 4].map((n) => ({ value: String(n), label: `${n} AI`,
 const SinglePlayerLobby = ({ onStartGame, onBack }) => {
   const [playerName, setPlayerName] = useState('Player 1')
   const [numAI, setNumAI] = useState(3)
-  const [selectedAvatar, setSelectedAvatar] = useState('4')
+  const [selectedAvatar, setSelectedAvatar] = useState(() => (loadStoredPicture() ? CUSTOM : '4'))
   const [difficulty, setDifficulty] = useState(loadAiLevel)
   const [loading, setLoading] = useState(false)
   const { isCompact } = useOrientation()
@@ -26,6 +27,8 @@ const SinglePlayerLobby = ({ onStartGame, onBack }) => {
   const startGame = async () => {
     setLoading(true)
     try {
+      // own picture: upload it first (the server keeps it only while this game's room exists)
+      const avatar = await resolveAvatar(selectedAvatar)
       const response = await apiFetch('/api/single', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -34,7 +37,7 @@ const SinglePlayerLobby = ({ onStartGame, onBack }) => {
       const data = await response.json()
       if (response.ok) {
         saveAiLevel(difficulty)
-        onStartGame(data.sessionID, playerName, selectedAvatar)
+        onStartGame(data.sessionID, playerName, avatar)
       } else {
         logger.error('Failed to create single-player game:', data.error)
         showToast(`Could not create the game: ${data.error || 'unknown error'}`, 'error')

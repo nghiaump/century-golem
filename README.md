@@ -68,6 +68,7 @@ Play solo against 1–4 AI opponents or with up to 5 friends, right in the brows
 - **Helpful board**: cards you can take or claim glow, hovering (or tapping on a phone) shows what a card does, popups pick the cheapest crystals for you and warn before you go over 10
 - **Phone-first mobile layout** (portrait and landscape): big touch targets, tap a card to see it and act, safe areas for notches
 - **24 original golem avatars** drawn for this project; AI opponents wear random ones and are named after them (Basalt, Mossback, Rime…)
+- **Your own picture as avatar** in both modes: pick an image (≤ 5 MB), drag/zoom it into the circle; it is shrunk to 256 px in the browser, re-encoded on the server (metadata removed) and **deleted with the room** — never stored
 - **Undo** an overflowing card play from the discard popup; **reconnect banner** keeps the board on screen if the connection drops
 - **Sound effects** for your turn, plays, purchases, golem claims, rests, the last round and game over
 
@@ -258,6 +259,8 @@ DOCKER_BUILDKIT=1 docker compose up -d --build --no-deps server    # redeploy ba
 | `POST` | `/api/create` | `{numPlayers, sessionID?, creatorName}`: new multiplayer room |
 | `POST` | `/api/single` | `{numAI: 1..4, difficulty?: "easy"\|"medium"\|"hard"\|"veryhard", turnTimeout?}` → `{sessionID: "single_…", difficulty, aiLevels}` |
 | `POST` | `/api/join` | Join a room |
+| `POST` | `/api/avatars` | Body: a JPEG/PNG (≤ 1 MB, the browser already shrank it) → `{avatar: "u_<16 hex>"}`; kept in memory only while a room uses it |
+| `GET` | `/api/avatars/<id>.jpg` | A player's own picture (256 px JPEG, `Cache-Control: private`); `404` once its room is gone |
 | `POST` | `/api/sessions/start` | `{sessionID}`: start the game |
 | `WS` | `/ws?session=&name=&avatar=[&spectate=true][&clientID=]` | Game channel (`state`, `playerAssigned`, …) |
 | `GET` | `/api/games` · `/api/events?gameId=` · `/api/snapshot?gameId=` | Game history |

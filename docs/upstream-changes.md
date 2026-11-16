@@ -182,6 +182,14 @@ Chi tiết: [`ui/thiet-ke-giao-dien.md`](ui/thiet-ke-giao-dien.md). Tóm tắt t
   golem) + bước 5 (font); `ui-shots.mjs`; `smoke-test.sh` kiểm `avatar/1.svg?v=golem1`; `privacy-audit.sh` kiểm mọi file avatar.
 - Phát hiện khi làm: server gửi `deposits` của lá market dạng chuỗi (`ToMap`) ⇒ frontend luôn ép số (`utils/crystals.js`).
 
+### Avatar ảnh riêng (2026-11-16, theo yêu cầu người dùng: ≤ 5 MB, thu gọn, không lưu sau phiên)
+- Backend: package mới `internal/avatars` (giải mã JPEG/PNG ≤ 2048px, cắt vuông giữa, thu ≤ 256px bằng lọc trung bình vùng, mã hoá lại
+  JPEG q85 ⇒ mất metadata; RAM, gắn theo phòng, xoá khi phòng bị dọn / 15 phút nếu không vào phòng, trần 400 ảnh / 24 MB; HTTP
+  `POST /api/avatars`, `GET /api/avatars/<id>.jpg`); `server/cors.go` định tuyến (không sửa `cmd/`), `handlers.go` `Attach` khi vào phòng,
+  `server.go` `ReleaseSession` khi dọn phòng. Test: `internal/avatars/avatars_test.go`, `internal/server/avatar_cleanup_test.go`.
+- Frontend: `utils/customAvatar.js` (+ test), `components/AvatarCropper.jsx`, ô Upload trong `ui/AvatarPicker.jsx`, `utils/avatar.js`
+  (`isCustomAvatar`, `avatarSrc` cho `u_…`, giá trị lạ ⇒ golem 1); `SinglePlayerLobby`/`Lobby`/Play Again tải ảnh lên trước khi tạo/vào ván.
+
 ## 2. Asset — sinh bởi script
 | Thứ | Script | Chi tiết |
 |---|---|---|
@@ -205,7 +213,7 @@ Avatar: 1 Basalt · 2 Mossback · 3 Rime · 4 Cinder · 5 Rivet · 6 Dune · 7 Q
 ## Test
 - Frontend (vitest, chạy trong `node:18-alpine` trên bản sao có `node_modules`): cấu hình vitest upstream không bật DOM
   (khoá `vitest.environment` trong package.json không có tác dụng) ⇒ chạy `vitest run --environment jsdom`. Khi đó upstream
-  12 pass / 2 fail (useGameSounds) + 2 file không chạy (cardNames, sounds); bản này **giống hệt phần lỗi**, 45 pass
+  12 pass / 2 fail (useGameSounds) + 2 file không chạy (cardNames, sounds); bản này **giống hệt phần lỗi**, 50 pass
   (2026-11-16 sau giao diện mới; thêm test avatar, aiLevel, lobby, rest, RestPopup, undo, DiscardModal, crystals,
   `hooks/__tests__/useGameSounds.rest.test.jsx`). Kiểm giao diện thật: `deploy/ui-shots.mjs` (6 viewport, sạch).
 - Backend (`go test -race ./internal/...` trong `golang:1.24`): `auth`, `eventstore`, `game`, `server`, `telegram` pass.

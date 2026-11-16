@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import LoginButton from './LoginButton';
 import { apiFetch } from "../utils/api";
 import { showToast } from "../utils/toast";
+import { CUSTOM, loadStoredPicture, resolveAvatar } from "../utils/customAvatar";
 import StartShell from "./start/StartShell";
 import Button from "./ui/Button";
 import Field, { FieldLabel } from "./ui/Field";
@@ -61,7 +62,7 @@ const Lobby = ({ onJoinGame, onBack, initialRoomId = null }) => {
   const [playerName, setPlayerName] = useState(getInitialPlayerName);
   const [numPlayers, setNumPlayers] = useState(2);
   const [customSessionId, setCustomSessionId] = useState("");
-  const [selectedAvatar, setSelectedAvatar] = useState("4");
+  const [selectedAvatar, setSelectedAvatar] = useState(() => (loadStoredPicture() ? CUSTOM : "4"));
   const [sessionInfo, setSessionInfo] = useState(null);
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -178,7 +179,7 @@ const Lobby = ({ onJoinGame, onBack, initialRoomId = null }) => {
     }
   };
 
-  const joinGame = (sessionId, asSpectator = false) => {
+  const joinGame = async (sessionId, asSpectator = false) => {
     if (authAvailable && !asSpectator && !isAuthenticated) {
       setAuthError("Please login to join a game as a player");
       logger.warn("User attempted to join game without authentication");
@@ -186,11 +187,19 @@ const Lobby = ({ onJoinGame, onBack, initialRoomId = null }) => {
     }
 
     setAuthError(null);
-    if (sessionId) {
-      // For spectators, use a random name
-      const name = asSpectator ? generatePlayerName() : playerName;
-      onJoinGame(sessionId, name, selectedAvatar, asSpectator);
+    if (!sessionId) return;
+    // For spectators, use a random name and no picture
+    const name = asSpectator ? generatePlayerName() : playerName;
+    let avatar = "4";
+    if (!asSpectator) {
+      try {
+        avatar = await resolveAvatar(selectedAvatar); // own picture: upload it for this room
+      } catch (error) {
+        showToast(`Could not upload your picture: ${error.message}`, "error");
+        return;
+      }
     }
+    onJoinGame(sessionId, name, avatar, asSpectator);
   };
 
   const tabs = [
