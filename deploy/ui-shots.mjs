@@ -47,7 +47,7 @@ async function audit(page, vp, step, touch) {
       const own = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())
       if (own && parseFloat(getComputedStyle(el).fontSize) < 12) out.small.push(`${el.tagName.toLowerCase()} "${el.textContent.trim().slice(0, 24)}" ${getComputedStyle(el).fontSize}`)
     }
-    for (const el of document.querySelectorAll('button, a[href], [role="button"], input[type="radio"] + *')) {
+    for (const el of document.querySelectorAll('button, a[href], [role="button"], label:has(input[type="radio"])')) {
       if (!visible(el) || el.closest('[data-allow-small]')) continue
       const b = el.getBoundingClientRect()
       if (b.width < 43.5 || b.height < 43.5) out.tiny.push(`${el.tagName.toLowerCase()} "${(el.getAttribute('aria-label') || el.textContent || '').trim().slice(0, 24)}" ${Math.round(b.width)}×${Math.round(b.height)}`)

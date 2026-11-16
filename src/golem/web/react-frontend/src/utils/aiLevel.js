@@ -1,13 +1,13 @@
-// AI difficulty levels (must match internal/ai/profile.go). The lobby uses the XP style; the in-game
-// board shows a small badge in the upstream (Tailwind) style.
+// AI difficulty levels (must match internal/ai/profile.go). `tone` + `pips` style the level Pill
+// (components/ui/Pill): the dots carry the level too, not only the colour.
 export const AI_LEVELS = [
-  { value: 'easy', label: 'Easy', badge: 'green', board: 'bg-emerald-500/80',
+  { value: 'easy', label: 'Easy', tone: 'moss', pips: 1,
     description: 'Looks one move ahead and sometimes settles for a merely good move.' },
-  { value: 'medium', label: 'Medium', badge: 'blue', board: 'bg-sky-500/80',
+  { value: 'medium', label: 'Medium', tone: 'teal', pips: 2,
     description: 'Plans a few moves ahead with a short search. A solid opponent.' },
-  { value: 'hard', label: 'Hard', badge: 'orange', board: 'bg-amber-500/80',
+  { value: 'hard', label: 'Hard', tone: 'bronze', pips: 3,
     description: 'Searches deeper, reads your plan and blocks whoever is leading.' },
-  { value: 'veryhard', label: 'Very Hard', badge: 'red', board: 'bg-rose-600/80',
+  { value: 'veryhard', label: 'Very Hard', tone: 'ember', pips: 4,
     description: 'The toughest opponents. Good luck.' },
 ]
 

@@ -5,7 +5,7 @@ import CompactCard from '../CompactCard'
 import DepositModal from '../DepositModal'
 import ConfirmGolemModal from '../ConfirmGolemModal'
 import { showToast } from '../../utils/toast'
-import XpWaitingRoom from '../XpWaitingRoom'
+import WaitingRoom from '../WaitingRoom'
 import { totalCrystals } from '../../utils/aiLevel'
 
 const CompactGameBoard = () => {
@@ -38,7 +38,7 @@ const CompactGameBoard = () => {
           ${isMobile && isPortrait ? 'px-2 py-2' : isMobile ? 'px-2 py-3' : 'px-4 py-4'}
         `}
       >
-        <XpWaitingRoom players={otherPlayers} isSpectator={isSpectator} onStart={handleStartGame} mode={gameState?.mode} />
+        <WaitingRoom players={otherPlayers} isSpectator={isSpectator} onStart={handleStartGame} mode={gameState?.mode} />
       </div>
     )
   }

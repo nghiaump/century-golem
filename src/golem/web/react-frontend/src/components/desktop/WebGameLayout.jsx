@@ -3,7 +3,7 @@ import useGameStore from '../../store/gameStore'
 import CompactCard from '../CompactCard'
 import PlayerCard from '../PlayerCard'
 import PlayerAvatar from '../PlayerAvatar'
-import XpWaitingRoom from '../XpWaitingRoom'
+import WaitingRoom from '../WaitingRoom'
 import AiThinkingIndicator from '../AiThinkingIndicator'
 import { totalCrystals } from '../../utils/aiLevel'
 import GraveyardPanel from '../GraveyardPanel'
@@ -277,7 +277,7 @@ const WebGameLayout = () => {
         {/* Waiting Mode UI - spans rows 2-4 */}
         {isWaiting && (
           <div className="row-span-3 flex items-center justify-center p-6" style={{ minHeight: '400px' }}>
-            <XpWaitingRoom players={otherPlayers} isSpectator={isSpectator} onStart={handleStartGame} mode={gameState?.mode} />
+            <WaitingRoom players={otherPlayers} isSpectator={isSpectator} onStart={handleStartGame} mode={gameState?.mode} />
           </div>
         )}
 

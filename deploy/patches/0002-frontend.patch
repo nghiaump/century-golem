@@ -85,7 +85,7 @@
  import CompactCard from '../CompactCard'
  import PlayerCard from '../PlayerCard'
 +import PlayerAvatar from '../PlayerAvatar'
-+import XpWaitingRoom from '../XpWaitingRoom'
++import WaitingRoom from '../WaitingRoom'
 +import AiThinkingIndicator from '../AiThinkingIndicator'
 +import { totalCrystals } from '../../utils/aiLevel'
  import GraveyardPanel from '../GraveyardPanel'
@@ -190,7 +190,7 @@
 -              </>
 -            )}
 +          <div className="row-span-3 flex items-center justify-center p-6" style={{ minHeight: '400px' }}>
-+            <XpWaitingRoom players={otherPlayers} isSpectator={isSpectator} onStart={handleStartGame} mode={gameState?.mode} />
++            <WaitingRoom players={otherPlayers} isSpectator={isSpectator} onStart={handleStartGame} mode={gameState?.mode} />
            </div>
          )}
  
@@ -223,27 +223,22 @@
                  </div>
 --- a/web/react-frontend/src/components/DifficultyBadge.jsx
 +++ b/web/react-frontend/src/components/DifficultyBadge.jsx
-@@ -0,0 +1,24 @@
+@@ -0,0 +1,19 @@
 +import React from 'react'
 +import useGameStore from '../store/gameStore'
-+import { aiLevelInfo } from '../utils/aiLevel'
++import LevelPill from './LevelPill'
++import Pill from './ui/Pill'
 +
-+// The one difficulty badge of a game, under the theme (✨) toggle in the top-left corner — the
-+// player cards stay clean. Shows the AIs' level ("Mixed" if a room ever mixes levels); hidden when
-+// there are no AIs (multiplayer).
-+const DifficultyBadge = () => {
++// The AIs' difficulty for the whole game ("Mixed" if a room ever mixes levels); nothing when there
++// are no AIs (multiplayer). Placed by the HUD (top-left plaque).
++const DifficultyBadge = ({ className = '' }) => {
 +  const players = useGameStore((s) => s.gameState?.players) || []
 +  const levels = [...new Set(players.filter((p) => p.isAI && p.aiLevel).map((p) => p.aiLevel))]
 +  if (levels.length === 0) return null
-+  const info = levels.length === 1 ? aiLevelInfo(levels[0]) : null
 +  return (
-+    <div
-+      className={`fixed top-[52px] left-2 z-50 px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] leading-4 font-bold text-white whitespace-nowrap shadow-lg border border-white/30 pointer-events-none select-none ${info?.board || 'bg-slate-600/80'}`}
-+      title="AI difficulty"
-+      aria-label={`AI difficulty: ${info?.label || 'Mixed'}`}
-+    >
-+      {info?.label || 'Mixed'}
-+    </div>
++    <span className={`inline-flex ${className}`} title="AI difficulty">
++      {levels.length === 1 ? <LevelPill level={levels[0]} /> : <Pill>Mixed</Pill>}
++    </span>
 +  )
 +}
 +
@@ -392,63 +387,156 @@
  
    return (
      <>
+--- a/web/react-frontend/src/components/LevelPill.jsx
++++ b/web/react-frontend/src/components/LevelPill.jsx
+@@ -0,0 +1,12 @@
++import React from 'react'
++import Pill from './ui/Pill'
++import { aiLevelInfo } from '../utils/aiLevel'
++
++/** AI difficulty as a pill with 1–4 dots (Easy … Very Hard). Renders nothing for an unknown level. */
++const LevelPill = ({ level, className = '' }) => {
++  const info = aiLevelInfo(level)
++  if (!info) return null
++  return <Pill tone={info.tone} pips={info.pips} className={className}>{info.label}</Pill>
++}
++
++export default LevelPill
 --- a/web/react-frontend/src/components/Lobby.jsx
 +++ b/web/react-frontend/src/components/Lobby.jsx
-@@ -1,12 +1,13 @@
+@@ -1,12 +1,15 @@
  import React, { useState, useEffect } from "react";
- import { useNavigate } from "react-router-dom";
+-import { useNavigate } from "react-router-dom";
 -import { motion, AnimatePresence } from "framer-motion";
  import { createLogger } from '../utils/logger';
  import { useAuth } from '../contexts/AuthContext';
  import LoginButton from './LoginButton';
- import useGameStore from "../store/gameStore";
- import useOrientation from "../hooks/useOrientation";
+-import useGameStore from "../store/gameStore";
+-import useOrientation from "../hooks/useOrientation";
  import { apiFetch } from "../utils/api";
-+import { AVATAR_IDS, avatarSrc } from "../utils/avatar";
-+import XpWindow from "./XpWindow";
++import { showToast } from "../utils/toast";
++import StartShell from "./start/StartShell";
++import Button from "./ui/Button";
++import Field, { FieldLabel } from "./ui/Field";
++import Segmented from "./ui/Segmented";
++import AvatarPicker from "./ui/AvatarPicker";
++import Pill from "./ui/Pill";
  
  const logger = createLogger('Lobby');
  
-@@ -31,7 +32,7 @@
-   return newName;
+@@ -22,16 +25,38 @@
+ 
+ // Load player name from localStorage or generate a new one
+ const getInitialPlayerName = () => {
+-  const cachedName = localStorage.getItem("playerName");
+-  if (cachedName) {
+-    return cachedName;
++  try {
++    const cachedName = localStorage.getItem("playerName");
++    if (cachedName) return cachedName;
++    const newName = generatePlayerName();
++    localStorage.setItem("playerName", newName);
++    return newName;
++  } catch {
++    return generatePlayerName();
+   }
+-  const newName = generatePlayerName();
+-  localStorage.setItem("playerName", newName);
+-  return newName;
  };
  
 -const Lobby = ({ onJoinGame }) => {
++const PLAYER_COUNTS = [2, 3, 4, 5].map((n) => ({ value: String(n), label: `${n}` }));
++
++const Note = ({ tone = "neutral", children }) => {
++  const cls = {
++    neutral: "border-rock-400/40 bg-rock-950/40 text-fg-muted",
++    ok: "border-moss/60 bg-moss/15 text-[rgb(200_235_190)]",
++    err: "border-ember/60 bg-ember/15 text-[rgb(255_210_196)]",
++  }[tone];
++  return <div role="status" className={`rounded-stone-sm border px-3 py-2 text-sm ${cls}`}>{children}</div>;
++};
++
++const copyText = async (text) => {
++  try {
++    await navigator.clipboard.writeText(text);
++    showToast("Room ID copied", "success");
++  } catch {
++    showToast("Could not copy — select the ID and copy it by hand", "error");
++  }
++};
++
 +const Lobby = ({ onJoinGame, onBack, initialRoomId = null }) => {
    const { user, isAuthenticated, loading: authLoading, authAvailable } = useAuth();
    const [playerName, setPlayerName] = useState(getInitialPlayerName);
    const [numPlayers, setNumPlayers] = useState(2);
-@@ -40,7 +41,20 @@
+@@ -40,9 +65,26 @@
    const [sessionInfo, setSessionInfo] = useState(null);
    const [rooms, setRooms] = useState([]);
    const [loading, setLoading] = useState(false);
 -  const [activeTab, setActiveTab] = useState("create");
 +  const [activeTab, setActiveTab] = useState(initialRoomId ? "join" : "create");
++  const [joinId, setJoinId] = useState("");
 +  // Status of the room from a /room/:id link: null | "checking" | "open" | "gone"
 +  const [linkedRoomStatus, setLinkedRoomStatus] = useState(initialRoomId ? "checking" : null);
+   const [authError, setAuthError] = useState(null);
+-  const { isMobile, isTablet, isPortrait, isLandscape } = useOrientation();
 +
 +  useEffect(() => {
 +    if (!initialRoomId) return;
 +    let cancelled = false;
 +    apiFetch(`/admin/sessions/state?sessionId=${encodeURIComponent(initialRoomId)}`)
-+      .then((res) => !cancelled && setLinkedRoomStatus(res.ok ? "open" : "gone"))
++      .then((res) => {
++        if (cancelled) return;
++        setLinkedRoomStatus(res.ok ? "open" : "gone");
++        if (res.ok) setJoinId(initialRoomId);
++      })
 +      .catch(() => !cancelled && setLinkedRoomStatus("gone"));
 +    return () => {
 +      cancelled = true;
 +    };
 +  }, [initialRoomId]);
-   const [authError, setAuthError] = useState(null);
-   const { isMobile, isTablet, isPortrait, isLandscape } = useOrientation();
  
-@@ -158,153 +172,98 @@
-   // Responsive layout helpers
-   const isMobileLayout = isMobile && isPortrait;
-   const isCompactLayout = isMobile || (isTablet && isPortrait);
-+  // Two columns only where there is a second column to show (the room list on the Join tab).
-+  const twoColumns = activeTab === "join" && !isCompactLayout;
+   // Auto-populate player name from user profile
+   useEffect(() => {
+@@ -66,9 +108,8 @@
  
-   // Debug: log layout mode
-   logger.debug("Layout:", { isMobile, isTablet, isPortrait, isMobileLayout, isCompactLayout });
+   // Cache playerName to localStorage whenever it changes
+   useEffect(() => {
+-    if (playerName) {
+-      localStorage.setItem("playerName", playerName);
+-    }
++    if (!playerName) return;
++    try { localStorage.setItem("playerName", playerName); } catch { /* not remembered */ }
+   }, [playerName]);
+ 
+   // Auto-refresh rooms list
+@@ -127,6 +168,7 @@
+         logger.warn("Authentication required for game creation");
+       } else {
+         logger.error("Error creating game:", data);
++        setAuthError(data.error || "Could not create the room. Please try again.");
+       }
+     } catch (error) {
+       logger.error("Error creating game:", error);
+@@ -151,438 +193,178 @@
+     }
+   };
+ 
+-  const copySessionId = (sessionId) => {
+-    navigator.clipboard.writeText(sessionId);
+-  };
+-
+-  // Responsive layout helpers
+-  const isMobileLayout = isMobile && isPortrait;
+-  const isCompactLayout = isMobile || (isTablet && isPortrait);
+-
+-  // Debug: log layout mode
+-  logger.debug("Layout:", { isMobile, isTablet, isPortrait, isMobileLayout, isCompactLayout });
++  const tabs = [
++    { id: "create", label: "Create Room" },
++    { id: "join", label: `Join (${rooms.length})` },
++  ];
  
    return (
 -    <div
@@ -463,7 +551,12 @@
 -        backgroundRepeat: "no-repeat",
 -        backgroundAttachment: isMobile ? "scroll" : "fixed",
 -      }}
--    >
++    <StartShell
++      title="Multiplayer"
++      subtitle={activeTab === "create" ? "Create a room and share its ID" : "Pick a room or paste an ID"}
++      onBack={onBack}
++      width={activeTab === "join" ? "xl" : "lg"}
+     >
 -      <motion.div
 -        className={`
 -          backdrop-blur-md w-full overflow-hidden
@@ -478,19 +571,7 @@
 -        initial={{ opacity: 0, scale: 0.95, y: 10 }}
 -        animate={{ opacity: 1, scale: 1, y: 0 }}
 -        transition={{ duration: 0.2 }}
-+    <div className="xp-desktop safe-top safe-bottom">
-+      <XpWindow
-+        title="Multiplayer — Century: Golem Edition"
-+        icon={avatarSrc(selectedAvatar)}
-+        onClose={onBack}
-+        className={twoColumns ? "max-w-4xl" : "max-w-xl"}
-+        status={
-+          <>
-+            <span>{activeTab === "create" ? "Create a room and share its ID" : "Pick a room or paste an ID"}</span>
-+            <span>{rooms.length} room(s) open</span>
-+          </>
-+        }
-       >
+-      >
 -        {/* Title */}
 -        <h1
 -          className={`
@@ -501,7 +582,7 @@
 -          {isMobileLayout ? "Golem Edition" : "Century: Golem Edition"}
 -        </h1>
 -
-         {/* Tabs */}
+-        {/* Tabs */}
 -        <div className="flex gap-2 sm:gap-4 mb-4 sm:mb-6 border-b border-white/20">
 -          <button
 -            onClick={() => setActiveTab("create")}
@@ -511,43 +592,61 @@
 -              ${activeTab === "create" ? "text-white border-b-2 border-purple-400" : "text-white/60 hover:text-white"}
 -            `}
 -          >
-+        <div className="xp-tabs" role="tablist">
-+          <button type="button" role="tab" aria-selected={activeTab === "create"} className="xp-tab" onClick={() => setActiveTab("create")}>
-             Create Room
-           </button>
+-            Create Room
+-          </button>
++      {/* Tabs */}
++      <div role="tablist" aria-label="Multiplayer" className="grid grid-cols-2 gap-1.5 rounded-stone-sm bg-rock-950/50 p-1">
++        {tabs.map((t) => (
            <button
++            key={t.id}
 +            type="button"
 +            role="tab"
-+            aria-selected={activeTab === "join"}
-+            className="xp-tab"
++            aria-selected={activeTab === t.id}
              onClick={() => {
-               setActiveTab("join");
-               fetchRooms();
+-              setActiveTab("join");
+-              fetchRooms();
++              setActiveTab(t.id);
++              if (t.id === "join") fetchRooms();
              }}
 -            className={`
 -              px-3 sm:px-6 py-2 font-bold transition-all
 -              ${isMobileLayout ? "text-sm flex-1" : ""}
 -              ${activeTab === "join" ? "text-white border-b-2 border-blue-400" : "text-white/60 hover:text-white"}
 -            `}
++            className={`min-h-[44px] rounded-stone-sm font-display text-sm font-bold transition-colors
++              ${activeTab === t.id ? "bg-gradient-to-b from-bronze-300 to-bronze-500 text-ink shadow-bevel" : "text-fg-muted hover:bg-rock-700/60 hover:text-fg"}`}
            >
-             Join ({rooms.length})
+-            Join ({rooms.length})
++            {t.label}
            </button>
++        ))}
++      </div>
++
++      {/* Auth (Google login is off on this server; kept for completeness) */}
++      {authLoading ? (
++        <Note>Loading authentication…</Note>
++      ) : (authAvailable || authError) && (
++        <div className="flex flex-col gap-2">
++          {authAvailable && <LoginButton />}
++          {authError && <Note tone="err">{authError}</Note>}
++          {authAvailable && !isAuthenticated && (
++            <Note>You need to login to create or join a game as a player. Spectators can watch without logging in.</Note>
++          )}
          </div>
++      )}
  
-         {/* Content - Single column on mobile, two columns on desktop */}
+-        {/* Content - Single column on mobile, two columns on desktop */}
 -        <div
 -          className={`
 -          ${isMobileLayout || isCompactLayout ? "space-y-4" : "grid grid-cols-1 md:grid-cols-2 gap-6"}
 -        `}
 -        >
-+        <div className={twoColumns ? "grid grid-cols-2 gap-6" : "xp-stack"}>
-           {/* Auth Status Section */}
-           {authLoading ? (
+-          {/* Auth Status Section */}
+-          {authLoading ? (
 -            <div className="col-span-full text-center text-white">
 -              <p>Loading authentication...</p>
 -            </div>
-+            <div className="col-span-full xp-muted">Loading authentication...</div>
-           ) : (
+-          ) : (
 -            <div className="col-span-full space-y-3">
 -              {authAvailable && <LoginButton />}
 -              
@@ -562,46 +661,80 @@
 -                  <p className="font-semibold mb-1">Login Required</p>
 -                  <p>You need to login to create or join a game as a player. Spectators can view games without logging in.</p>
 -                </div>
--              )}
--            </div>
-+            (authAvailable || authError) && (
-+              <div className="col-span-full xp-stack">
-+                {authAvailable && <LoginButton />}
-+                {authError && <div className="xp-note xp-note--err">{authError}</div>}
-+                {authAvailable && !isAuthenticated && (
-+                  <div className="xp-note">
-+                    <p className="font-bold mb-1">Login Required</p>
-+                    <p>You need to login to create or join a game as a player. Spectators can view games without logging in.</p>
++      <div className={activeTab === "join" ? "grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]" : "flex flex-col gap-5"}>
++        {/* You */}
++        <div className="flex flex-col gap-5">
++          <Field
++            id="mp-name"
++            label="Your Name"
++            value={playerName}
++            onChange={(e) => setPlayerName(e.target.value)}
++            placeholder="Enter your name"
++            maxLength={24}
++            autoComplete="nickname"
++          />
++          <AvatarPicker value={selectedAvatar} onChange={setSelectedAvatar} />
++
++          {activeTab === "create" && (
++            <>
++              <Segmented
++                name="numPlayers"
++                label="Number of Players"
++                value={numPlayers}
++                onChange={(v) => setNumPlayers(parseInt(v, 10))}
++                options={PLAYER_COUNTS}
++                columns={4}
++              />
++              <Field
++                id="mp-room-id"
++                label="Custom Room ID (optional)"
++                value={customSessionId}
++                onChange={(e) => setCustomSessionId(e.target.value)}
++                placeholder="Leave empty for an automatic ID"
++              />
++              <Button size="lg" onClick={createGame} disabled={loading} className="self-end">
++                {loading ? "Creating…" : "Create Game"}
++              </Button>
++              {sessionInfo && (
++                <Note tone="ok">
++                  <div className="mb-2 font-semibold">Room created — share this ID:</div>
++                  <div className="flex gap-2">
++                    <input type="text" value={sessionInfo} readOnly aria-label="Room ID" className="h-11 min-w-0 flex-1 rounded-stone-sm border border-black/50 bg-rock-950/70 px-3 font-mono text-sm text-fg" />
++                    <Button variant="secondary" onClick={() => copyText(sessionInfo)}>Copy</Button>
 +                  </div>
-+                )}
-+              </div>
-+            )
++                </Note>
+               )}
+-            </div>
++            </>
            )}
++        </div>
  
-           {/* Left Column - Player Info (Always visible) */}
+-          {/* Left Column - Player Info (Always visible) */}
 -          <div className="space-y-4">
-+          <div className="xp-stack">
-             {/* Player Name */}
-             <div>
+-            {/* Player Name */}
+-            <div>
 -              <label className="block text-white mb-1.5 sm:mb-2 text-sm sm:text-base">Your Name</label>
-+              <label className="xp-field-label" htmlFor="mp-name">Your Name</label>
-               <input
-+                id="mp-name"
-                 type="text"
-                 value={playerName}
-                 onChange={(e) => setPlayerName(e.target.value)}
+-              <input
+-                type="text"
+-                value={playerName}
+-                onChange={(e) => setPlayerName(e.target.value)}
 -                className={`
 -                  w-full rounded-lg bg-white/20 border border-white/30 
 -                  text-white placeholder-white/50
 -                  ${isMobileLayout ? "px-3 py-2 text-sm" : "px-4 py-2.5"}
 -                `}
-+                className="xp-input"
-                 placeholder="Enter your name"
-               />
+-                placeholder="Enter your name"
+-              />
++        {/* Rooms (Join tab) */}
++        {activeTab === "join" && (
++          <div className="flex min-w-0 flex-col gap-4">
++            <div className="flex items-center justify-between gap-2">
++              <FieldLabel>Open Rooms</FieldLabel>
++              <Button size="md" variant="ghost" onClick={fetchRooms}>Refresh</Button>
              </div>
  
-             {/* Avatar Selection */}
-             <div>
+-            {/* Avatar Selection */}
+-            <div>
 -              <label className="block text-white mb-1.5 sm:mb-2 text-sm sm:text-base">Choose Your Character</label>
 -              <div
 -                className={`
@@ -610,13 +743,9 @@
 -              `}
 -              >
 -                {[1, 2, 3, 4].map((num) => (
-+              <span className="xp-field-label">Choose Your Character</span>
-+              <div className="xp-avatar-grid">
-+                {AVATAR_IDS.map((num) => (
-                   <button
-+                    type="button"
-                     key={num}
-                     onClick={() => setSelectedAvatar(num.toString())}
+-                  <button
+-                    key={num}
+-                    onClick={() => setSelectedAvatar(num.toString())}
 -                    className={`
 -                      rounded-full border-2 overflow-hidden transition-all touch-target
 -                      ${isMobileLayout ? "w-12 h-12" : "w-14 h-14 sm:w-16 sm:h-16"}
@@ -626,62 +755,97 @@
 -                          : "border-white/30 hover:border-white/50"
 -                      }
 -                    `}
-+                    className="xp-avatar"
-+                    aria-pressed={selectedAvatar === num.toString()}
-+                    aria-label={`Avatar ${num}`}
-                   >
-                     <img
+-                  >
+-                    <img
 -                      src={`/assets/images/avatar/${num}.webp`}
 -                      alt={`Avatar ${num}`}
 -                      className="w-full h-full object-cover"
-+                      src={avatarSrc(num)}
-+                      alt=""
-                       onError={(e) => {
+-                      onError={(e) => {
 -                        e.target.src = "/assets/images/avatar/1.webp";
-+                        e.target.src = avatarSrc(1);
-                       }}
-                     />
-                   </button>
-@@ -317,14 +276,12 @@
-               <>
-                 {/* Number of Players */}
-                 <div>
+-                      }}
+-                    />
+-                  </button>
+-                ))}
++            {rooms.length === 0 ? (
++              <div className="surface-inset px-4 py-6 text-center">
++                <p className="font-semibold">No open rooms right now.</p>
++                <p className="mt-1 text-sm text-fg-muted">Create one and share its ID with friends.</p>
+               </div>
+-            </div>
++            ) : (
++              <ul className="surface-inset flex max-h-[44vh] flex-col divide-y divide-black/30 overflow-y-auto">
++                {rooms.map((room) => {
++                  const timeUntilDelete = room.timeUntilDelete || 0;
++                  const minutes = Math.floor(timeUntilDelete / 60);
++                  const seconds = timeUntilDelete % 60;
++                  const isExpiringSoon = timeUntilDelete > 0 && timeUntilDelete < 60;
++                  const isFull = room.connectedPlayers >= room.numPlayers;
++                  return (
++                    <li key={room.sessionID} className={`flex flex-wrap items-center gap-3 px-3 py-2.5 ${isExpiringSoon ? "bg-ember/10" : ""}`}>
++                      <div className="min-w-0 flex-1">
++                        <div className="flex flex-wrap items-center gap-1.5">
++                          <span className="max-w-full truncate font-mono text-sm font-semibold" title={room.sessionID}>{room.sessionID}</span>
++                          <Pill tone={isFull ? "neutral" : "moss"}>{room.connectedPlayers}/{room.numPlayers}</Pill>
++                          {room.spectatorCount > 0 && <Pill tone="teal">{room.spectatorCount} watching</Pill>}
++                          {timeUntilDelete > 0 && room.connectedPlayers === 0 && (
++                            <Pill tone={isExpiringSoon ? "ember" : "bronze"} title="Empty rooms close automatically">
++                              closes in {minutes}:{String(seconds).padStart(2, "0")}
++                            </Pill>
++                          )}
++                        </div>
++                        {room.players && room.players.length > 0 && (
++                          <p className="mt-0.5 truncate text-xs text-fg-muted">{room.players.join(", ")}</p>
++                        )}
++                      </div>
++                      <div className="flex flex-shrink-0 gap-1.5">
++                        <Button size="md" variant="ghost" onClick={() => copyText(room.sessionID)} aria-label={`Copy room ID ${room.sessionID}`}>Copy</Button>
++                        <Button size="md" variant="secondary" onClick={() => joinGame(room.sessionID, true)}>Watch</Button>
++                        <Button size="md" onClick={() => joinGame(room.sessionID, false)} disabled={isFull}>Join</Button>
++                      </div>
++                    </li>
++                  );
++                })}
++              </ul>
++            )}
+ 
+-            {/* Create Game Section */}
+-            {activeTab === "create" && (
+-              <>
+-                {/* Number of Players */}
+-                <div>
 -                  <label className="block text-white mb-1.5 sm:mb-2 text-sm sm:text-base">Number of Players</label>
-+                  <label className="xp-field-label" htmlFor="mp-players">Number of Players</label>
-                   <select
-+                    id="mp-players"
-                     value={numPlayers}
-                     onChange={(e) => setNumPlayers(parseInt(e.target.value))}
+-                  <select
+-                    value={numPlayers}
+-                    onChange={(e) => setNumPlayers(parseInt(e.target.value))}
 -                    className={`
 -                      w-full rounded-lg bg-white/20 border border-white/30 text-white
 -                      ${isMobileLayout ? "px-3 py-2 text-sm" : "px-4 py-2.5"}
 -                    `}
-+                    className="xp-select"
-                   >
-                     <option value={2}>2 Players</option>
-                     <option value={3}>3 Players</option>
-@@ -335,60 +292,39 @@
- 
-                 {/* Custom Session ID */}
-                 <div>
+-                  >
+-                    <option value={2}>2 Players</option>
+-                    <option value={3}>3 Players</option>
+-                    <option value={4}>4 Players</option>
+-                    <option value={5}>5 Players</option>
+-                  </select>
+-                </div>
+-
+-                {/* Custom Session ID */}
+-                <div>
 -                  <label className="block text-white mb-1.5 sm:mb-2 text-sm sm:text-base">Custom Room ID (optional)</label>
-+                  <label className="xp-field-label" htmlFor="mp-room-id">Custom Room ID (optional)</label>
-                   <input
-+                    id="mp-room-id"
-                     type="text"
-                     value={customSessionId}
-                     onChange={(e) => setCustomSessionId(e.target.value)}
+-                  <input
+-                    type="text"
+-                    value={customSessionId}
+-                    onChange={(e) => setCustomSessionId(e.target.value)}
 -                    className={`
 -                      w-full rounded-lg bg-white/20 border border-white/30 
 -                      text-white placeholder-white/50
 -                      ${isMobileLayout ? "px-3 py-2 text-sm" : "px-4 py-2.5"}
 -                    `}
-+                    className="xp-input"
-                     placeholder="Leave empty for auto-generated"
-                   />
-                 </div>
- 
-                 {/* Create Button */}
+-                    placeholder="Leave empty for auto-generated"
+-                  />
+-                </div>
+-
+-                {/* Create Button */}
 -                <button
 -                  onClick={createGame}
 -                  disabled={loading}
@@ -696,17 +860,9 @@
 -                >
 -                  {loading ? "Creating..." : "Create Game"}
 -                </button>
-+                <div className="xp-actions justify-end">
-+                  <button type="button" className="xp-btn" onClick={onBack}>
-+                    Back
-+                  </button>
-+                  <button type="button" onClick={createGame} disabled={loading} className="xp-btn xp-btn--go xp-btn--lg touch-target">
-+                    {loading ? "Creating..." : "Create Game ›"}
-+                  </button>
-+                </div>
- 
-                 {/* Session Info */}
-                 {sessionInfo && (
+-
+-                {/* Session Info */}
+-                {sessionInfo && (
 -                  <motion.div
 -                    initial={{ opacity: 0, y: -10 }}
 -                    animate={{ opacity: 1, y: 0 }}
@@ -714,10 +870,7 @@
 -                  >
 -                    <p className="text-white text-sm font-bold mb-1.5 sm:mb-2">Game Created!</p>
 -                    <p className="text-white/80 text-xs mb-2">Share this Room ID:</p>
-+                  <div className="xp-note xp-note--ok">
-+                    <p className="font-bold mb-1">Game Created!</p>
-+                    <p className="mb-2">Share this Room ID:</p>
-                     <div className="flex gap-2">
+-                    <div className="flex gap-2">
 -                      <input
 -                        type="text"
 -                        value={sessionInfo}
@@ -728,23 +881,45 @@
 -                        onClick={() => copySessionId(sessionInfo)}
 -                        className="px-3 sm:px-4 py-1.5 sm:py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-all text-sm"
 -                      >
-+                      <input type="text" value={sessionInfo} readOnly className="xp-input xp-input--mono flex-1" />
-+                      <button type="button" onClick={() => copySessionId(sessionInfo)} className="xp-btn">
-                         Copy
-                       </button>
-                     </div>
+-                        Copy
+-                      </button>
+-                    </div>
 -                  </motion.div>
-+                  </div>
-                 )}
-               </>
+-                )}
+-              </>
++            {/* Join by ID */}
++            {linkedRoomStatus === "checking" && <Note>Checking room <b>{initialRoomId}</b>…</Note>}
++            {linkedRoomStatus === "open" && <Note tone="ok">Room <b>{initialRoomId}</b> is still open — press Join to enter (or re-enter) it.</Note>}
++            {linkedRoomStatus === "gone" && (
++              <Note tone="err">
++                Room <b>{initialRoomId}</b> no longer exists. Rooms close automatically when nobody has been connected for a
++                while — create a new room or pick an open one.
++              </Note>
              )}
-@@ -396,183 +332,115 @@
- 
-           {/* Right Column - Available Rooms (Join tab) */}
-           {activeTab === "join" && (
++            <form
++              className="flex items-end gap-2"
++              onSubmit={(e) => {
++                e.preventDefault();
++                if (joinId.trim()) joinGame(joinId.trim());
++              }}
++            >
++              <Field
++                id="mp-join-id"
++                label="Or join by Room ID"
++                value={joinId}
++                onChange={(e) => setJoinId(e.target.value)}
++                placeholder="Paste a room ID"
++                className="min-w-0 flex-1"
++                mono
++              />
++              <Button type="submit" disabled={!joinId.trim()}>Join</Button>
++            </form>
+           </div>
+-
+-          {/* Right Column - Available Rooms (Join tab) */}
+-          {activeTab === "join" && (
 -            <div className="space-y-3 sm:space-y-4">
-+            <div className="xp-stack">
-               <div className="flex items-center justify-between">
+-              <div className="flex items-center justify-between">
 -                <h2 className={`font-bold text-white ${isMobileLayout ? "text-base" : "text-lg sm:text-xl"}`}>
 -                  Available Rooms
 -                </h2>
@@ -753,21 +928,15 @@
 -                  className="px-2 sm:px-3 py-1 bg-white/20 text-white rounded hover:bg-white/30 transition-all text-xs sm:text-sm"
 -                >
 -                  🔄 Refresh
-+                <span className="xp-field-label" style={{ marginBottom: 0 }}>Available Rooms</span>
-+                <button type="button" onClick={fetchRooms} className="xp-btn xp-btn--sm">
-+                  ↻ Refresh
-                 </button>
-               </div>
- 
-               {rooms.length === 0 ? (
+-                </button>
+-              </div>
+-
+-              {rooms.length === 0 ? (
 -                <div className="bg-white/10 rounded-lg p-6 sm:p-8 text-center">
 -                  <p className="text-white/60 text-sm sm:text-base">No rooms available</p>
 -                  <p className="text-white/40 text-xs sm:text-sm mt-2">Create a new room to get started!</p>
-+                <div className="xp-listview xp-empty">
-+                  <p>No rooms available.</p>
-+                  <p className="xp-muted mt-1">Create a new room to get started!</p>
-                 </div>
-               ) : (
+-                </div>
+-              ) : (
 -                <div
 -                  className={`
 -                  space-y-2 sm:space-y-3 overflow-y-auto
@@ -887,138 +1056,68 @@
 -                                Join
 -                              </motion.button>
 -                            </div>
-+                <div className="xp-listview" style={{ maxHeight: isMobileLayout ? "40vh" : undefined }}>
-+                  {rooms.map((room) => {
-+                    const timeUntilDelete = room.timeUntilDelete || 0;
-+                    const minutes = Math.floor(timeUntilDelete / 60);
-+                    const seconds = timeUntilDelete % 60;
-+                    const isExpiringSoon = timeUntilDelete > 0 && timeUntilDelete < 60;
-+                    const isFull = room.connectedPlayers >= room.numPlayers;
-+
-+                    return (
-+                      <div key={room.sessionID} className={`xp-row ${isExpiringSoon ? "xp-row--expiring" : ""}`}>
-+                        <div className="flex-1 min-w-0">
-+                          <div className="flex items-center gap-1.5 flex-wrap mb-1">
-+                            <span className="font-bold truncate text-xs sm:text-sm" style={{ maxWidth: isMobileLayout ? 120 : undefined }}>
-+                              {room.sessionID.length > (isMobileLayout ? 15 : 20)
-+                                ? room.sessionID.substring(0, isMobileLayout ? 15 : 20) + "..."
-+                                : room.sessionID}
-+                            </span>
-+                            <span className="xp-badge xp-badge--green">
-+                              {room.connectedPlayers}/{room.numPlayers}
-+                            </span>
-+                            {room.spectatorCount > 0 && <span className="xp-badge xp-badge--blue">👁 {room.spectatorCount}</span>}
-+                            {timeUntilDelete > 0 && room.connectedPlayers === 0 && (
-+                              <span className={`xp-badge ${isExpiringSoon ? "xp-badge--red" : "xp-badge--orange"}`}>
-+                                ⏱ {minutes}:{String(seconds).padStart(2, "0")}
-+                              </span>
-+                            )}
-                           </div>
+-                          </div>
 -                        </motion.div>
 -                      );
 -                    })}
 -                  </AnimatePresence>
-+                          {room.players && room.players.length > 0 && (
-+                            <p className="xp-muted truncate">Players: {room.players.join(", ")}</p>
-+                          )}
-+                        </div>
-+
-+                        <div className="flex gap-1.5 flex-shrink-0">
-+                          <button type="button" onClick={() => copySessionId(room.sessionID)} className="xp-btn xp-btn--sm" title="Copy Session ID">
-+                            Copy
-+                          </button>
-+                          <button type="button" onClick={() => joinGame(room.sessionID, true)} className="xp-btn xp-btn--sm" title="Watch as spectator">
-+                            Watch
-+                          </button>
-+                          <button
-+                            type="button"
-+                            onClick={() => joinGame(room.sessionID, false)}
-+                            disabled={isFull}
-+                            className="xp-btn xp-btn--sm xp-btn--go touch-target"
-+                          >
-+                            Join
-+                          </button>
-+                        </div>
-+                      </div>
-+                    );
-+                  })}
-                 </div>
-               )}
- 
-               {/* Manual Join by Session ID */}
+-                </div>
+-              )}
+-
+-              {/* Manual Join by Session ID */}
 -              <div className="pt-4 sm:pt-6 border-t border-white/20">
 -                <label className="block text-white mb-1.5 sm:mb-2 text-sm sm:text-base">Or join by Room ID</label>
-+              <div>
-+                {linkedRoomStatus && (
-+                  <div
-+                    className={`xp-note mb-3 ${linkedRoomStatus === "open" ? "xp-note--ok" : linkedRoomStatus === "gone" ? "xp-note--err" : ""}`}
-+                    role="status"
-+                  >
-+                    {linkedRoomStatus === "checking" && <>Checking room <b>{initialRoomId}</b>...</>}
-+                    {linkedRoomStatus === "open" && <>Room <b>{initialRoomId}</b> is still open — press Join to enter (or re-enter) it.</>}
-+                    {linkedRoomStatus === "gone" && (
-+                      <>
-+                        Room <b>{initialRoomId}</b> no longer exists. Rooms close automatically when nobody has been
-+                        connected for a while — create a new room or pick an open one.
-+                      </>
-+                    )}
-+                  </div>
-+                )}
-+                <label className="xp-field-label" htmlFor="mp-join-id">Or join by Room ID</label>
-                 <div className="flex gap-2">
-                   <input
-+                    id="mp-join-id"
-                     type="text"
-+                    defaultValue={linkedRoomStatus === "open" ? initialRoomId : ""}
-+                    key={linkedRoomStatus || "none"}
-                     placeholder="Paste room ID here"
-                     onKeyPress={(e) => {
-                       if (e.key === "Enter" && e.target.value) {
-                         joinGame(e.target.value);
-                       }
-                     }}
+-                <div className="flex gap-2">
+-                  <input
+-                    type="text"
+-                    placeholder="Paste room ID here"
+-                    onKeyPress={(e) => {
+-                      if (e.key === "Enter" && e.target.value) {
+-                        joinGame(e.target.value);
+-                      }
+-                    }}
 -                    className={`
 -                      flex-1 rounded-lg bg-white/20 border border-white/30 
 -                      text-white placeholder-white/50
 -                      ${isMobileLayout ? "px-3 py-2 text-sm" : "px-4 py-2.5"}
 -                    `}
-+                    className="xp-input flex-1"
-                   />
-                   <button
-+                    type="button"
-                     onClick={(e) => {
+-                  />
+-                  <button
+-                    onClick={(e) => {
 -                      const input = e.target.previousElementSibling;
-+                      const input = e.currentTarget.previousElementSibling;
-                       if (input.value) {
-                         joinGame(input.value);
-                       }
-                     }}
+-                      if (input.value) {
+-                        joinGame(input.value);
+-                      }
+-                    }}
 -                    className={`
 -                      bg-gradient-to-r from-blue-500 to-cyan-500 
 -                      text-white rounded hover:from-blue-600 hover:to-cyan-600 
 -                      transition-all font-bold touch-target
 -                      ${isMobileLayout ? "px-4 py-2 text-sm" : "px-6 py-2.5"}
 -                    `}
-+                    className="xp-btn xp-btn--go touch-target"
-                   >
-                     Join
-                   </button>
-@@ -581,7 +449,7 @@
-             </div>
-           )}
-         </div>
+-                  >
+-                    Join
+-                  </button>
+-                </div>
+-              </div>
+-            </div>
+-          )}
+-        </div>
 -      </motion.div>
-+      </XpWindow>
-     </div>
+-    </div>
++        )}
++      </div>
++    </StartShell>
    );
  };
+ 
 --- a/web/react-frontend/src/components/mobile/CompactGameBoard.jsx
 +++ b/web/react-frontend/src/components/mobile/CompactGameBoard.jsx
 @@ -5,6 +5,8 @@
  import DepositModal from '../DepositModal'
  import ConfirmGolemModal from '../ConfirmGolemModal'
  import { showToast } from '../../utils/toast'
-+import XpWaitingRoom from '../XpWaitingRoom'
++import WaitingRoom from '../WaitingRoom'
 +import { totalCrystals } from '../../utils/aiLevel'
  
  const CompactGameBoard = () => {
@@ -1052,7 +1151,7 @@
 -            </button>
 -          )}
 -        </div>
-+        <XpWaitingRoom players={otherPlayers} isSpectator={isSpectator} onStart={handleStartGame} mode={gameState?.mode} />
++        <WaitingRoom players={otherPlayers} isSpectator={isSpectator} onStart={handleStartGame} mode={gameState?.mode} />
        </div>
      )
    }
@@ -1468,19 +1567,27 @@
 +export default RestPopup
 --- a/web/react-frontend/src/components/SinglePlayerLobby.jsx
 +++ b/web/react-frontend/src/components/SinglePlayerLobby.jsx
-@@ -1,25 +1,24 @@
+@@ -1,25 +1,27 @@
  import React, { useState } from 'react'
 -import { motion } from 'framer-motion'
  import { createLogger } from '../utils/logger'
  import { apiFetch } from '../utils/api'
++import { showToast } from '../utils/toast'
  import useOrientation from '../hooks/useOrientation'
-+import { AVATAR_IDS, avatarSrc } from '../utils/avatar'
 +import { AI_LEVELS, loadAiLevel, saveAiLevel, aiLevelInfo } from '../utils/aiLevel'
-+import XpWindow from './XpWindow'
++import StartShell from './start/StartShell'
++import Button from './ui/Button'
++import Field from './ui/Field'
++import Segmented from './ui/Segmented'
++import AvatarPicker from './ui/AvatarPicker'
++import Pill from './ui/Pill'
  
- const logger = createLogger('SinglePlayerLobby');
+-const logger = createLogger('SinglePlayerLobby');
++const logger = createLogger('SinglePlayerLobby')
  
 -const SinglePlayerLobby = ({ onStartGame }) => {
++const OPPONENTS = [1, 2, 3, 4].map((n) => ({ value: String(n), label: `${n} AI`, title: `${n} AI opponent${n > 1 ? 's' : ''} (${n + 1} players)` }))
++
 +const SinglePlayerLobby = ({ onStartGame, onBack }) => {
    const [playerName, setPlayerName] = useState('Player 1')
 -  const [numAI, setNumAI] = useState(1)
@@ -1489,8 +1596,7 @@
 +  const [difficulty, setDifficulty] = useState(loadAiLevel)
    const [loading, setLoading] = useState(false)
 -  const { isMobile, isTablet, isPortrait } = useOrientation()
-+  const { isMobile } = useOrientation()
- 
+-
 -  const avatars = ['1', '2', '3', '4']
 -  const difficulties = [
 -    { value: 1, label: isMobile ? '1 AI (2P)' : '1 AI Opponent (2 Players)' },
@@ -1498,30 +1604,46 @@
 -    { value: 3, label: isMobile ? '3 AI (4P)' : '3 AI Opponents (4 Players)' },
 -    { value: 4, label: isMobile ? '4 AI (5P)' : '4 AI Opponents (5 Players)' },
 -  ]
-+  const avatars = AVATAR_IDS
-+  // one compact row (the status bar shows the total number of players)
-+  const opponentCounts = [1, 2, 3, 4].map((n) => ({ value: n, label: `${n} AI`, title: `${n} AI opponent${n > 1 ? 's' : ''} (${n + 1} players)` }))
++  const { isCompact } = useOrientation()
  
    const startGame = async () => {
      setLoading(true)
-@@ -29,12 +28,14 @@
+@@ -27,187 +29,56 @@
+       const response = await apiFetch('/api/single', {
+         method: 'POST',
          headers: { 'Content-Type': 'application/json' },
-         body: JSON.stringify({
-           numAI,
-+          difficulty,
-           seed: Date.now(),
-         }),
+-        body: JSON.stringify({
+-          numAI,
+-          seed: Date.now(),
+-        }),
++        body: JSON.stringify({ numAI, difficulty, seed: Date.now() }),
        })
- 
+-
        const data = await response.json()
        if (response.ok) {
 +        saveAiLevel(difficulty)
          onStartGame(data.sessionID, playerName, selectedAvatar)
        } else {
          logger.error('Failed to create single-player game:', data.error)
-@@ -49,91 +50,62 @@
+-        alert('Failed to create game: ' + (data.error || 'Unknown error'))
++        showToast(`Could not create the game: ${data.error || 'unknown error'}`, 'error')
+       }
+     } catch (error) {
+       logger.error('Error creating single-player game:', error)
+-      alert('Error creating game: ' + error.message)
++      showToast(`Could not create the game: ${error.message}`, 'error')
+     } finally {
+       setLoading(false)
+     }
    }
  
++  const levels = AI_LEVELS.map((l) => ({
++    value: l.value,
++    label: l.label,
++    hint: isCompact ? undefined : l.description,
++    extra: <Pill tone={l.tone} pips={l.pips} aria-hidden="true" className="!px-1.5" />,
++  }))
++
    return (
 -    <div 
 -      className={`
@@ -1535,7 +1657,17 @@
 -        backgroundRepeat: 'no-repeat',
 -        backgroundAttachment: isMobile ? 'scroll' : 'fixed'
 -      }}
--    >
++    <StartShell
++      title="Single Player"
++      subtitle={`${numAI + 1} players · ${aiLevelInfo(difficulty)?.label || ''} AI`}
++      onBack={onBack}
++      width="lg"
++      footer={(
++        <Button size="lg" onClick={startGame} disabled={loading || !playerName.trim()} className="w-full sm:w-auto">
++          {loading ? 'Creating game…' : 'Start Game'}
++        </Button>
++      )}
+     >
 -      <motion.div
 -        className={`
 -          backdrop-blur-md border border-white/20 w-full
@@ -1547,14 +1679,7 @@
 -        initial={{ opacity: 0, scale: 0.95 }}
 -        animate={{ opacity: 1, scale: 1 }}
 -        transition={{ duration: 0.2 }}
-+    <div className="xp-desktop">
-+      <XpWindow
-+        title="Single Player — Century: Golem Edition"
-+        icon={avatarSrc(selectedAvatar)}
-+        onClose={onBack}
-+        className="max-w-xl"
-+        status={<><span>Play against AI · {aiLevelInfo(difficulty)?.label}</span><span>{numAI + 1} players</span></>}
-       >
+-      >
 -        <h1 className={`
 -          font-bold text-white text-center
 -          ${isMobile ? 'text-lg mb-1' : 'text-3xl sm:text-4xl mb-2'}
@@ -1568,30 +1693,26 @@
 -        )}
 -
 -        <div className={`space-y-3 ${isMobile ? '' : 'space-y-6'}`}>
-+        <div className="xp-stack">
-           {/* Player Name */}
-           <div>
+-          {/* Player Name */}
+-          <div>
 -            <label className={`block text-white font-semibold ${isMobile ? 'text-sm mb-1' : 'mb-2'}`}>
 -              Your Name
 -            </label>
-+            <label className="xp-field-label" htmlFor="sp-name">Your Name</label>
-             <input
-+              id="sp-name"
-               type="text"
-               value={playerName}
-               onChange={(e) => setPlayerName(e.target.value)}
+-            <input
+-              type="text"
+-              value={playerName}
+-              onChange={(e) => setPlayerName(e.target.value)}
 -              className={`
 -                w-full rounded-lg bg-white/20 border border-white/30 text-white 
 -                placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-400
 -                ${isMobile ? 'px-3 py-2 text-sm' : 'px-4 py-3'}
 -              `}
-+              className="xp-input"
-               placeholder="Enter your name"
-             />
-           </div>
- 
-           {/* Number of AI Opponents */}
-           <div>
+-              placeholder="Enter your name"
+-            />
+-          </div>
+-
+-          {/* Number of AI Opponents */}
+-          <div>
 -            <label className={`block text-white font-semibold ${isMobile ? 'text-sm mb-1' : 'mb-2'}`}>
 -              AI Opponents
 -            </label>
@@ -1608,49 +1729,24 @@
 -                    }
 -                  `}
 -                >
-+            <span className="xp-field-label">AI Opponents</span>
-+            <div className="xp-list xp-list--row" role="radiogroup" aria-label="Number of AI opponents">
-+              {opponentCounts.map((diff) => (
-+                <label key={diff.value} className="xp-list-item" data-selected={numAI === diff.value} title={diff.title}>
-                   <input
-                     type="radio"
-                     name="numAI"
-                     value={diff.value}
-                     checked={numAI === diff.value}
-                     onChange={(e) => setNumAI(parseInt(e.target.value))}
+-                  <input
+-                    type="radio"
+-                    name="numAI"
+-                    value={diff.value}
+-                    checked={numAI === diff.value}
+-                    onChange={(e) => setNumAI(parseInt(e.target.value))}
 -                    className="mr-2 sm:mr-3"
-                   />
+-                  />
 -                  <span className={`text-white font-medium ${isMobile ? 'text-sm' : ''}`}>
 -                    {diff.label}
 -                  </span>
-+                  <span>{diff.label}</span>
-+                </label>
-+              ))}
-+            </div>
-+          </div>
-+
-+          {/* Difficulty (one level for every AI) */}
-+          <div>
-+            <span className="xp-field-label">Difficulty</span>
-+            <div className="xp-list" role="radiogroup" aria-label="AI difficulty">
-+              {AI_LEVELS.map((level) => (
-+                <label key={level.value} className="xp-list-item" data-selected={difficulty === level.value}>
-+                  <input
-+                    type="radio"
-+                    name="difficulty"
-+                    value={level.value}
-+                    checked={difficulty === level.value}
-+                    onChange={(e) => setDifficulty(e.target.value)}
-+                  />
-+                  <span className={`xp-badge xp-badge--${level.badge}`}>{level.label}</span>
-+                  {!isMobile && <span className="text-xs opacity-80">{level.description}</span>}
-                 </label>
-               ))}
-             </div>
-@@ -141,33 +113,22 @@
- 
-           {/* Avatar Selection */}
-           <div>
+-                </label>
+-              ))}
+-            </div>
+-          </div>
+-
+-          {/* Avatar Selection */}
+-          <div>
 -            <label className={`block text-white font-semibold ${isMobile ? 'text-sm mb-1' : 'mb-2'}`}>
 -              Your Avatar
 -            </label>
@@ -1658,13 +1754,10 @@
 -              grid gap-2
 -              ${isMobile ? 'grid-cols-4' : 'grid-cols-4 md:grid-cols-4 gap-3'}
 -            `}>
-+            <span className="xp-field-label">Your Avatar</span>
-+            <div className="xp-avatar-grid">
-               {avatars.map((avatar) => (
-                 <button
-+                  type="button"
-                   key={avatar}
-                   onClick={() => setSelectedAvatar(avatar)}
+-              {avatars.map((avatar) => (
+-                <button
+-                  key={avatar}
+-                  onClick={() => setSelectedAvatar(avatar)}
 -                  className={`
 -                    relative aspect-square rounded-lg overflow-hidden transition-all 
 -                    transform hover:scale-105 touch-target
@@ -1673,26 +1766,21 @@
 -                      : 'ring-2 ring-white/30'
 -                    }
 -                  `}
-+                  className="xp-avatar"
-+                  aria-pressed={selectedAvatar === avatar}
-+                  aria-label={`Avatar ${avatar}`}
-                 >
-                   <img
+-                >
+-                  <img
 -                    src={`/assets/images/avatar/${avatar}.webp`}
 -                    alt={`Avatar ${avatar}`}
 -                    className="w-full h-full object-cover"
-+                    src={avatarSrc(avatar)}
-+                    alt=""
-                     onError={(e) => {
-                       e.target.style.display = 'none'
+-                    onError={(e) => {
+-                      e.target.style.display = 'none'
 -                      e.target.parentElement.innerHTML = `<div class="w-full h-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white font-bold text-xl">${avatar}</div>`
-                     }}
-                   />
-                 </button>
-@@ -175,38 +136,22 @@
-             </div>
-           </div>
- 
+-                    }}
+-                  />
+-                </button>
+-              ))}
+-            </div>
+-          </div>
+-
 -          {/* Start Button */}
 -          <button
 -            onClick={startGame}
@@ -1723,26 +1811,25 @@
 -              <p className="mt-1">Collect and upgrade crystals to claim point cards!</p>
 -            </div>
 -          )}
-+          {/* Actions */}
-+          <div className="xp-actions justify-end">
-+            <button type="button" className="xp-btn" onClick={onBack}>
-+              Back
-+            </button>
-+            <button
-+              type="button"
-+              onClick={startGame}
-+              disabled={loading || !playerName.trim()}
-+              className="xp-btn xp-btn--go xp-btn--lg touch-target"
-+            >
-+              {loading ? 'Creating game...' : 'Start Game ›'}
-+            </button>
-+          </div>
-         </div>
+-        </div>
 -      </motion.div>
-+      </XpWindow>
-     </div>
+-    </div>
++      <Field
++        id="sp-name"
++        label="Your Name"
++        value={playerName}
++        onChange={(e) => setPlayerName(e.target.value)}
++        placeholder="Enter your name"
++        maxLength={24}
++        autoComplete="nickname"
++      />
++      <Segmented name="numAI" label="AI Opponents" value={numAI} onChange={(v) => setNumAI(parseInt(v, 10))} options={OPPONENTS} columns={4} />
++      <Segmented name="difficulty" label="Difficulty" value={difficulty} onChange={setDifficulty} options={levels} stacked />
++      <AvatarPicker value={selectedAvatar} onChange={setSelectedAvatar} />
++    </StartShell>
    )
  }
+ 
 --- a/web/react-frontend/src/components/SoundToggleButton.jsx
 +++ b/web/react-frontend/src/components/SoundToggleButton.jsx
 @@ -1,9 +1,11 @@
@@ -1767,6 +1854,203 @@
        title={soundsMuted ? 'Unmute sounds' : 'Mute sounds'}
        aria-label={soundsMuted ? 'Unmute sounds' : 'Mute sounds'}
      >
+--- a/web/react-frontend/src/components/start/ConnectionDialog.jsx
++++ b/web/react-frontend/src/components/start/ConnectionDialog.jsx
+@@ -0,0 +1,30 @@
++import React from 'react'
++import StartShell from './StartShell'
++import Button from '../ui/Button'
++import GemLoader from '../ui/GemLoader'
++
++/**
++ * Connecting / reconnecting before the board exists (no game state yet). Retry and Back to Menu
++ * appear when something went wrong or nothing is in progress.
++ */
++const ConnectionDialog = ({ title, message, error, busy, onRetry, onBack }) => (
++  <StartShell
++    title={title}
++    width="sm"
++    footer={onRetry || onBack ? (
++      <>
++        {onBack ? <Button variant="secondary" onClick={onBack}>Back to Menu</Button> : null}
++        {onRetry ? <Button onClick={onRetry}>Retry Connection</Button> : null}
++      </>
++    ) : null}
++  >
++    {error ? (
++      <p role="alert" className="rounded-stone-sm border border-ember/60 bg-ember/15 px-3 py-2 text-sm text-[rgb(255_210_196)]">{error}</p>
++    ) : (
++      <p className="text-sm text-fg-muted">{message}</p>
++    )}
++    {busy ? <GemLoader className="self-center" label={title} /> : null}
++  </StartShell>
++)
++
++export default ConnectionDialog
+--- a/web/react-frontend/src/components/start/ModeMenu.jsx
++++ b/web/react-frontend/src/components/start/ModeMenu.jsx
+@@ -0,0 +1,37 @@
++import React from 'react'
++import StartShell from './StartShell'
++import { avatarSrc } from '../../utils/avatar'
++
++function Tile({ title, sub, avatars, onClick }) {
++  return (
++    <button
++      type="button"
++      onClick={onClick}
++      className="group surface-inset flex w-full items-center gap-4 px-4 py-4 text-left transition-[border-color,filter] duration-150 hover:border-bronze-500/70 hover:brightness-110"
++    >
++      <span className="flex flex-shrink-0 -space-x-3">
++        {avatars.map((id) => (
++          <img key={id} src={avatarSrc(id)} alt="" className="h-12 w-12 rounded-full border-2 border-bronze-500/80 object-cover" />
++        ))}
++      </span>
++      <span className="flex min-w-0 flex-1 flex-col">
++        <span className="font-display text-lg font-bold text-bronze-100">{title}</span>
++        <span className="text-sm text-fg-muted">{sub}</span>
++      </span>
++      <span aria-hidden="true" className="font-display text-2xl text-bronze-300 transition-transform group-hover:translate-x-1">›</span>
++    </button>
++  )
++}
++
++/** First screen: pick single player (vs AI) or multiplayer. */
++const ModeMenu = ({ onSingle, onMulti }) => (
++  <StartShell wordmark="lg" width="md">
++    <p className="text-center text-sm text-fg-muted">Collect and upgrade crystals to claim golem cards · 2–5 players</p>
++    <div className="flex flex-col gap-3">
++      <Tile title="Single Player" sub="Play against 1–4 AI golems" avatars={['4']} onClick={onSingle} />
++      <Tile title="Multiplayer" sub="Create a room or join friends online" avatars={['2', '7']} onClick={onMulti} />
++    </div>
++  </StartShell>
++)
++
++export default ModeMenu
+--- a/web/react-frontend/src/components/start/ReconnectBanner.jsx
++++ b/web/react-frontend/src/components/start/ReconnectBanner.jsx
+@@ -0,0 +1,35 @@
++import React from 'react'
++import Button from '../ui/Button'
++import GemLoader from '../ui/GemLoader'
++
++/**
++ * Lost the connection mid-game: the board stays on screen (inert) and this banner shows the attempts.
++ * Retry after 2 attempts or an error; Back to Menu after 3.
++ */
++const ReconnectBanner = ({ attempts = 0, max = 10, error, onRetry, onBack }) => (
++  <>
++  {/* dim the paused board */}
++  <div className="pointer-events-none fixed inset-0 z-banner bg-rock-950/50" aria-hidden="true" />
++  <div
++    role="alert"
++    className="fixed inset-x-0 top-0 z-banner flex justify-center px-3"
++    style={{ paddingTop: 'max(12px, var(--safe-top))' }}
++  >
++    <div className="surface-stone flex w-full max-w-xl flex-wrap items-center gap-3 border-ember/70 px-4 py-3">
++      <GemLoader size={14} label="Reconnecting" />
++      <div className="min-w-0 flex-1">
++        <div className="font-display text-sm font-bold text-bronze-100">Connection lost</div>
++        <div className="text-xs text-fg-muted">
++          {error || (attempts > 0 ? `Reconnecting… attempt ${attempts} of ${max}` : 'Reconnecting…')}
++        </div>
++      </div>
++      <div className="flex gap-2">
++        {onBack ? <Button size="md" variant="secondary" onClick={onBack}>Back to Menu</Button> : null}
++        {onRetry ? <Button size="md" onClick={onRetry}>Retry</Button> : null}
++      </div>
++    </div>
++  </div>
++  </>
++)
++
++export default ReconnectBanner
+--- a/web/react-frontend/src/components/start/StartShell.jsx
++++ b/web/react-frontend/src/components/start/StartShell.jsx
+@@ -0,0 +1,61 @@
++import React from 'react'
++import NightBackdrop from '../ui/NightBackdrop'
++import Wordmark from './Wordmark'
++
++const WIDTH = { sm: 'max-w-sm', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-4xl' }
++
++function BackIcon() {
++  return (
++    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
++      <path d="M15 5l-7 7 7 7" />
++    </svg>
++  )
++}
++
++/**
++ * Frame of the screens before a game (menu, lobbies, connecting): night mountains, the wordmark and
++ * one carved stone panel. `onBack` adds a back arrow to the panel header.
++ */
++const StartShell = ({ title, subtitle, onBack, width = 'md', wordmark = 'sm', footer, children }) => (
++  <div className="relative min-h-screen min-h-[100dvh] overflow-x-hidden">
++    <NightBackdrop />
++    <main
++      className="relative z-board mx-auto flex min-h-screen min-h-[100dvh] w-full flex-col items-center gap-5 px-4 py-6 sm:py-10"
++      style={{ paddingTop: 'max(24px, var(--safe-top))', paddingBottom: 'max(24px, var(--safe-bottom))' }}
++    >
++      {wordmark ? <Wordmark size={wordmark} /> : null}
++      <section className={`surface-stone w-full ${WIDTH[width] || WIDTH.md} flex flex-col`}>
++        {title || onBack ? (
++          <header className="flex items-center gap-2 border-b border-black/40 px-3 py-2 sm:px-4">
++            {onBack ? (
++              <button
++                type="button"
++                onClick={onBack}
++                aria-label="Back"
++                className="-ml-1 inline-flex h-11 w-11 items-center justify-center rounded-stone text-fg-muted hover:bg-rock-700/60 hover:text-fg"
++              >
++                <BackIcon />
++              </button>
++            ) : null}
++            <div className="min-w-0 flex-1">
++              {title ? <h1 className="font-display text-xl font-bold text-bronze-100 text-engrave">{title}</h1> : null}
++              {subtitle ? <p className="text-sm text-fg-muted">{subtitle}</p> : null}
++            </div>
++          </header>
++        ) : null}
++        <div className="flex flex-col gap-5 p-4 sm:p-5">{children}</div>
++        {/* the main action stays on screen while the form scrolls */}
++        {footer ? (
++          <footer
++            className="sticky bottom-0 z-hud flex flex-wrap items-center justify-end gap-2 rounded-b-stone border-t border-black/40 bg-rock-800/95 px-4 py-3 sm:px-5"
++            style={{ paddingBottom: 'max(12px, var(--safe-bottom))' }}
++          >
++            {footer}
++          </footer>
++        ) : null}
++      </section>
++    </main>
++  </div>
++)
++
++export default StartShell
+--- a/web/react-frontend/src/components/start/Wordmark.jsx
++++ b/web/react-frontend/src/components/start/Wordmark.jsx
+@@ -0,0 +1,19 @@
++import React from 'react'
++import Gem from '../ui/Gem'
++
++// "Century · Golem Edition" set in Cinzel between two crystals — our own wordmark, not the publisher's logo.
++const Wordmark = ({ size = 'lg', className = '' }) => {
++  const big = size === 'lg'
++  return (
++    <div className={`flex flex-col items-center text-center ${className}`}>
++      <div className="flex items-center gap-3">
++        <Gem color="blue" size={big ? 28 : 18} label={false} />
++        <span className={`font-display font-bold text-bronze-100 text-engrave ${big ? 'text-4xl sm:text-5xl' : 'text-2xl'}`}>Century</span>
++        <Gem color="pink" size={big ? 28 : 18} label={false} />
++      </div>
++      <span className={`font-display uppercase text-bronze-300 ${big ? 'mt-1 text-sm tracking-[0.35em]' : 'text-xs tracking-[0.3em]'}`}>Golem Edition</span>
++    </div>
++  )
++}
++
++export default Wordmark
 --- a/web/react-frontend/src/components/__tests__/DiscardModal.test.jsx
 +++ b/web/react-frontend/src/components/__tests__/DiscardModal.test.jsx
 @@ -0,0 +1,32 @@
@@ -1999,6 +2283,43 @@
 +}
 +
 +export default Avatar
+--- a/web/react-frontend/src/components/ui/AvatarPicker.jsx
++++ b/web/react-frontend/src/components/ui/AvatarPicker.jsx
+@@ -0,0 +1,34 @@
++import React from 'react'
++import { AVATAR_IDS, avatarName, avatarSrc } from '../../utils/avatar'
++import { FieldLabel } from './Field'
++
++/** Grid of golem portraits; the picked one is ringed and named. */
++const AvatarPicker = ({ value, onChange, label = 'Your Golem', className = '' }) => (
++  <div className={`flex flex-col gap-1.5 ${className}`}>
++    <div className="flex items-baseline justify-between gap-2">
++      <FieldLabel id="avatar-picker-label">{label}</FieldLabel>
++      <span className="truncate font-display text-sm font-bold text-bronze-100">{avatarName(value)}</span>
++    </div>
++    <div role="group" aria-labelledby="avatar-picker-label" className="grid grid-cols-6 gap-1.5 sm:grid-cols-8 md:grid-cols-12">
++      {AVATAR_IDS.map((id) => {
++        const selected = String(value) === id
++        return (
++          <button
++            type="button"
++            key={id}
++            onClick={() => onChange(id)}
++            aria-pressed={selected}
++            aria-label={avatarName(id)}
++            title={avatarName(id)}
++            className={`relative aspect-square min-h-[44px] overflow-hidden rounded-full border-2 transition-[transform,border-color] duration-150
++              ${selected ? 'scale-105 border-bronze-300 shadow-turn' : 'border-black/50 opacity-80 hover:opacity-100 hover:border-bronze-500/70'}`}
++          >
++            <img src={avatarSrc(id)} alt="" className="h-full w-full object-cover" draggable="false" />
++          </button>
++        )
++      })}
++    </div>
++  </div>
++)
++
++export default AvatarPicker
 --- a/web/react-frontend/src/components/ui/Button.jsx
 +++ b/web/react-frontend/src/components/ui/Button.jsx
 @@ -0,0 +1,66 @@
@@ -2160,6 +2481,32 @@
 +}
 +
 +export default CrystalRow
+--- a/web/react-frontend/src/components/ui/Field.jsx
++++ b/web/react-frontend/src/components/ui/Field.jsx
+@@ -0,0 +1,23 @@
++import React, { forwardRef } from 'react'
++
++const INPUT = `h-11 w-full rounded-stone-sm border border-black/50 bg-rock-950/70 px-3 text-base text-fg
++  shadow-[inset_0_2px_4px_rgb(0_0_0/0.45)] placeholder:text-fg-muted/60
++  focus:border-bronze-300 focus:outline-none focus-visible:outline-2 focus-visible:outline-bronze-300`
++
++/** Label + text input on stone. `hint` shows under the field. Extra props go to the <input>. */
++const Field = forwardRef(function Field({ id, label, hint, className = '', inputClassName = '', mono = false, ...rest }, ref) {
++  return (
++    <div className={`flex flex-col gap-1.5 ${className}`}>
++      {label ? <label htmlFor={id} className="font-display text-xs font-bold uppercase tracking-wider text-bronze-300">{label}</label> : null}
++      <input ref={ref} id={id} className={`${INPUT} ${mono ? 'font-mono text-sm' : ''} ${inputClassName}`} {...rest} />
++      {hint ? <span className="text-xs text-fg-muted">{hint}</span> : null}
++    </div>
++  )
++})
++
++/** Section label used above choice groups (not tied to one input). */
++export const FieldLabel = ({ children, id }) => (
++  <span id={id} className="font-display text-xs font-bold uppercase tracking-wider text-bronze-300">{children}</span>
++)
++
++export default Field
 --- a/web/react-frontend/src/components/ui/Gem.jsx
 +++ b/web/react-frontend/src/components/ui/Gem.jsx
 @@ -0,0 +1,78 @@
@@ -2241,6 +2588,24 @@
 +}
 +
 +export default Gem
+--- a/web/react-frontend/src/components/ui/GemLoader.jsx
++++ b/web/react-frontend/src/components/ui/GemLoader.jsx
+@@ -0,0 +1,15 @@
++import React from 'react'
++import Gem, { CRYSTALS } from './Gem'
++
++/** Busy indicator: the four crystals pulsing in turn (static when the user prefers less motion). */
++const GemLoader = ({ size = 16, label = 'Loading', className = '' }) => (
++  <span role="status" aria-label={label} className={`inline-flex items-center gap-1.5 ${className}`}>
++    {CRYSTALS.map((c, i) => (
++      <span key={c} className="animate-pulse" style={{ animationDelay: `${i * 0.18}s` }}>
++        <Gem color={c} size={size} label={false} />
++      </span>
++    ))}
++  </span>
++)
++
++export default GemLoader
 --- a/web/react-frontend/src/components/ui/GolemIcon.jsx
 +++ b/web/react-frontend/src/components/ui/GolemIcon.jsx
 @@ -0,0 +1,15 @@
@@ -2261,18 +2626,22 @@
 +export default GolemIcon
 --- a/web/react-frontend/src/components/ui/index.js
 +++ b/web/react-frontend/src/components/ui/index.js
-@@ -0,0 +1,12 @@
+@@ -0,0 +1,16 @@
 +// Shared "Stone & Crystal" UI primitives — build every screen from these (tokens: src/styles/tokens.css).
 +export { default as Avatar } from './Avatar'
++export { default as AvatarPicker } from './AvatarPicker'
 +export { default as Button, IconButton } from './Button'
 +export { default as Coin } from './Coin'
 +export { default as CrystalRow, CrystalCost } from './CrystalRow'
++export { default as Field, FieldLabel } from './Field'
 +export { default as Gem, CRYSTALS } from './Gem'
++export { default as GemLoader } from './GemLoader'
 +export { default as GolemIcon } from './GolemIcon'
 +export { default as Modal } from './Modal'
 +export { default as NightBackdrop } from './NightBackdrop'
 +export { default as Panel } from './Panel'
 +export { default as Pill } from './Pill'
++export { default as Segmented } from './Segmented'
 +export { default as TurnBanner } from './TurnBanner'
 --- a/web/react-frontend/src/components/ui/Modal.jsx
 +++ b/web/react-frontend/src/components/ui/Modal.jsx
@@ -2489,8 +2858,8 @@
 +      </defs>
 +      <rect width={W} height={H} fill="url(#nb-sky)" />
 +      <rect width={W} height={H} fill="url(#nb-moon)" />
-+      <circle cx={W * 0.78} cy={H * 0.15} r="26" fill="rgb(241 223 181)" opacity="0.1" />
-+      <circle cx={W * 0.78} cy={H * 0.15} r="15" fill="rgb(248 238 210)" opacity="0.22" />
++      <circle cx={W * 0.78} cy={H * 0.15} r="22" fill="rgb(248 238 210)" opacity="0.12" />
++      <circle cx={W * 0.78} cy={H * 0.15} r="13" fill="rgb(250 242 220)" opacity="0.6" />
 +      {STARS.map((s, i) => (
 +        <circle key={i} cx={s.x} cy={s.y} r={s.r} fill="#e9e4f5" opacity={s.o} />
 +      ))}
@@ -2569,6 +2938,60 @@
 +)
 +
 +export default Pill
+--- a/web/react-frontend/src/components/ui/Segmented.jsx
++++ b/web/react-frontend/src/components/ui/Segmented.jsx
+@@ -0,0 +1,51 @@
++import React from 'react'
++import { FieldLabel } from './Field'
++
++/**
++ * Radio group drawn as stone segments. Native radios stay in the DOM (visually hidden) with the given
++ * `name` and string values, so forms, tests and screen readers work as usual.
++ * options: [{ value, label, hint?, title?, extra? }]  — `extra` renders inside the segment (e.g. a Pill).
++ */
++const Segmented = ({ name, label, value, onChange, options, columns, stacked = false, className = '' }) => {
++  const labelId = `${name}-label`
++  const grid = stacked ? 'flex flex-col' : 'grid'
++  const cols = columns ? { gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` } : undefined
++  return (
++    <div className={`flex flex-col gap-1.5 ${className}`}>
++      {label ? <FieldLabel id={labelId}>{label}</FieldLabel> : null}
++      <div role="radiogroup" aria-labelledby={label ? labelId : undefined} className={`${grid} gap-1.5`} style={cols}>
++        {options.map((o) => {
++          const selected = String(value) === String(o.value)
++          return (
++            <label
++              key={o.value}
++              title={o.title}
++              className={`relative flex min-h-[44px] cursor-pointer items-center gap-2 rounded-stone-sm border px-3 py-2 transition-colors
++                ${stacked ? 'justify-start' : 'justify-center text-center'}
++                ${selected
++                  ? 'border-bronze-300 bg-gradient-to-b from-bronze-500/45 to-bronze-700/40 text-bronze-100 shadow-bevel'
++                  : 'border-black/40 bg-rock-950/50 text-fg hover:border-bronze-500/60 hover:bg-rock-700/50'}
++                has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-bronze-300`}
++            >
++              <input
++                type="radio"
++                name={name}
++                value={o.value}
++                checked={selected}
++                onChange={(e) => onChange(e.target.value)}
++                className="sr-only"
++              />
++              {o.extra ? <span className="flex-shrink-0">{o.extra}</span> : null}
++              <span className="flex min-w-0 flex-col">
++                <span className="text-sm font-semibold">{o.label}</span>
++                {o.hint ? <span className={`text-xs ${selected ? 'text-bronze-100/80' : 'text-fg-muted'}`}>{o.hint}</span> : null}
++              </span>
++            </label>
++          )
++        })}
++      </div>
++    </div>
++  )
++}
++
++export default Segmented
 --- a/web/react-frontend/src/components/ui/TurnBanner.jsx
 +++ b/web/react-frontend/src/components/ui/TurnBanner.jsx
 @@ -0,0 +1,23 @@
@@ -2595,79 +3018,49 @@
 +}
 +
 +export default TurnBanner
---- a/web/react-frontend/src/components/XpWaitingRoom.jsx
-+++ b/web/react-frontend/src/components/XpWaitingRoom.jsx
-@@ -0,0 +1,46 @@
+--- a/web/react-frontend/src/components/WaitingRoom.jsx
++++ b/web/react-frontend/src/components/WaitingRoom.jsx
+@@ -0,0 +1,40 @@
 +import React from 'react'
-+import XpWindow from './XpWindow'
-+import PlayerAvatar from './PlayerAvatar'
-+import { avatarSrc } from '../utils/avatar'
++import Panel from './ui/Panel'
++import Button from './ui/Button'
++import Avatar from './ui/Avatar'
++import Pill from './ui/Pill'
++import GemLoader from './ui/GemLoader'
++import LevelPill from './LevelPill'
 +
-+// Pre-game waiting room (XP dialog): who has joined + Start Game. Shared by desktop and mobile layouts.
-+const XpWaitingRoom = ({ players = [], isSpectator, onStart, className = '', mode }) => (
-+  <XpWindow
-+    title="Waiting for players"
-+    icon={avatarSrc('3')}
-+    className={`max-w-md ${className}`}
-+    status={<><span>{players.length} player(s) in lobby</span><span>Room open</span></>}
-+  >
-+    <div className="xp-stack">
-+      <p>{mode === 'single'
-+        ? 'Your AI opponents are ready. Start whenever you are.'
-+        : 'Waiting for other players to join. Start whenever everyone is in.'}</p>
-+      <div className="xp-progress" role="progressbar" aria-label="Waiting for players" />
-+
-+      <div className="xp-listview">
-+        {players.map((player, i) => (
-+          <div key={`${player.name}-${i}`} className="xp-row">
-+            <PlayerAvatar player={player} className="w-8 h-8 text-xs border-2 border-black bg-white" />
-+            <span className="font-bold truncate">{player.name || 'Player'}</span>
-+            {player.isAI && (
-+              <span className="xp-badge xp-badge--blue ml-auto" title="Computer opponent">AI</span>
-+            )}
-+          </div>
-+        ))}
++// Before the first move: who is in the room + Start Game (desktop board and mobile board).
++const WaitingRoom = ({ players = [], isSpectator, onStart, className = '', mode }) => (
++  <Panel title="Waiting Room" className={`w-full max-w-md ${className}`}>
++    <div className="flex flex-col gap-4">
++      <div className="flex items-center justify-between gap-3">
++        <p className="text-sm text-fg-muted">
++          {mode === 'single'
++            ? 'Your AI opponents are ready. Start whenever you are.'
++            : 'Waiting for other players to join. Start whenever everyone is in.'}
++        </p>
++        {mode !== 'single' ? <GemLoader size={12} label="Waiting for players" /> : null}
 +      </div>
 +
++      <ul className="surface-inset flex flex-col divide-y divide-black/30">
++        {players.map((player, i) => (
++          <li key={`${player.name}-${i}`} className="flex items-center gap-3 px-3 py-2">
++            <Avatar player={player} size={36} />
++            <span className="min-w-0 flex-1 truncate font-semibold">{player.name || 'Player'}</span>
++            {player.isAI ? (player.aiLevel ? <LevelPill level={player.aiLevel} /> : <Pill tone="teal">AI</Pill>) : null}
++          </li>
++        ))}
++      </ul>
++      <p className="text-xs text-fg-muted">{players.length} player{players.length === 1 ? '' : 's'} in the room</p>
++
 +      {!isSpectator && (
-+        <button
-+          type="button"
-+          onClick={onStart}
-+          className="xp-btn xp-btn--go xp-btn--lg xp-btn--block touch-target"
-+          style={{ WebkitTapHighlightColor: 'transparent' }}
-+        >
-+          Start Game ›
-+        </button>
++        <Button size="lg" block onClick={onStart}>Start Game</Button>
 +      )}
 +    </div>
-+  </XpWindow>
++  </Panel>
 +)
 +
-+export default XpWaitingRoom
---- a/web/react-frontend/src/components/XpWindow.jsx
-+++ b/web/react-frontend/src/components/XpWindow.jsx
-@@ -0,0 +1,21 @@
-+import React from 'react'
-+
-+// Windows XP-style window (theme-xp.css): blue title bar, beige face, brutalist border + hard shadow.
-+// `onClose` renders a working close button; `status` renders an XP status bar under the body.
-+const XpWindow = ({ title, icon, onClose, status, className = '', bodyClassName = '', children }) => (
-+  <div className={`xp-window ${className}`} role="dialog" aria-label={title}>
-+    <div className="xp-titlebar">
-+      {icon && <img className="xp-titlebar-icon" src={icon} alt="" />}
-+      <span className="xp-titlebar-title">{title}</span>
-+      {onClose && (
-+        <button type="button" className="xp-title-btn" onClick={onClose} aria-label="Close" title="Back to menu">
-+          ✕
-+        </button>
-+      )}
-+    </div>
-+    <div className={`xp-body ${bodyClassName}`}>{children}</div>
-+    {status && <div className="xp-statusbar">{status}</div>}
-+  </div>
-+)
-+
-+export default XpWindow
++export default WaitingRoom
 --- a/web/react-frontend/src/dev/UiGallery.jsx
 +++ b/web/react-frontend/src/dev/UiGallery.jsx
 @@ -0,0 +1,194 @@
@@ -3171,7 +3564,7 @@
 -.border-golem-pink { border-color: var(--golem-pink); }
 --- a/web/react-frontend/src/main.jsx
 +++ b/web/react-frontend/src/main.jsx
-@@ -1,15 +1,29 @@
+@@ -1,15 +1,28 @@
 -import React from 'react'
 +import React, { Suspense, lazy } from 'react'
  import ReactDOM from 'react-dom/client'
@@ -3180,13 +3573,12 @@
  import router from './router'
  import { AuthProvider } from './contexts/AuthContext'
  import './index.css'
-+import './theme-xp.css'
-+
+ 
 +// Dev only (vite dev + ?gallery): every UI primitive on one page for screenshots. The branch is
 +// statically false in production builds, so the gallery is not bundled.
 +const showGallery = import.meta.env.DEV && new URLSearchParams(window.location.search).has('gallery')
 +const UiGallery = showGallery ? lazy(() => import('./dev/UiGallery')) : null
- 
++
  ReactDOM.createRoot(document.getElementById('root')).render(
    <React.StrictMode>
 -    <AuthProvider>
@@ -3213,15 +3605,17 @@
  import { useParams, useNavigate } from 'react-router-dom'
  import SinglePlayerLobby from './components/SinglePlayerLobby'
  import Lobby from './components/Lobby'
-@@ -8,11 +8,17 @@
+@@ -8,11 +8,19 @@
  import CollapsibleInfo from './components/CollapsibleInfo'
  import DiscardModal from './components/DiscardModal'
  import AcquiredCardOverlay from './components/AcquiredCardOverlay'
 +import RestPopup from './components/RestPopup'
  import GameOverModal from './components/GameOverModal'
  import Toast from './components/Toast'
-+import XpWindow from './components/XpWindow'
-+import { avatarSrc } from './utils/avatar'
++import ModeMenu from './components/start/ModeMenu'
++import ConnectionDialog from './components/start/ConnectionDialog'
++import ReconnectBanner from './components/start/ReconnectBanner'
++import NightBackdrop from './components/ui/NightBackdrop'
 +import { apiFetch } from './utils/api'
 +import { showToast } from './utils/toast'
  import WebGameLayout from './components/desktop/WebGameLayout'
@@ -3231,7 +3625,7 @@
  import FantasyGameLayout from './components/desktop/FantasyGameLayout'
  import useGameStore from './store/gameStore'
  import useOrientation from './hooks/useOrientation'
-@@ -21,34 +27,29 @@
+@@ -21,34 +29,29 @@
  import { ThemeProvider, useTheme } from './contexts/ThemeContext'
  
  // Game Content with Theme Support
@@ -3273,7 +3667,7 @@
          <Toast />
        </>
      )
-@@ -59,10 +60,16 @@
+@@ -59,21 +62,19 @@
      <>
        {/* Theme Toggle Button - Always visible */}
        <ThemeToggleButton />
@@ -3284,13 +3678,27 @@
        {/* Sound Toggle Button - Always visible */}
        <SoundToggleButton />
  
+-      {/* Blurred Background Layer */}
+-      <div className="fixed inset-0 z-0"
+-        style={{
+-          backgroundImage: 'url(/assets/images/background.jpg)',
+-          backgroundSize: 'cover',
+-          backgroundPosition: 'center center',
+-          backgroundRepeat: 'no-repeat',
+-          filter: isMobile ? 'blur(4px) brightness(0.8)' : 'blur(8px) brightness(0.7)',
+-        }}
+-      />
+-      
 +      {/* "<opponent> rested" popup */}
 +      <RestPopup />
 +
-       {/* Blurred Background Layer */}
-       <div className="fixed inset-0 z-0"
-         style={{
-@@ -144,6 +151,7 @@
++      {/* Night mountains behind the board */}
++      <NightBackdrop />
++
+       {useWebLayout ? (
+         /* Desktop/Tablet - WebGameLayout */
+         <div className="h-screen h-[100dvh] relative z-10">
+@@ -144,6 +145,7 @@
    const navigate = useNavigate()
    const [gameMode, setGameMode] = useState(null) // null, 'single', 'multi'
    const [inGame, setInGame] = useState(false)
@@ -3298,11 +3706,23 @@
    const { 
      connectWebSocket, 
      gameState, 
-@@ -160,11 +168,19 @@
+@@ -158,13 +160,30 @@
+     playerAvatar: storedPlayerAvatar,
+     isSpectator,
    } = useGameStore()
-   const { isPortrait, isLandscape, isMobile, isTablet, isDesktop, width } = useOrientation()
+-  const { isPortrait, isLandscape, isMobile, isTablet, isDesktop, width } = useOrientation()
++  const { isPortrait, isCompact } = useOrientation()
  
 -  // Auto-join if roomId is in URL
++  // While disconnected the board is inert (no clicks, no focus). React 18 has no `inert` prop.
++  const boardRef = useRef(null)
+   useEffect(() => {
++    const el = boardRef.current
++    if (!el) return
++    if (!connected) el.setAttribute('inert', '')
++    else el.removeAttribute('inert')
++  }, [connected, gameState])
++
 +  // Opening /room/:roomId directly (page reload, invite link, old link) has no live connection yet. Upstream jumped
 +  // straight to the in-game screen without ever connecting, so it hung on "Connecting..." forever. Instead, open the
 +  // multiplayer lobby on the Join tab with the room prefilled; it checks whether the room still exists.
@@ -3310,7 +3730,7 @@
 +  // /room/<id> for one more render, it must not be mistaken for an invite link.
 +  const leftRoomRef = useRef(null)
 +
-   useEffect(() => {
++  useEffect(() => {
 +    if (roomId && roomId === leftRoomRef.current) return
      if (roomId && !inGame && !isConnecting) {
 +      setPendingRoomId(roomId)
@@ -3320,7 +3740,7 @@
      }
    }, [roomId, inGame, isConnecting])
  
-@@ -183,79 +199,99 @@
+@@ -183,250 +202,142 @@
    }
  
    const handleBackToMenu = () => {
@@ -3382,7 +3802,7 @@
    if (gameMode === null) {
      return (
        <>
-       <Toast />
+-      <Toast />
 -      <div 
 -        className={`
 -          min-h-screen min-h-[100dvh] flex items-center justify-center 
@@ -3408,17 +3828,7 @@
 -            ${isMobile ? 'text-xl mb-4' : 'text-3xl sm:text-4xl mb-8'}
 -          `}>
 -            {'Century: Golem Edition'}
-+      <div className="xp-desktop">
-+        <XpWindow
-+          title="Century: Golem Edition"
-+          icon={avatarSrc('1')}
-+          className="max-w-md"
-+          status={<><span>A classic spice trading game</span><span>2–5 players</span></>}
-+        >
-+          <h1 className="xp-heading">
-+            Choose a game mode
-+            <small>Collect and upgrade crystals to claim golem cards.</small>
-           </h1>
+-          </h1>
 -          
 -          <div className={`space-y-3 ${isMobile ? '' : 'space-y-4'}`}>
 -            <button
@@ -3434,17 +3844,7 @@
 -              <div className={`font-normal text-white/90 ${isMobile ? 'text-xs mt-0.5' : 'text-sm mt-1'}`}>
 -                Play against AI opponents
 -              </div>
-+          <div className="xp-stack">
-+            <button type="button" className="xp-tile" onClick={() => setGameMode('single')}>
-+              <span className="xp-tile-icons">
-+                <img src={avatarSrc('4')} alt="" />
-+              </span>
-+              <span>
-+                <span className="xp-tile-title">Single Player</span>
-+                <span className="xp-tile-sub">Play against 1–4 AI opponents</span>
-+              </span>
-+              <span className="xp-tile-arrow" aria-hidden="true">›</span>
-             </button>
+-            </button>
 -            
 -            <button
 -              onClick={() => setGameMode('multi')}
@@ -3459,28 +3859,19 @@
 -              <div className={`font-normal text-white/90 ${isMobile ? 'text-xs mt-0.5' : 'text-sm mt-1'}`}>
 -                Play with friends online
 -              </div>
-+            <button type="button" className="xp-tile" onClick={() => setGameMode('multi')}>
-+              <span className="xp-tile-icons">
-+                <img src={avatarSrc('1')} alt="" />
-+                <img src={avatarSrc('2')} alt="" />
-+              </span>
-+              <span>
-+                <span className="xp-tile-title">Multiplayer</span>
-+                <span className="xp-tile-sub">Create a room or join friends online</span>
-+              </span>
-+              <span className="xp-tile-arrow" aria-hidden="true">›</span>
-             </button>
-           </div>
+-            </button>
+-          </div>
 -
 -          <div className={`text-center text-white/70 ${isMobile ? 'text-xs mt-4' : 'text-sm mt-6'}`}>
 -            <p>A classic spice trading game</p>
 -          </div>
 -        </div>
-+        </XpWindow>
-       </div>
+-      </div>
++        <Toast />
++        <ModeMenu onSingle={() => setGameMode('single')} onMulti={() => setGameMode('multi')} />
        </>
      )
-@@ -263,151 +299,75 @@
+   }
  
    // Show appropriate lobby based on mode
    if (!inGame) {
@@ -3531,22 +3922,33 @@
 +          : <Lobby onJoinGame={handleJoinMultiplayer} onBack={handleBackToMenu} initialRoomId={pendingRoomId} />}
 +      </>
 +    )
++  }
++
++  // Connection state shared by the first-connect dialog and the in-game reconnect banner
++  const showRetryButton = !!connectionError || (isReconnecting && reconnectAttempts >= 2)
++  // Not connecting, not reconnecting, no error: nothing will happen by itself — offer a way back.
++  const isIdle = !connected && !isConnecting && !isReconnecting && !connectionError
++  const backToMenu = () => {
++    setInGame(false)
++    setGameMode(null)
++  }
++  const retry = () => {
++    if (sessionId && storedPlayerName) forceReconnect()
    }
  
-   // Show loading screen while connecting or waiting for game state
-   if (!connected || !gameState) {
-     const showRetryButton = connectionError || (isReconnecting && reconnectAttempts >= 2);
+-  // Show loading screen while connecting or waiting for game state
+-  if (!connected || !gameState) {
+-    const showRetryButton = connectionError || (isReconnecting && reconnectAttempts >= 2);
 -    
-+    // Not connecting, not reconnecting, no error: nothing will happen by itself — offer a way back.
-+    const isIdle = !connected && !isConnecting && !isReconnecting && !connectionError;
++  // Before the first game state: a connecting dialog
++  if (!gameState) {
 +    const title = connectionError
 +      ? 'Connection Failed'
 +      : isReconnecting
-+        ? `Reconnecting (${reconnectAttempts}/${10})`
++        ? `Reconnecting (${reconnectAttempts}/10)`
 +        : !connected
-+          ? 'Connecting...'
-+          : 'Loading...'
-+
++          ? 'Connecting…'
++          : 'Loading…'
      return (
        <>
          <Toast />
@@ -3647,63 +4049,57 @@
 -              </button>
 -            )}
 -          </div>
-+        <div className="xp-desktop">
-+          <XpWindow title={title} icon={avatarSrc('3')} className="max-w-sm">
-+            <div className="xp-stack">
-+              {connectionError ? (
-+                <div className="xp-note xp-note--err">{connectionError}</div>
-+              ) : (
-+                <p>{isReconnecting ? 'Attempting to reconnect...' : 'Connecting to the game server. Please wait...'}</p>
-+              )}
-+
-+              {(isConnecting || isReconnecting) && !showRetryButton && <div className="xp-progress" role="progressbar" />}
-+
-+              {(showRetryButton || reconnectAttempts >= 3 || isIdle) && (
-+                <div className="xp-actions justify-end">
-+                  {/* Back to Menu - after multiple failed attempts, or when nothing is in progress at all */}
-+                  {(reconnectAttempts >= 3 || isIdle) && (
-+                    <button
-+                      type="button"
-+                      className="xp-btn"
-+                      onClick={() => {
-+                        setInGame(false);
-+                        setGameMode(null);
-+                      }}
-+                    >
-+                      Back to Menu
-+                    </button>
-+                  )}
-+                  {showRetryButton && (
-+                    <button
-+                      type="button"
-+                      className="xp-btn xp-btn--go"
-+                      onClick={() => {
-+                        if (sessionId && storedPlayerName) {
-+                          forceReconnect();
-+                        }
-+                      }}
-+                    >
-+                      Retry Connection
-+                    </button>
-+                  )}
-+                </div>
-+              )}
-+            </div>
-+          </XpWindow>
-         </div>
+-        </div>
++        <ConnectionDialog
++          title={title}
++          error={connectionError}
++          message={isReconnecting ? 'Trying to reach the game server again…' : 'Connecting to the game server…'}
++          busy={(isConnecting || isReconnecting || connected) && !showRetryButton}
++          onRetry={showRetryButton || isIdle ? retry : undefined}
++          onBack={reconnectAttempts >= 3 || isIdle || connectionError ? backToMenu : undefined}
++        />
        </>
      )
-@@ -424,8 +384,8 @@
-           isMobile={isMobile}
-           isPortrait={isPortrait}
-           sessionId={sessionId}
+   }
+ 
+-  // Use WebGameLayout for desktop/tablet (>= 768px), CompactGameBoard for mobile (< 768px)
+-  const useWebLayout = !isMobile
++  // Desktop board from 768px wide; phones (and phones held sideways, < 500px tall) get the compact board
++  const useWebLayout = !isCompact
+ 
+   return (
+     <ThemeProvider>
+       <MobileLayoutProvider>
+-        <GameContentWithTheme
+-          useWebLayout={useWebLayout}
+-          isMobile={isMobile}
+-          isPortrait={isPortrait}
+-          sessionId={sessionId}
 -          setInGame={setInGame}
 -          setGameMode={setGameMode}
-+          onNewGame={handlePlayAgain}
-+          onBackToMenu={handleExitToMenu}
-         />
+-        />
++        {/* Lost the connection mid-game: keep the board visible but inert, and show the attempts on top */}
++        <div ref={boardRef} aria-hidden={!connected || undefined}>
++          <GameContentWithTheme
++            useWebLayout={useWebLayout}
++            isMobile={isCompact}
++            isPortrait={isPortrait}
++            sessionId={sessionId}
++            onNewGame={handlePlayAgain}
++            onBackToMenu={handleExitToMenu}
++          />
++        </div>
++        {!connected && (
++          <ReconnectBanner
++            attempts={reconnectAttempts}
++            error={connectionError || (isIdle ? 'The connection to the game server was closed.' : null)}
++            onRetry={showRetryButton || isIdle ? retry : undefined}
++            onBack={reconnectAttempts >= 3 || isIdle ? handleExitToMenu : undefined}
++          />
++        )}
        </MobileLayoutProvider>
      </ThemeProvider>
+   )
 --- a/web/react-frontend/src/store/gameStore.js
 +++ b/web/react-frontend/src/store/gameStore.js
 @@ -2,6 +2,9 @@
@@ -4068,378 +4464,19 @@
 +  --safe-left: env(safe-area-inset-left, 0px);
 +  --safe-right: env(safe-area-inset-right, 0px);
 +}
---- a/web/react-frontend/src/theme-xp.css
-+++ b/web/react-frontend/src/theme-xp.css
-@@ -0,0 +1,356 @@
-+/*
-+ * Windows XP × brutalism theme for the pre-game screens: mode menu, lobbies, connecting dialog, waiting room.
-+ * XP: Luna blue title bars, beige window face, Tahoma, green "go" buttons, marquee progress bar.
-+ * Brutalism: thick black borders, hard offset shadows, flat colours, no glass/blur.
-+ * System fonts only — no web fonts or other external requests (see docs/privacy.md).
-+ */
-+:root {
-+  --xp-ink: #0b0b0b;
-+  --xp-face: #ece9d8;
-+  --xp-face-dark: #d8d4c4;
-+  --xp-paper: #ffffff;
-+  --xp-blue: #0054e3;
-+  --xp-select: #316ac5;
-+  --xp-hover: #e8eef9;
-+  --xp-orange: #ffc83c;
-+  --xp-smb-sky: #9290ff;
-+  --xp-shadow: 6px 6px 0 var(--xp-ink);
-+  --xp-font: Tahoma, Verdana, "DejaVu Sans", "Segoe UI", sans-serif;
-+  --xp-title-font: "Trebuchet MS", Tahoma, Verdana, "DejaVu Sans", sans-serif;
-+}
-+
-+/* ---- Desktop (page background): flat, hard-edged take on the XP "Bliss" hill ---- */
-+.xp-desktop {
-+  min-height: 100vh;
-+  min-height: 100dvh;
-+  display: flex;
-+  align-items: center;
-+  justify-content: center;
-+  padding: 24px 16px;
-+  background:
-+    radial-gradient(150% 55% at 25% 108%, #5aa632 0 54%, #3f8a22 54.2% 57%, transparent 57.2%),
-+    linear-gradient(180deg, #1f63d1 0%, #4a8ee6 45%, #9cc8f2 100%);
-+  background-attachment: fixed;
-+  font-family: var(--xp-font);
-+  color: var(--xp-ink);
-+}
-+
-+/* ---- Window chrome ---- */
-+.xp-window {
-+  width: 100%;
-+  background: var(--xp-face);
-+  border: 3px solid var(--xp-ink);
-+  border-radius: 8px 8px 0 0;
-+  box-shadow: var(--xp-shadow);
-+  font-family: var(--xp-font);
-+  color: var(--xp-ink);
-+  font-size: 14px;
-+}
-+.xp-titlebar {
-+  display: flex;
-+  align-items: center;
-+  gap: 8px;
-+  padding: 5px 6px 5px 10px;
-+  border-radius: 5px 5px 0 0;
-+  border-bottom: 3px solid var(--xp-ink);
-+  background: linear-gradient(180deg, #3d95ff 0%, #0a64e8 12%, #0054e3 45%, #0050d8 80%, #0a3fa8 100%);
-+  color: #fff;
-+  font: bold 15px/1.3 var(--xp-title-font);
-+  text-shadow: 1px 1px 0 #0a1a6a;
-+}
-+.xp-titlebar-icon {
-+  width: 20px;
-+  height: 20px;
-+  flex-shrink: 0;
-+  border: 1.5px solid #fff;
-+  background: var(--xp-smb-sky);
-+}
-+.xp-titlebar-title {
-+  flex: 1;
-+  min-width: 0;
-+  overflow: hidden;
-+  text-overflow: ellipsis;
-+  white-space: nowrap;
-+}
-+.xp-title-btn {
-+  width: 24px;
-+  height: 24px;
-+  flex-shrink: 0;
-+  display: inline-flex;
-+  align-items: center;
-+  justify-content: center;
-+  border: 2px solid #fff;
-+  border-radius: 4px;
-+  background: linear-gradient(180deg, #f39a7d 0%, #e0532c 55%, #c4320f 100%);
-+  color: #fff;
-+  font: bold 14px/1 var(--xp-font);
-+  cursor: pointer;
-+}
-+.xp-title-btn:hover { filter: brightness(1.12); }
-+.xp-title-btn:active { filter: brightness(0.9); }
-+.xp-body { padding: 18px; }
-+.xp-statusbar {
-+  display: flex;
-+  justify-content: space-between;
-+  gap: 12px;
-+  padding: 4px 10px;
-+  border-top: 2px solid var(--xp-ink);
-+  background: var(--xp-face-dark);
-+  font-size: 11px;
-+}
-+.xp-heading {
-+  margin: 0 0 14px;
-+  font: bold 22px/1.15 var(--xp-title-font);
-+  letter-spacing: -0.01em;
-+}
-+.xp-heading small {
-+  display: block;
-+  margin-top: 3px;
-+  font: 12px/1.3 var(--xp-font);
-+  letter-spacing: 0;
-+  color: #44443c;
-+}
-+
-+/* ---- Buttons ---- */
-+.xp-btn {
-+  display: inline-flex;
-+  align-items: center;
-+  justify-content: center;
-+  gap: 8px;
-+  min-height: 36px;
-+  padding: 7px 16px;
-+  font: 13px/1.2 var(--xp-font);
-+  color: var(--xp-ink);
-+  background: linear-gradient(180deg, #ffffff 0%, #f4f3ee 55%, #e3e0d4 100%);
-+  border: 2px solid var(--xp-ink);
-+  border-radius: 4px;
-+  box-shadow: 3px 3px 0 var(--xp-ink);
-+  cursor: pointer;
-+  user-select: none;
-+  white-space: nowrap;
-+}
-+.xp-btn:hover:not(:disabled) { background: linear-gradient(180deg, #ffffff 0%, #fdf3d8 55%, #f6d998 100%); }
-+.xp-btn:active:not(:disabled) { transform: translate(3px, 3px); box-shadow: none; }
-+.xp-btn:focus-visible { outline: 2px dotted var(--xp-ink); outline-offset: -6px; }
-+.xp-btn:disabled {
-+  color: #8c8c86;
-+  border-color: #8c8c86;
-+  background: #f2f1ea;
-+  box-shadow: none;
-+  cursor: not-allowed;
-+}
-+.xp-btn--go {
-+  color: #fff;
-+  font-weight: bold;
-+  font-style: italic;
-+  font-size: 15px;
-+  text-shadow: 1px 1px 0 #1b4d1b;
-+  background: linear-gradient(180deg, #62c862 0%, #3a9e3a 45%, #2f8a2f 100%);
-+}
-+.xp-btn--go:hover:not(:disabled) { background: linear-gradient(180deg, #78d878 0%, #45ad45 45%, #36953a 100%); }
-+.xp-btn--go:disabled { text-shadow: none; font-style: normal; }
-+.xp-btn--block { width: 100%; }
-+.xp-btn--lg { min-height: 48px; padding: 10px 22px; font-size: 17px; }
-+.xp-btn--sm { min-height: 30px; padding: 4px 10px; font-size: 12px; box-shadow: 2px 2px 0 var(--xp-ink); }
-+.xp-btn--sm:active:not(:disabled) { transform: translate(2px, 2px); }
-+
-+/* Big menu choices */
-+.xp-tile {
-+  display: flex;
-+  align-items: center;
-+  gap: 14px;
-+  width: 100%;
-+  padding: 12px 14px;
-+  text-align: left;
-+  background: var(--xp-paper);
-+  border: 3px solid var(--xp-ink);
-+  box-shadow: 5px 5px 0 var(--xp-ink);
-+  font-family: var(--xp-font);
-+  color: var(--xp-ink);
-+  cursor: pointer;
-+}
-+.xp-tile:hover { background: #fffbe6; }
-+.xp-tile:active { transform: translate(5px, 5px); box-shadow: none; }
-+.xp-tile:focus-visible { outline: 3px solid var(--xp-orange); outline-offset: 2px; }
-+.xp-tile-icons { display: flex; flex-shrink: 0; }
-+.xp-tile-icons img {
-+  width: 52px;
-+  height: 52px;
-+  border: 2px solid var(--xp-ink);
-+  background: var(--xp-smb-sky);
-+}
-+.xp-tile-icons img + img { margin-left: -14px; }
-+.xp-tile-title { display: block; font: bold 18px/1.2 var(--xp-title-font); }
-+.xp-tile-sub { display: block; margin-top: 2px; font-size: 12px; color: #44443c; }
-+.xp-tile-arrow { margin-left: auto; font: bold 22px/1 var(--xp-font); }
-+
-+/* ---- Form controls ---- */
-+.xp-field-label {
-+  display: block;
-+  margin-bottom: 6px;
-+  font: bold 11px/1.2 var(--xp-font);
-+  text-transform: uppercase;
-+  letter-spacing: 0.06em;
-+}
-+.xp-group {
-+  position: relative;
-+  padding: 16px 12px 12px;
-+  border: 2px solid var(--xp-ink);
-+}
-+.xp-group-title {
-+  position: absolute;
-+  top: -10px;
-+  left: 10px;
-+  padding: 0 6px;
-+  background: var(--xp-face);
-+  color: var(--xp-blue);
-+  font: bold 12px/18px var(--xp-font);
-+}
-+.xp-input,
-+.xp-select {
-+  width: 100%;
-+  min-height: 36px;
-+  padding: 6px 10px;
-+  font: 14px/1.2 var(--xp-font);
-+  color: var(--xp-ink);
-+  background: var(--xp-paper);
-+  border: 2px solid var(--xp-ink);
-+  border-radius: 0;
-+  box-shadow: inset 2px 2px 0 rgba(0, 0, 0, 0.12);
-+}
-+.xp-input:focus,
-+.xp-select:focus { outline: 3px solid var(--xp-orange); outline-offset: 0; }
-+.xp-input::placeholder { color: #7a7a72; }
-+.xp-input--mono { font-family: "Lucida Console", "DejaVu Sans Mono", monospace; font-size: 12px; }
-+
-+/* Tabs */
-+.xp-tabs { display: flex; gap: 4px; margin-bottom: 18px; border-bottom: 3px solid var(--xp-ink); }
-+.xp-tab {
-+  position: relative;
-+  margin-bottom: -3px;
-+  padding: 8px 16px;
-+  font: bold 13px/1.2 var(--xp-font);
-+  color: #3a3a34;
-+  background: var(--xp-face-dark);
-+  border: 2px solid var(--xp-ink);
-+  border-bottom: 3px solid var(--xp-ink);
-+  cursor: pointer;
-+}
-+.xp-tab:hover { background: #e6e2d2; }
-+.xp-tab[aria-selected="true"] {
-+  z-index: 1;
-+  padding-top: 6px;
-+  color: var(--xp-ink);
-+  background: var(--xp-face);
-+  border-top: 4px solid var(--xp-orange);
-+  border-bottom-color: var(--xp-face);
-+}
-+
-+/* Option list (radio rows) */
-+.xp-list { background: var(--xp-paper); border: 2px solid var(--xp-ink); }
-+.xp-list-item {
-+  display: flex;
-+  align-items: center;
-+  gap: 10px;
-+  padding: 8px 10px;
-+  border-bottom: 1px dotted #9a9a90;
-+  cursor: pointer;
-+}
-+.xp-list-item:last-child { border-bottom: none; }
-+.xp-list-item:hover { background: var(--xp-hover); }
-+.xp-list-item[data-selected="true"] { background: var(--xp-select); color: #fff; }
-+.xp-list-item input[type="radio"] { width: 16px; height: 16px; accent-color: #2f8a2f; }
-+/* Compact one-row variant (e.g. number of AI opponents) — keeps the lobby within one screen */
-+.xp-list--row { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); }
-+.xp-list--row .xp-list-item { justify-content: center; gap: 6px; padding: 7px 6px; border-bottom: none; border-right: 1px dotted #9a9a90; white-space: nowrap; }
-+.xp-list--row .xp-list-item:last-child { border-right: none; }
-+
-+/* Avatar picker */
-+.xp-avatar-grid {
-+  display: grid;
-+  /* half-size tiles (was 5 columns): 23 avatars fit in 3 rows, so the lobby does not scroll */
-+  grid-template-columns: repeat(10, minmax(0, 1fr));
-+  gap: 5px;
-+}
-+.xp-avatar {
-+  aspect-ratio: 1;
-+  min-width: 0;  /* index.css forces 44×44 buttons on touch screens; avatar tiles are deliberately smaller */
-+  min-height: 0;
-+  padding: 0;
-+  overflow: hidden;
-+  background: var(--xp-smb-sky);
-+  border: 2px solid var(--xp-ink);
-+  box-shadow: 1px 1px 0 var(--xp-ink);
-+  cursor: pointer;
-+}
-+.xp-avatar img { display: block; width: 100%; height: 100%; object-fit: cover; }
-+.xp-avatar:hover { border-color: var(--xp-select); }
-+.xp-avatar[aria-pressed="true"] {
-+  outline: 3px solid var(--xp-orange);
-+  outline-offset: 0;
-+  border-color: var(--xp-ink);
-+  box-shadow: 2px 2px 0 var(--xp-ink);
-+}
-+
-+/* Notes / balloons */
-+.xp-note { padding: 8px 10px; font-size: 12px; background: #ffffe1; border: 2px solid var(--xp-ink); }
-+.xp-note--ok { background: #e3f5d9; }
-+.xp-note--err { background: #ffe3dc; }
-+
-+/* Room list (list view) */
-+.xp-listview { max-height: 50vh; overflow-y: auto; background: var(--xp-paper); border: 2px solid var(--xp-ink); }
-+.xp-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px dotted #9a9a90; }
-+.xp-row:last-child { border-bottom: none; }
-+.xp-row:hover { background: var(--xp-hover); }
-+.xp-row--expiring { background: #fff0ec; }
-+.xp-empty { padding: 28px 12px; text-align: center; color: #55554c; }
-+.xp-badge {
-+  display: inline-block;
-+  padding: 1px 6px;
-+  font: bold 11px/1.4 var(--xp-font);
-+  background: var(--xp-paper);
-+  border: 1.5px solid var(--xp-ink);
-+}
-+.xp-badge--green { background: #b9f3b0; }
-+.xp-badge--blue { background: #cfe0ff; }
-+.xp-badge--orange { background: #ffe2a8; }
-+.xp-badge--red { background: #ffc9bd; }
-+/* badges keep dark text inside a selected (blue, white-text) list row — difficulty picker */
-+.xp-list-item .xp-badge { color: var(--xp-ink); }
-+
-+/* XP marquee progress bar */
-+.xp-progress {
-+  position: relative;
-+  height: 20px;
-+  overflow: hidden;
-+  background: var(--xp-paper);
-+  border: 2px solid var(--xp-ink);
-+}
-+.xp-progress::before {
-+  content: "";
-+  position: absolute;
-+  top: 3px;
-+  bottom: 3px;
-+  left: -64px;
-+  width: 64px;
-+  background: repeating-linear-gradient(90deg, #37b737 0 9px, transparent 9px 12px);
-+  animation: xp-marquee 1.6s linear infinite;
-+}
-+@keyframes xp-marquee { to { left: 100%; } }
-+
-+.xp-actions { display: flex; flex-wrap: wrap; gap: 10px; }
-+.xp-stack > * + * { margin-top: 16px; }
-+.xp-muted { color: #55554c; font-size: 12px; }
-+
-+@media (max-width: 480px) {
-+  .xp-desktop { padding: 16px 12px; }
-+  .xp-window { width: calc(100% - 4px); box-shadow: 4px 4px 0 var(--xp-ink); } /* leave room for the shadow */
-+  .xp-body { padding: 14px 12px; }
-+  .xp-heading { font-size: 19px; }
-+  .xp-tile-icons img { width: 44px; height: 44px; }
-+  .xp-tile-title { font-size: 16px; }
-+  .xp-avatar-grid { grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px; } /* ~39px tiles on a 390px phone */
-+}
-+@media (prefers-reduced-motion: reduce) {
-+  .xp-progress::before { animation: none; left: 0; width: 100%; }
-+}
 --- a/web/react-frontend/src/utils/aiLevel.js
 +++ b/web/react-frontend/src/utils/aiLevel.js
 @@ -0,0 +1,50 @@
-+// AI difficulty levels (must match internal/ai/profile.go). The lobby uses the XP style; the in-game
-+// board shows a small badge in the upstream (Tailwind) style.
++// AI difficulty levels (must match internal/ai/profile.go). `tone` + `pips` style the level Pill
++// (components/ui/Pill): the dots carry the level too, not only the colour.
 +export const AI_LEVELS = [
-+  { value: 'easy', label: 'Easy', badge: 'green', board: 'bg-emerald-500/80',
++  { value: 'easy', label: 'Easy', tone: 'moss', pips: 1,
 +    description: 'Looks one move ahead and sometimes settles for a merely good move.' },
-+  { value: 'medium', label: 'Medium', badge: 'blue', board: 'bg-sky-500/80',
++  { value: 'medium', label: 'Medium', tone: 'teal', pips: 2,
 +    description: 'Plans a few moves ahead with a short search. A solid opponent.' },
-+  { value: 'hard', label: 'Hard', badge: 'orange', board: 'bg-amber-500/80',
++  { value: 'hard', label: 'Hard', tone: 'bronze', pips: 3,
 +    description: 'Searches deeper, reads your plan and blocks whoever is leading.' },
-+  { value: 'veryhard', label: 'Very Hard', badge: 'red', board: 'bg-rose-600/80',
++  { value: 'veryhard', label: 'Very Hard', tone: 'ember', pips: 4,
 +    description: 'The toughest opponents. Good luck.' },
 +]
 +

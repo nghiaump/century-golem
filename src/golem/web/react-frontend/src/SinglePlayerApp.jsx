@@ -11,8 +11,10 @@ import AcquiredCardOverlay from './components/AcquiredCardOverlay'
 import RestPopup from './components/RestPopup'
 import GameOverModal from './components/GameOverModal'
 import Toast from './components/Toast'
-import XpWindow from './components/XpWindow'
-import { avatarSrc } from './utils/avatar'
+import ModeMenu from './components/start/ModeMenu'
+import ConnectionDialog from './components/start/ConnectionDialog'
+import ReconnectBanner from './components/start/ReconnectBanner'
+import NightBackdrop from './components/ui/NightBackdrop'
 import { apiFetch } from './utils/api'
 import { showToast } from './utils/toast'
 import WebGameLayout from './components/desktop/WebGameLayout'
@@ -70,17 +72,9 @@ function GameContentWithTheme({ useWebLayout, isMobile, isPortrait, sessionId, o
       {/* "<opponent> rested" popup */}
       <RestPopup />
 
-      {/* Blurred Background Layer */}
-      <div className="fixed inset-0 z-0"
-        style={{
-          backgroundImage: 'url(/assets/images/background.jpg)',
-          backgroundSize: 'cover',
-          backgroundPosition: 'center center',
-          backgroundRepeat: 'no-repeat',
-          filter: isMobile ? 'blur(4px) brightness(0.8)' : 'blur(8px) brightness(0.7)',
-        }}
-      />
-      
+      {/* Night mountains behind the board */}
+      <NightBackdrop />
+
       {useWebLayout ? (
         /* Desktop/Tablet - WebGameLayout */
         <div className="h-screen h-[100dvh] relative z-10">
@@ -166,7 +160,16 @@ function SinglePlayerApp() {
     playerAvatar: storedPlayerAvatar,
     isSpectator,
   } = useGameStore()
-  const { isPortrait, isLandscape, isMobile, isTablet, isDesktop, width } = useOrientation()
+  const { isPortrait, isCompact } = useOrientation()
+
+  // While disconnected the board is inert (no clicks, no focus). React 18 has no `inert` prop.
+  const boardRef = useRef(null)
+  useEffect(() => {
+    const el = boardRef.current
+    if (!el) return
+    if (!connected) el.setAttribute('inert', '')
+    else el.removeAttribute('inert')
+  }, [connected, gameState])
 
   // Opening /room/:roomId directly (page reload, invite link, old link) has no live connection yet. Upstream jumped
   // straight to the in-game screen without ever connecting, so it hung on "Connecting..." forever. Instead, open the
@@ -256,43 +259,8 @@ function SinglePlayerApp() {
   if (gameMode === null) {
     return (
       <>
-      <Toast />
-      <div className="xp-desktop">
-        <XpWindow
-          title="Century: Golem Edition"
-          icon={avatarSrc('1')}
-          className="max-w-md"
-          status={<><span>A classic spice trading game</span><span>2–5 players</span></>}
-        >
-          <h1 className="xp-heading">
-            Choose a game mode
-            <small>Collect and upgrade crystals to claim golem cards.</small>
-          </h1>
-          <div className="xp-stack">
-            <button type="button" className="xp-tile" onClick={() => setGameMode('single')}>
-              <span className="xp-tile-icons">
-                <img src={avatarSrc('4')} alt="" />
-              </span>
-              <span>
-                <span className="xp-tile-title">Single Player</span>
-                <span className="xp-tile-sub">Play against 1–4 AI opponents</span>
-              </span>
-              <span className="xp-tile-arrow" aria-hidden="true">›</span>
-            </button>
-            <button type="button" className="xp-tile" onClick={() => setGameMode('multi')}>
-              <span className="xp-tile-icons">
-                <img src={avatarSrc('1')} alt="" />
-                <img src={avatarSrc('2')} alt="" />
-              </span>
-              <span>
-                <span className="xp-tile-title">Multiplayer</span>
-                <span className="xp-tile-sub">Create a room or join friends online</span>
-              </span>
-              <span className="xp-tile-arrow" aria-hidden="true">›</span>
-            </button>
-          </div>
-        </XpWindow>
-      </div>
+        <Toast />
+        <ModeMenu onSingle={() => setGameMode('single')} onMulti={() => setGameMode('multi')} />
       </>
     )
   }
@@ -309,84 +277,67 @@ function SinglePlayerApp() {
     )
   }
 
-  // Show loading screen while connecting or waiting for game state
-  if (!connected || !gameState) {
-    const showRetryButton = connectionError || (isReconnecting && reconnectAttempts >= 2);
-    // Not connecting, not reconnecting, no error: nothing will happen by itself — offer a way back.
-    const isIdle = !connected && !isConnecting && !isReconnecting && !connectionError;
+  // Connection state shared by the first-connect dialog and the in-game reconnect banner
+  const showRetryButton = !!connectionError || (isReconnecting && reconnectAttempts >= 2)
+  // Not connecting, not reconnecting, no error: nothing will happen by itself — offer a way back.
+  const isIdle = !connected && !isConnecting && !isReconnecting && !connectionError
+  const backToMenu = () => {
+    setInGame(false)
+    setGameMode(null)
+  }
+  const retry = () => {
+    if (sessionId && storedPlayerName) forceReconnect()
+  }
+
+  // Before the first game state: a connecting dialog
+  if (!gameState) {
     const title = connectionError
       ? 'Connection Failed'
       : isReconnecting
-        ? `Reconnecting (${reconnectAttempts}/${10})`
+        ? `Reconnecting (${reconnectAttempts}/10)`
         : !connected
-          ? 'Connecting...'
-          : 'Loading...'
-
+          ? 'Connecting…'
+          : 'Loading…'
     return (
       <>
         <Toast />
-        <div className="xp-desktop">
-          <XpWindow title={title} icon={avatarSrc('3')} className="max-w-sm">
-            <div className="xp-stack">
-              {connectionError ? (
-                <div className="xp-note xp-note--err">{connectionError}</div>
-              ) : (
-                <p>{isReconnecting ? 'Attempting to reconnect...' : 'Connecting to the game server. Please wait...'}</p>
-              )}
-
-              {(isConnecting || isReconnecting) && !showRetryButton && <div className="xp-progress" role="progressbar" />}
-
-              {(showRetryButton || reconnectAttempts >= 3 || isIdle) && (
-                <div className="xp-actions justify-end">
-                  {/* Back to Menu - after multiple failed attempts, or when nothing is in progress at all */}
-                  {(reconnectAttempts >= 3 || isIdle) && (
-                    <button
-                      type="button"
-                      className="xp-btn"
-                      onClick={() => {
-                        setInGame(false);
-                        setGameMode(null);
-                      }}
-                    >
-                      Back to Menu
-                    </button>
-                  )}
-                  {showRetryButton && (
-                    <button
-                      type="button"
-                      className="xp-btn xp-btn--go"
-                      onClick={() => {
-                        if (sessionId && storedPlayerName) {
-                          forceReconnect();
-                        }
-                      }}
-                    >
-                      Retry Connection
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          </XpWindow>
-        </div>
+        <ConnectionDialog
+          title={title}
+          error={connectionError}
+          message={isReconnecting ? 'Trying to reach the game server again…' : 'Connecting to the game server…'}
+          busy={(isConnecting || isReconnecting || connected) && !showRetryButton}
+          onRetry={showRetryButton || isIdle ? retry : undefined}
+          onBack={reconnectAttempts >= 3 || isIdle || connectionError ? backToMenu : undefined}
+        />
       </>
     )
   }
 
-  // Use WebGameLayout for desktop/tablet (>= 768px), CompactGameBoard for mobile (< 768px)
-  const useWebLayout = !isMobile
+  // Desktop board from 768px wide; phones (and phones held sideways, < 500px tall) get the compact board
+  const useWebLayout = !isCompact
 
   return (
     <ThemeProvider>
       <MobileLayoutProvider>
-        <GameContentWithTheme
-          useWebLayout={useWebLayout}
-          isMobile={isMobile}
-          isPortrait={isPortrait}
-          sessionId={sessionId}
-          onNewGame={handlePlayAgain}
-          onBackToMenu={handleExitToMenu}
-        />
+        {/* Lost the connection mid-game: keep the board visible but inert, and show the attempts on top */}
+        <div ref={boardRef} aria-hidden={!connected || undefined}>
+          <GameContentWithTheme
+            useWebLayout={useWebLayout}
+            isMobile={isCompact}
+            isPortrait={isPortrait}
+            sessionId={sessionId}
+            onNewGame={handlePlayAgain}
+            onBackToMenu={handleExitToMenu}
+          />
+        </div>
+        {!connected && (
+          <ReconnectBanner
+            attempts={reconnectAttempts}
+            error={connectionError || (isIdle ? 'The connection to the game server was closed.' : null)}
+            onRetry={showRetryButton || isIdle ? retry : undefined}
+            onBack={reconnectAttempts >= 3 || isIdle ? handleExitToMenu : undefined}
+          />
+        )}
       </MobileLayoutProvider>
     </ThemeProvider>
   )

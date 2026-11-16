@@ -5,7 +5,6 @@ import { MotionConfig } from 'framer-motion'
 import router from './router'
 import { AuthProvider } from './contexts/AuthContext'
 import './index.css'
-import './theme-xp.css'
 
 // Dev only (vite dev + ?gallery): every UI primitive on one page for screenshots. The branch is
 // statically false in production builds, so the gallery is not bundled.

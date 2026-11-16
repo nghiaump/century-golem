@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { createLogger } from '../utils/logger';
 import { useAuth } from '../contexts/AuthContext';
 import LoginButton from './LoginButton';
-import useGameStore from "../store/gameStore";
-import useOrientation from "../hooks/useOrientation";
 import { apiFetch } from "../utils/api";
-import { AVATAR_IDS, avatarSrc } from "../utils/avatar";
-import XpWindow from "./XpWindow";
+import { showToast } from "../utils/toast";
+import StartShell from "./start/StartShell";
+import Button from "./ui/Button";
+import Field, { FieldLabel } from "./ui/Field";
+import Segmented from "./ui/Segmented";
+import AvatarPicker from "./ui/AvatarPicker";
+import Pill from "./ui/Pill";
 
 const logger = createLogger('Lobby');
 
@@ -23,13 +25,35 @@ const generatePlayerName = () => {
 
 // Load player name from localStorage or generate a new one
 const getInitialPlayerName = () => {
-  const cachedName = localStorage.getItem("playerName");
-  if (cachedName) {
-    return cachedName;
+  try {
+    const cachedName = localStorage.getItem("playerName");
+    if (cachedName) return cachedName;
+    const newName = generatePlayerName();
+    localStorage.setItem("playerName", newName);
+    return newName;
+  } catch {
+    return generatePlayerName();
   }
-  const newName = generatePlayerName();
-  localStorage.setItem("playerName", newName);
-  return newName;
+};
+
+const PLAYER_COUNTS = [2, 3, 4, 5].map((n) => ({ value: String(n), label: `${n}` }));
+
+const Note = ({ tone = "neutral", children }) => {
+  const cls = {
+    neutral: "border-rock-400/40 bg-rock-950/40 text-fg-muted",
+    ok: "border-moss/60 bg-moss/15 text-[rgb(200_235_190)]",
+    err: "border-ember/60 bg-ember/15 text-[rgb(255_210_196)]",
+  }[tone];
+  return <div role="status" className={`rounded-stone-sm border px-3 py-2 text-sm ${cls}`}>{children}</div>;
+};
+
+const copyText = async (text) => {
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast("Room ID copied", "success");
+  } catch {
+    showToast("Could not copy — select the ID and copy it by hand", "error");
+  }
 };
 
 const Lobby = ({ onJoinGame, onBack, initialRoomId = null }) => {
@@ -42,21 +66,25 @@ const Lobby = ({ onJoinGame, onBack, initialRoomId = null }) => {
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState(initialRoomId ? "join" : "create");
+  const [joinId, setJoinId] = useState("");
   // Status of the room from a /room/:id link: null | "checking" | "open" | "gone"
   const [linkedRoomStatus, setLinkedRoomStatus] = useState(initialRoomId ? "checking" : null);
+  const [authError, setAuthError] = useState(null);
 
   useEffect(() => {
     if (!initialRoomId) return;
     let cancelled = false;
     apiFetch(`/admin/sessions/state?sessionId=${encodeURIComponent(initialRoomId)}`)
-      .then((res) => !cancelled && setLinkedRoomStatus(res.ok ? "open" : "gone"))
+      .then((res) => {
+        if (cancelled) return;
+        setLinkedRoomStatus(res.ok ? "open" : "gone");
+        if (res.ok) setJoinId(initialRoomId);
+      })
       .catch(() => !cancelled && setLinkedRoomStatus("gone"));
     return () => {
       cancelled = true;
     };
   }, [initialRoomId]);
-  const [authError, setAuthError] = useState(null);
-  const { isMobile, isTablet, isPortrait, isLandscape } = useOrientation();
 
   // Auto-populate player name from user profile
   useEffect(() => {
@@ -80,9 +108,8 @@ const Lobby = ({ onJoinGame, onBack, initialRoomId = null }) => {
 
   // Cache playerName to localStorage whenever it changes
   useEffect(() => {
-    if (playerName) {
-      localStorage.setItem("playerName", playerName);
-    }
+    if (!playerName) return;
+    try { localStorage.setItem("playerName", playerName); } catch { /* not remembered */ }
   }, [playerName]);
 
   // Auto-refresh rooms list
@@ -141,6 +168,7 @@ const Lobby = ({ onJoinGame, onBack, initialRoomId = null }) => {
         logger.warn("Authentication required for game creation");
       } else {
         logger.error("Error creating game:", data);
+        setAuthError(data.error || "Could not create the room. Please try again.");
       }
     } catch (error) {
       logger.error("Error creating game:", error);
@@ -165,292 +193,178 @@ const Lobby = ({ onJoinGame, onBack, initialRoomId = null }) => {
     }
   };
 
-  const copySessionId = (sessionId) => {
-    navigator.clipboard.writeText(sessionId);
-  };
-
-  // Responsive layout helpers
-  const isMobileLayout = isMobile && isPortrait;
-  const isCompactLayout = isMobile || (isTablet && isPortrait);
-  // Two columns only where there is a second column to show (the room list on the Join tab).
-  const twoColumns = activeTab === "join" && !isCompactLayout;
-
-  // Debug: log layout mode
-  logger.debug("Layout:", { isMobile, isTablet, isPortrait, isMobileLayout, isCompactLayout });
+  const tabs = [
+    { id: "create", label: "Create Room" },
+    { id: "join", label: `Join (${rooms.length})` },
+  ];
 
   return (
-    <div className="xp-desktop safe-top safe-bottom">
-      <XpWindow
-        title="Multiplayer — Century: Golem Edition"
-        icon={avatarSrc(selectedAvatar)}
-        onClose={onBack}
-        className={twoColumns ? "max-w-4xl" : "max-w-xl"}
-        status={
-          <>
-            <span>{activeTab === "create" ? "Create a room and share its ID" : "Pick a room or paste an ID"}</span>
-            <span>{rooms.length} room(s) open</span>
-          </>
-        }
-      >
-        {/* Tabs */}
-        <div className="xp-tabs" role="tablist">
-          <button type="button" role="tab" aria-selected={activeTab === "create"} className="xp-tab" onClick={() => setActiveTab("create")}>
-            Create Room
-          </button>
+    <StartShell
+      title="Multiplayer"
+      subtitle={activeTab === "create" ? "Create a room and share its ID" : "Pick a room or paste an ID"}
+      onBack={onBack}
+      width={activeTab === "join" ? "xl" : "lg"}
+    >
+      {/* Tabs */}
+      <div role="tablist" aria-label="Multiplayer" className="grid grid-cols-2 gap-1.5 rounded-stone-sm bg-rock-950/50 p-1">
+        {tabs.map((t) => (
           <button
+            key={t.id}
             type="button"
             role="tab"
-            aria-selected={activeTab === "join"}
-            className="xp-tab"
+            aria-selected={activeTab === t.id}
             onClick={() => {
-              setActiveTab("join");
-              fetchRooms();
+              setActiveTab(t.id);
+              if (t.id === "join") fetchRooms();
             }}
+            className={`min-h-[44px] rounded-stone-sm font-display text-sm font-bold transition-colors
+              ${activeTab === t.id ? "bg-gradient-to-b from-bronze-300 to-bronze-500 text-ink shadow-bevel" : "text-fg-muted hover:bg-rock-700/60 hover:text-fg"}`}
           >
-            Join ({rooms.length})
+            {t.label}
           </button>
+        ))}
+      </div>
+
+      {/* Auth (Google login is off on this server; kept for completeness) */}
+      {authLoading ? (
+        <Note>Loading authentication…</Note>
+      ) : (authAvailable || authError) && (
+        <div className="flex flex-col gap-2">
+          {authAvailable && <LoginButton />}
+          {authError && <Note tone="err">{authError}</Note>}
+          {authAvailable && !isAuthenticated && (
+            <Note>You need to login to create or join a game as a player. Spectators can watch without logging in.</Note>
+          )}
+        </div>
+      )}
+
+      <div className={activeTab === "join" ? "grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]" : "flex flex-col gap-5"}>
+        {/* You */}
+        <div className="flex flex-col gap-5">
+          <Field
+            id="mp-name"
+            label="Your Name"
+            value={playerName}
+            onChange={(e) => setPlayerName(e.target.value)}
+            placeholder="Enter your name"
+            maxLength={24}
+            autoComplete="nickname"
+          />
+          <AvatarPicker value={selectedAvatar} onChange={setSelectedAvatar} />
+
+          {activeTab === "create" && (
+            <>
+              <Segmented
+                name="numPlayers"
+                label="Number of Players"
+                value={numPlayers}
+                onChange={(v) => setNumPlayers(parseInt(v, 10))}
+                options={PLAYER_COUNTS}
+                columns={4}
+              />
+              <Field
+                id="mp-room-id"
+                label="Custom Room ID (optional)"
+                value={customSessionId}
+                onChange={(e) => setCustomSessionId(e.target.value)}
+                placeholder="Leave empty for an automatic ID"
+              />
+              <Button size="lg" onClick={createGame} disabled={loading} className="self-end">
+                {loading ? "Creating…" : "Create Game"}
+              </Button>
+              {sessionInfo && (
+                <Note tone="ok">
+                  <div className="mb-2 font-semibold">Room created — share this ID:</div>
+                  <div className="flex gap-2">
+                    <input type="text" value={sessionInfo} readOnly aria-label="Room ID" className="h-11 min-w-0 flex-1 rounded-stone-sm border border-black/50 bg-rock-950/70 px-3 font-mono text-sm text-fg" />
+                    <Button variant="secondary" onClick={() => copyText(sessionInfo)}>Copy</Button>
+                  </div>
+                </Note>
+              )}
+            </>
+          )}
         </div>
 
-        {/* Content - Single column on mobile, two columns on desktop */}
-        <div className={twoColumns ? "grid grid-cols-2 gap-6" : "xp-stack"}>
-          {/* Auth Status Section */}
-          {authLoading ? (
-            <div className="col-span-full xp-muted">Loading authentication...</div>
-          ) : (
-            (authAvailable || authError) && (
-              <div className="col-span-full xp-stack">
-                {authAvailable && <LoginButton />}
-                {authError && <div className="xp-note xp-note--err">{authError}</div>}
-                {authAvailable && !isAuthenticated && (
-                  <div className="xp-note">
-                    <p className="font-bold mb-1">Login Required</p>
-                    <p>You need to login to create or join a game as a player. Spectators can view games without logging in.</p>
-                  </div>
-                )}
-              </div>
-            )
-          )}
-
-          {/* Left Column - Player Info (Always visible) */}
-          <div className="xp-stack">
-            {/* Player Name */}
-            <div>
-              <label className="xp-field-label" htmlFor="mp-name">Your Name</label>
-              <input
-                id="mp-name"
-                type="text"
-                value={playerName}
-                onChange={(e) => setPlayerName(e.target.value)}
-                className="xp-input"
-                placeholder="Enter your name"
-              />
+        {/* Rooms (Join tab) */}
+        {activeTab === "join" && (
+          <div className="flex min-w-0 flex-col gap-4">
+            <div className="flex items-center justify-between gap-2">
+              <FieldLabel>Open Rooms</FieldLabel>
+              <Button size="md" variant="ghost" onClick={fetchRooms}>Refresh</Button>
             </div>
 
-            {/* Avatar Selection */}
-            <div>
-              <span className="xp-field-label">Choose Your Character</span>
-              <div className="xp-avatar-grid">
-                {AVATAR_IDS.map((num) => (
-                  <button
-                    type="button"
-                    key={num}
-                    onClick={() => setSelectedAvatar(num.toString())}
-                    className="xp-avatar"
-                    aria-pressed={selectedAvatar === num.toString()}
-                    aria-label={`Avatar ${num}`}
-                  >
-                    <img
-                      src={avatarSrc(num)}
-                      alt=""
-                      onError={(e) => {
-                        e.target.src = avatarSrc(1);
-                      }}
-                    />
-                  </button>
-                ))}
+            {rooms.length === 0 ? (
+              <div className="surface-inset px-4 py-6 text-center">
+                <p className="font-semibold">No open rooms right now.</p>
+                <p className="mt-1 text-sm text-fg-muted">Create one and share its ID with friends.</p>
               </div>
-            </div>
-
-            {/* Create Game Section */}
-            {activeTab === "create" && (
-              <>
-                {/* Number of Players */}
-                <div>
-                  <label className="xp-field-label" htmlFor="mp-players">Number of Players</label>
-                  <select
-                    id="mp-players"
-                    value={numPlayers}
-                    onChange={(e) => setNumPlayers(parseInt(e.target.value))}
-                    className="xp-select"
-                  >
-                    <option value={2}>2 Players</option>
-                    <option value={3}>3 Players</option>
-                    <option value={4}>4 Players</option>
-                    <option value={5}>5 Players</option>
-                  </select>
-                </div>
-
-                {/* Custom Session ID */}
-                <div>
-                  <label className="xp-field-label" htmlFor="mp-room-id">Custom Room ID (optional)</label>
-                  <input
-                    id="mp-room-id"
-                    type="text"
-                    value={customSessionId}
-                    onChange={(e) => setCustomSessionId(e.target.value)}
-                    className="xp-input"
-                    placeholder="Leave empty for auto-generated"
-                  />
-                </div>
-
-                {/* Create Button */}
-                <div className="xp-actions justify-end">
-                  <button type="button" className="xp-btn" onClick={onBack}>
-                    Back
-                  </button>
-                  <button type="button" onClick={createGame} disabled={loading} className="xp-btn xp-btn--go xp-btn--lg touch-target">
-                    {loading ? "Creating..." : "Create Game ›"}
-                  </button>
-                </div>
-
-                {/* Session Info */}
-                {sessionInfo && (
-                  <div className="xp-note xp-note--ok">
-                    <p className="font-bold mb-1">Game Created!</p>
-                    <p className="mb-2">Share this Room ID:</p>
-                    <div className="flex gap-2">
-                      <input type="text" value={sessionInfo} readOnly className="xp-input xp-input--mono flex-1" />
-                      <button type="button" onClick={() => copySessionId(sessionInfo)} className="xp-btn">
-                        Copy
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-
-          {/* Right Column - Available Rooms (Join tab) */}
-          {activeTab === "join" && (
-            <div className="xp-stack">
-              <div className="flex items-center justify-between">
-                <span className="xp-field-label" style={{ marginBottom: 0 }}>Available Rooms</span>
-                <button type="button" onClick={fetchRooms} className="xp-btn xp-btn--sm">
-                  ↻ Refresh
-                </button>
-              </div>
-
-              {rooms.length === 0 ? (
-                <div className="xp-listview xp-empty">
-                  <p>No rooms available.</p>
-                  <p className="xp-muted mt-1">Create a new room to get started!</p>
-                </div>
-              ) : (
-                <div className="xp-listview" style={{ maxHeight: isMobileLayout ? "40vh" : undefined }}>
-                  {rooms.map((room) => {
-                    const timeUntilDelete = room.timeUntilDelete || 0;
-                    const minutes = Math.floor(timeUntilDelete / 60);
-                    const seconds = timeUntilDelete % 60;
-                    const isExpiringSoon = timeUntilDelete > 0 && timeUntilDelete < 60;
-                    const isFull = room.connectedPlayers >= room.numPlayers;
-
-                    return (
-                      <div key={room.sessionID} className={`xp-row ${isExpiringSoon ? "xp-row--expiring" : ""}`}>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 flex-wrap mb-1">
-                            <span className="font-bold truncate text-xs sm:text-sm" style={{ maxWidth: isMobileLayout ? 120 : undefined }}>
-                              {room.sessionID.length > (isMobileLayout ? 15 : 20)
-                                ? room.sessionID.substring(0, isMobileLayout ? 15 : 20) + "..."
-                                : room.sessionID}
-                            </span>
-                            <span className="xp-badge xp-badge--green">
-                              {room.connectedPlayers}/{room.numPlayers}
-                            </span>
-                            {room.spectatorCount > 0 && <span className="xp-badge xp-badge--blue">👁 {room.spectatorCount}</span>}
-                            {timeUntilDelete > 0 && room.connectedPlayers === 0 && (
-                              <span className={`xp-badge ${isExpiringSoon ? "xp-badge--red" : "xp-badge--orange"}`}>
-                                ⏱ {minutes}:{String(seconds).padStart(2, "0")}
-                              </span>
-                            )}
-                          </div>
-                          {room.players && room.players.length > 0 && (
-                            <p className="xp-muted truncate">Players: {room.players.join(", ")}</p>
+            ) : (
+              <ul className="surface-inset flex max-h-[44vh] flex-col divide-y divide-black/30 overflow-y-auto">
+                {rooms.map((room) => {
+                  const timeUntilDelete = room.timeUntilDelete || 0;
+                  const minutes = Math.floor(timeUntilDelete / 60);
+                  const seconds = timeUntilDelete % 60;
+                  const isExpiringSoon = timeUntilDelete > 0 && timeUntilDelete < 60;
+                  const isFull = room.connectedPlayers >= room.numPlayers;
+                  return (
+                    <li key={room.sessionID} className={`flex flex-wrap items-center gap-3 px-3 py-2.5 ${isExpiringSoon ? "bg-ember/10" : ""}`}>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="max-w-full truncate font-mono text-sm font-semibold" title={room.sessionID}>{room.sessionID}</span>
+                          <Pill tone={isFull ? "neutral" : "moss"}>{room.connectedPlayers}/{room.numPlayers}</Pill>
+                          {room.spectatorCount > 0 && <Pill tone="teal">{room.spectatorCount} watching</Pill>}
+                          {timeUntilDelete > 0 && room.connectedPlayers === 0 && (
+                            <Pill tone={isExpiringSoon ? "ember" : "bronze"} title="Empty rooms close automatically">
+                              closes in {minutes}:{String(seconds).padStart(2, "0")}
+                            </Pill>
                           )}
                         </div>
-
-                        <div className="flex gap-1.5 flex-shrink-0">
-                          <button type="button" onClick={() => copySessionId(room.sessionID)} className="xp-btn xp-btn--sm" title="Copy Session ID">
-                            Copy
-                          </button>
-                          <button type="button" onClick={() => joinGame(room.sessionID, true)} className="xp-btn xp-btn--sm" title="Watch as spectator">
-                            Watch
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => joinGame(room.sessionID, false)}
-                            disabled={isFull}
-                            className="xp-btn xp-btn--sm xp-btn--go touch-target"
-                          >
-                            Join
-                          </button>
-                        </div>
+                        {room.players && room.players.length > 0 && (
+                          <p className="mt-0.5 truncate text-xs text-fg-muted">{room.players.join(", ")}</p>
+                        )}
                       </div>
-                    );
-                  })}
-                </div>
-              )}
+                      <div className="flex flex-shrink-0 gap-1.5">
+                        <Button size="md" variant="ghost" onClick={() => copyText(room.sessionID)} aria-label={`Copy room ID ${room.sessionID}`}>Copy</Button>
+                        <Button size="md" variant="secondary" onClick={() => joinGame(room.sessionID, true)}>Watch</Button>
+                        <Button size="md" onClick={() => joinGame(room.sessionID, false)} disabled={isFull}>Join</Button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
 
-              {/* Manual Join by Session ID */}
-              <div>
-                {linkedRoomStatus && (
-                  <div
-                    className={`xp-note mb-3 ${linkedRoomStatus === "open" ? "xp-note--ok" : linkedRoomStatus === "gone" ? "xp-note--err" : ""}`}
-                    role="status"
-                  >
-                    {linkedRoomStatus === "checking" && <>Checking room <b>{initialRoomId}</b>...</>}
-                    {linkedRoomStatus === "open" && <>Room <b>{initialRoomId}</b> is still open — press Join to enter (or re-enter) it.</>}
-                    {linkedRoomStatus === "gone" && (
-                      <>
-                        Room <b>{initialRoomId}</b> no longer exists. Rooms close automatically when nobody has been
-                        connected for a while — create a new room or pick an open one.
-                      </>
-                    )}
-                  </div>
-                )}
-                <label className="xp-field-label" htmlFor="mp-join-id">Or join by Room ID</label>
-                <div className="flex gap-2">
-                  <input
-                    id="mp-join-id"
-                    type="text"
-                    defaultValue={linkedRoomStatus === "open" ? initialRoomId : ""}
-                    key={linkedRoomStatus || "none"}
-                    placeholder="Paste room ID here"
-                    onKeyPress={(e) => {
-                      if (e.key === "Enter" && e.target.value) {
-                        joinGame(e.target.value);
-                      }
-                    }}
-                    className="xp-input flex-1"
-                  />
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      const input = e.currentTarget.previousElementSibling;
-                      if (input.value) {
-                        joinGame(input.value);
-                      }
-                    }}
-                    className="xp-btn xp-btn--go touch-target"
-                  >
-                    Join
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </XpWindow>
-    </div>
+            {/* Join by ID */}
+            {linkedRoomStatus === "checking" && <Note>Checking room <b>{initialRoomId}</b>…</Note>}
+            {linkedRoomStatus === "open" && <Note tone="ok">Room <b>{initialRoomId}</b> is still open — press Join to enter (or re-enter) it.</Note>}
+            {linkedRoomStatus === "gone" && (
+              <Note tone="err">
+                Room <b>{initialRoomId}</b> no longer exists. Rooms close automatically when nobody has been connected for a
+                while — create a new room or pick an open one.
+              </Note>
+            )}
+            <form
+              className="flex items-end gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (joinId.trim()) joinGame(joinId.trim());
+              }}
+            >
+              <Field
+                id="mp-join-id"
+                label="Or join by Room ID"
+                value={joinId}
+                onChange={(e) => setJoinId(e.target.value)}
+                placeholder="Paste a room ID"
+                className="min-w-0 flex-1"
+                mono
+              />
+              <Button type="submit" disabled={!joinId.trim()}>Join</Button>
+            </form>
+          </div>
+        )}
+      </div>
+    </StartShell>
   );
 };
 

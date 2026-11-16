@@ -74,8 +74,8 @@ const NightBackdrop = ({ className = '' }) => (
       </defs>
       <rect width={W} height={H} fill="url(#nb-sky)" />
       <rect width={W} height={H} fill="url(#nb-moon)" />
-      <circle cx={W * 0.78} cy={H * 0.15} r="26" fill="rgb(241 223 181)" opacity="0.1" />
-      <circle cx={W * 0.78} cy={H * 0.15} r="15" fill="rgb(248 238 210)" opacity="0.22" />
+      <circle cx={W * 0.78} cy={H * 0.15} r="22" fill="rgb(248 238 210)" opacity="0.12" />
+      <circle cx={W * 0.78} cy={H * 0.15} r="13" fill="rgb(250 242 220)" opacity="0.6" />
       {STARS.map((s, i) => (
         <circle key={i} cx={s.x} cy={s.y} r={s.r} fill="#e9e4f5" opacity={s.o} />
       ))}
