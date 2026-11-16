@@ -34,7 +34,7 @@ const PlayerCard = ({ player, isCurrentPlayer }) => {
     <div className={`surface-stone flex items-center gap-3 px-3 py-2.5 ${isCurrentPlayer ? 'turn-glow' : ''}`}>
       <Avatar
         player={player}
-        size={roomy ? 56 : 46}
+        size={roomy ? 68 : 56}
         turn={isCurrentPlayer}
         timer={isCurrentPlayer && !player.isAI ? timer : undefined}
         offline={offline}

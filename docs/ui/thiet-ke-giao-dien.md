@@ -66,7 +66,7 @@ Bề mặt (`index.css`, lớp `surface-*`): `surface-stone` (gradient đá + h�
   (`CollapsibleInfo`: ngăn đá phải 420px / bottom sheet trên điện thoại; chat; xoá có bước xác nhận trong trang). `Toast` giữa-trên
   dưới HUD, tối đa 3, không còn `alert()`.
 - **Desktop** (`desktop/WebGameLayout`, ≥ 768px rộng và ≥ 500px cao khi ngang): hàng người chơi (`PlayerCard`, rộng tới 21rem, avatar
-  56px — 46px dưới 1280px: tên · golem · ★ điểm = golem + coin, hàng crystal, "n in hand · n played", vòng giờ người, AI đang nghĩ, offline), panel Market 6 lá + Golems 5 lá (`CardTile`), hàng dưới History · Played · tay bài
+  68px — 56px dưới 1280px: tên · golem · ★ điểm = golem + coin, hàng crystal, "n in hand · n played", vòng giờ người, AI đang nghĩ, offline), panel Market 6 lá + Golems 5 lá (`CardTile`), hàng dưới History · Played · tay bài
   (ruy băng lượt + Rest luôn hiện, mờ kèm gợi ý khi chưa chơi lá nào) · My Golems (`CardPile` → popup danh sách).
 - **Điện thoại** (`mobile/*` + `PlayersInfoBar`): dọc = dải người chơi cuộn ngang + dòng lượt · golem 1 hàng vuốt + market 3×2
   (cuộn dọc) · tay bài ở đáy (crystal x/10, Rest · golem · đã chơi, lá vuốt ngang). Ngang (cao < 500px) = bàn trái, cột phải gồm
