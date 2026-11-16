@@ -31,6 +31,532 @@
              </div>
            )}
  
+--- a/web/react-frontend/src/components/ConfirmGolemModal.jsx
++++ b/web/react-frontend/src/components/ConfirmGolemModal.jsx
+@@ -1,142 +1,47 @@
+ import React from 'react'
+-import { createPortal } from 'react-dom'
+-import { motion, AnimatePresence } from 'framer-motion'
+-import { getCardSpriteStyle, getCardImagePath } from '../utils/cardNames'
++import Modal from './ui/Modal'
++import Button from './ui/Button'
++import CardImage from './ui/CardImage'
++import Coin from './ui/Coin'
++import { CrystalCost } from './ui/CrystalRow'
++import { total } from '../utils/crystals'
+ 
+-const ConfirmGolemModal = ({ isOpen, golem, onConfirm, onCancel }) => {
++/** Confirm claiming a golem (spends its crystals; can't be taken back). `coin`: 'copper' | 'silver' | undefined. */
++const ConfirmGolemModal = ({ isOpen, golem, coin, onConfirm, onCancel }) => {
+   if (!isOpen || !golem) return null
+-
+   const requirement = golem.requirement || {}
+-  const totalCost = (requirement.yellow || 0) + (requirement.green || 0) + 
+-                   (requirement.blue || 0) + (requirement.pink || 0)
+-
+-  return createPortal(
+-    <AnimatePresence>
+-      {isOpen && (
+-        <motion.div
+-          className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+-          initial={{ opacity: 0 }}
+-          animate={{ opacity: 1 }}
+-          exit={{ opacity: 0 }}
+-          onClick={onCancel}
+-        >
+-          <motion.div
+-            className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl shadow-2xl border border-yellow-500/30 max-w-sm w-full overflow-hidden"
+-            initial={{ scale: 0.9, y: 20, opacity: 0 }}
+-            animate={{ scale: 1, y: 0, opacity: 1 }}
+-            exit={{ scale: 0.9, y: 20, opacity: 0 }}
+-            transition={{ type: "spring", stiffness: 300, damping: 25 }}
+-            onClick={(e) => e.stopPropagation()}
+-          >
+-            {/* Header */}
+-            <div className="bg-gradient-to-r from-yellow-600/20 to-orange-600/20 px-4 py-3 border-b border-yellow-500/20">
+-              <h3 className="text-lg font-bold text-yellow-300 text-center">
+-                🗿 Claim Golem?
+-              </h3>
+-            </div>
+-
+-            {/* Content */}
+-            <div className="p-4">
+-              {/* Golem Preview */}
+-              <div className="flex items-center gap-4 mb-4">
+-                <div className="relative">
+-                  {(() => {
+-                    const spriteStyle = getCardSpriteStyle(golem.name)
+-                    if (spriteStyle) {
+-                      return (
+-                        <div
+-                          className="w-20 h-28 rounded-lg border-2 border-yellow-500/50 shadow-lg"
+-                          style={spriteStyle}
+-                        />
+-                      )
+-                    }
+-                    return (
+-                      <img
+-                        src={getCardImagePath(golem.name)}
+-                        alt={golem.name}
+-                        className="w-20 h-28 rounded-lg object-cover border-2 border-yellow-500/50 shadow-lg"
+-                        onError={(e) => { e.target.style.display = 'none' }}
+-                      />
+-                    )
+-                  })()}
+-                  <span className="absolute -bottom-2 -right-2 bg-yellow-500 text-black rounded-full w-8 h-8 flex items-center justify-center font-bold text-sm shadow-lg">
+-                    {golem.points}
+-                  </span>
+-                </div>
+-                
+-                <div className="flex-1">
+-                  <div className="text-white/60 text-xs mb-1">Points</div>
+-                  <div className="text-yellow-300 text-2xl font-bold mb-2">
+-                    {golem.points} pts
+-                  </div>
+-                  
+-                  <div className="text-white/60 text-xs mb-1">Cost</div>
+-                  <div className="flex gap-1 flex-wrap">
+-                    {requirement.yellow > 0 && (
+-                      <div className="flex items-center gap-0.5 bg-yellow-500/20 rounded px-1.5 py-0.5">
+-                        <img src="/assets/images/stone_yellow.JPG" alt="yellow" className="w-4 h-4 rounded-full" />
+-                        <span className="text-yellow-300 text-sm font-semibold">{requirement.yellow}</span>
+-                      </div>
+-                    )}
+-                    {requirement.green > 0 && (
+-                      <div className="flex items-center gap-0.5 bg-green-500/20 rounded px-1.5 py-0.5">
+-                        <img src="/assets/images/stone_green.JPG" alt="green" className="w-4 h-4 rounded-full" />
+-                        <span className="text-green-300 text-sm font-semibold">{requirement.green}</span>
+-                      </div>
+-                    )}
+-                    {requirement.blue > 0 && (
+-                      <div className="flex items-center gap-0.5 bg-blue-500/20 rounded px-1.5 py-0.5">
+-                        <img src="/assets/images/stone_blue.JPG" alt="blue" className="w-4 h-4 rounded-full" />
+-                        <span className="text-blue-300 text-sm font-semibold">{requirement.blue}</span>
+-                      </div>
+-                    )}
+-                    {requirement.pink > 0 && (
+-                      <div className="flex items-center gap-0.5 bg-pink-500/20 rounded px-1.5 py-0.5">
+-                        <img src="/assets/images/stone_pink.JPG" alt="pink" className="w-4 h-4 rounded-full" />
+-                        <span className="text-pink-300 text-sm font-semibold">{requirement.pink}</span>
+-                      </div>
+-                    )}
+-                    {totalCost === 0 && (
+-                      <span className="text-green-400 text-sm">Free!</span>
+-                    )}
+-                  </div>
+-                </div>
+-              </div>
+-
+-              {/* Warning */}
+-              <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-3 mb-4">
+-                <p className="text-orange-200 text-sm text-center">
+-                  ⚠️ This action cannot be undone. Your crystals will be spent.
+-                </p>
+-              </div>
+-
+-              {/* Buttons */}
+-              <div className="flex gap-3">
+-                <motion.button
+-                  onClick={onCancel}
+-                  className="flex-1 bg-slate-600 hover:bg-slate-500 text-white font-semibold py-3 px-4 rounded-xl transition-colors"
+-                  whileHover={{ scale: 1.02 }}
+-                  whileTap={{ scale: 0.98 }}
+-                >
+-                  Cancel
+-                </motion.button>
+-                <motion.button
+-                  onClick={onConfirm}
+-                  className="flex-1 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white font-bold py-3 px-4 rounded-xl shadow-lg transition-colors"
+-                  whileHover={{ scale: 1.02 }}
+-                  whileTap={{ scale: 0.98 }}
+-                >
+-                  ✓ Claim
+-                </motion.button>
+-              </div>
+-            </div>
+-          </motion.div>
+-        </motion.div>
++  return (
++    <Modal
++      open
++      onClose={onCancel}
++      title="Claim Golem"
++      size="sm"
++      footer={(
++        <>
++          <Button variant="outline" onClick={onCancel}>Cancel</Button>
++          <Button onClick={onConfirm}>Claim</Button>
++        </>
+       )}
+-    </AnimatePresence>,
+-    document.body
++    >
++      <div className="flex items-center gap-4">
++        <div className="relative flex-shrink-0">
++          <CardImage name={golem.name} alt={`Golem worth ${golem.points} points`} className="h-36 w-24 rounded-stone border border-ink/30 shadow-elev-1" />
++          {coin ? <Coin kind={coin} size={30} className="absolute -right-2 -top-2" /> : null}
++        </div>
++        <div className="flex flex-col gap-3">
++          <div>
++            <div className="text-xs font-semibold uppercase tracking-wider text-ink-muted">Points</div>
++            <div className="font-display text-3xl font-bold text-ink">{golem.points}{coin ? <span className="text-lg text-ink-muted"> + {coin === 'copper' ? 3 : 1}</span> : null}</div>
++          </div>
++          <div>
++            <div className="text-xs font-semibold uppercase tracking-wider text-ink-muted">Costs</div>
++            {total(requirement) > 0 ? <CrystalCost resources={requirement} size={22} /> : <span className="text-sm font-semibold text-ink">Free</span>}
++          </div>
++        </div>
++      </div>
++      <p className="mt-4 text-center text-sm text-ink-muted">Claiming spends these crystals and can't be undone.</p>
++    </Modal>
+   )
+ }
+ 
+ export default ConfirmGolemModal
+-
+--- a/web/react-frontend/src/components/DepositModal.jsx
++++ b/web/react-frontend/src/components/DepositModal.jsx
+@@ -1,246 +1,111 @@
+-import React, { useState, useEffect } from 'react'
+-import { createPortal } from 'react-dom'
+-import { motion, AnimatePresence } from 'framer-motion'
++import React, { useState } from 'react'
+ import useGameStore from '../store/gameStore'
+-import useOrientation from '../hooks/useOrientation'
+-
++import Modal from './ui/Modal'
++import Button from './ui/Button'
++import Gem from './ui/Gem'
++import CardImage from './ui/CardImage'
++import CrystalRow from './ui/CrystalRow'
++import { COLORS, MAX_CARAVAN, add, cheapestList, of, sub, total } from '../utils/crystals'
++
++const NAME = { yellow: 'yellow', green: 'green', blue: 'blue', pink: 'pink' }
++
++/**
++ * Buying market card k: place one crystal on each card to its left (official rule), then take it with
++ * any crystals lying on it. Starts with the cheapest crystals placed (yellow first) — change any slot.
++ */
+ const DepositModal = ({ card, cardIndex, isHandCard = false, onClose }) => {
+   const { myPlayer, acquireCard } = useGameStore()
+-  const { isMobile } = useOrientation()
+-
+-  // Lock body scroll when modal is open
+-  useEffect(() => {
+-    document.body.style.overflow = 'hidden';
+-    return () => {
+-      document.body.style.overflow = '';
+-    };
+-  }, []);
+-
+-  // Target position = card index + 1 (card 0 = position 1, card 1 = position 2, etc.)
+-  const targetPosition = isHandCard ? null : cardIndex + 1
+-  const [deposits, setDeposits] = useState({
+-    1: null,
+-    2: null,
+-    3: null,
+-    4: null,
+-    5: null
++  const caravan = of(myPlayer?.caravan)
++  const slots = isHandCard ? 0 : cardIndex
++  // one entry per card to the left; null while the caravan can't cover it
++  const [deposits, setDeposits] = useState(() => {
++    const picked = cheapestList(caravan, slots)
++    return [...picked, ...Array(Math.max(0, slots - picked.length)).fill(null)]
+   })
+ 
+-  if (!card || !myPlayer) {
+-    return null
+-  }
+-
+-  // For hand cards, don't show deposit modal (not applicable)
+-  if (isHandCard) {
+-    return null
+-  }
++  if (!card || !myPlayer || isHandCard) return null
+ 
+-  // Required positions to deposit: from 1 to (targetPosition - 1)
+-  const requiredPositions = targetPosition > 1 
+-    ? Array.from({ length: targetPosition - 1 }, (_, i) => i + 1)
+-    : []
+-
+-  const crystalTypes = [
+-    { key: 'yellow', label: 'Yellow', color: 'bg-yellow-400', image: '/assets/images/stone_yellow.JPG' },
+-    { key: 'green', label: 'Green', color: 'bg-green-400', image: '/assets/images/stone_green.JPG' },
+-    { key: 'blue', label: 'Blue', color: 'bg-blue-400', image: '/assets/images/stone_blue.JPG' },
+-    { key: 'pink', label: 'Pink', color: 'bg-pink-400', image: '/assets/images/stone_pink.JPG' }
+-  ]
+-
+-  const availableCrystals = {
+-    yellow: myPlayer.caravan?.yellow || 0,
+-    green: myPlayer.caravan?.green || 0,
+-    blue: myPlayer.caravan?.blue || 0,
+-    pink: myPlayer.caravan?.pink || 0
+-  }
++  const placed = COLORS.reduce((m, c) => ({ ...m, [c]: deposits.filter((d) => d === c).length }), {})
++  const pickedUp = of(card.deposits)
++  const after = add(sub(caravan, placed), pickedUp)
++  const overflow = total(after) - MAX_CARAVAN
++  const canConfirm = deposits.length === slots && deposits.every(Boolean)
+ 
+-  const handleSelectCrystal = (position, crystalType) => {
+-    // Can only deposit to required positions
+-    if (!requiredPositions.includes(position)) {
+-      return
+-    }
+-    setDeposits(prev => ({
+-      ...prev,
+-      [position]: prev[position] === crystalType ? null : crystalType
+-    }))
+-  }
++  const choose = (slot, color) => setDeposits((prev) => prev.map((d, i) => (i === slot ? color : d)))
+ 
+   const handleConfirm = () => {
+-    if (requiredPositions.length === 0) {
+-      // Card position 1, no deposit needed, just acquire
+-      acquireCard(cardIndex, [], card)
+-      onClose()
+-      return
+-    }
+-
+-    // Must deposit to all required positions
+-    let allPositionsFilled = true
+-    for (const pos of requiredPositions) {
+-      if (deposits[pos] === null) {
+-        allPositionsFilled = false
+-        break
+-      }
+-    }
+-
+-    if (allPositionsFilled) {
+-      // Convert deposits object { 1: 'yellow', 2: 'green' } to array format
+-      // Backend expects: [{ crystal: 'yellow' }, { crystal: 'green' }]
+-      const depositArray = requiredPositions.map(pos => ({
+-        crystal: deposits[pos]
+-      }))
+-      
+-      acquireCard(cardIndex, depositArray, card)
+-      onClose()
+-    }
++    if (!canConfirm) return
++    acquireCard(cardIndex, deposits.map((crystal) => ({ crystal })), card)
++    onClose()
+   }
+ 
+-  const canConfirm = requiredPositions.length === 0 || 
+-    requiredPositions.every(pos => deposits[pos] !== null)
+-
+-  return createPortal(
+-    <AnimatePresence>
+-      <motion.div
+-        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-2 sm:p-4"
+-        initial={{ opacity: 0 }}
+-        animate={{ opacity: 1 }}
+-        exit={{ opacity: 0 }}
+-        onClick={onClose}
+-      >
+-        <motion.div
+-          className={`
+-            bg-white rounded-xl sm:rounded-2xl shadow-2xl border-4 border-purple-500 w-full overflow-y-auto
+-            ${isMobile 
+-              ? 'max-w-[95vw] max-h-[90vh] p-3 mx-2' 
+-              : 'max-w-2xl max-h-[90vh] p-8 mx-4'
+-            }
+-          `}
+-          initial={{ scale: 0.8, y: 50 }}
+-          animate={{ scale: 1, y: 0 }}
+-          exit={{ scale: 0.8, y: 50 }}
+-          transition={{ type: "spring", stiffness: 300, damping: 30 }}
+-          onClick={(e) => e.stopPropagation()}
+-        >
+-          <div className={`text-center ${isMobile ? 'mb-3' : 'mb-6'}`}>
+-            <h2 className={`font-bold text-purple-600 ${isMobile ? 'text-xl mb-1' : 'text-3xl mb-2'}`}>
+-              💎 Deposit Crystals
+-            </h2>
+-            <p className={`text-gray-700 ${isMobile ? 'text-xs' : 'text-base'}`}>
+-              To acquire card at position {targetPosition}, deposit to positions {requiredPositions.length > 0 ? requiredPositions.join(', ') : 'none'}
+-            </p>
+-            {requiredPositions.length === 0 && (
+-              <p className={`text-green-600 font-semibold ${isMobile ? 'text-xs mt-1' : 'text-sm mt-2'}`}>
+-                ✓ No deposit required for position 1 card
+-              </p>
+-            )}
+-          </div>
+-
+-          {/* Deposit to Required Positions */}
+-          {requiredPositions.length > 0 && (
+-            <div className={`space-y-3 ${isMobile ? 'mb-3' : 'space-y-6 mb-6'}`}>
+-              {requiredPositions.map((position) => (
+-                <div key={position} className={`bg-gray-50 rounded-lg ${isMobile ? 'p-2' : 'p-4'}`}>
+-                  <h3 className={`font-semibold text-gray-800 ${isMobile ? 'text-sm mb-2' : 'text-lg mb-3'}`}>
+-                    Position {position} (Required)
+-                  </h3>
+-                  <div className={`grid gap-2 ${isMobile ? 'grid-cols-2' : 'grid-cols-4 gap-3'}`}>
+-                    {crystalTypes.map(({ key, label, color, image }) => {
+-                      const isSelected = deposits[position] === key
+-                      const isAvailable = availableCrystals[key] > 0
+-                      const usedCount = Object.values(deposits).filter(v => v === key).length
+-                      const remaining = availableCrystals[key] - usedCount
+-
+-                      // If already selected, always allow click to deselect
+-                      const canClick = isSelected || (isAvailable && remaining > 0)
+-
+-                      return (
+-                        <motion.button
+-                          key={key}
+-                          onClick={() => handleSelectCrystal(position, key)}
+-                          disabled={!canClick}
+-                          className={`
+-                            relative rounded-lg border-2 transition-all
+-                            ${isMobile ? 'p-2' : 'p-4'}
+-                            ${isSelected 
+-                              ? 'border-purple-500 bg-purple-100 shadow-lg scale-105' 
+-                              : 'border-gray-300 bg-white hover:border-purple-300'
+-                            }
+-                            ${!canClick
+-                              ? 'opacity-50 cursor-not-allowed' 
+-                              : 'cursor-pointer'
+-                            }
+-                          `}
+-                          whileHover={canClick ? { scale: 1.05 } : {}}
+-                          whileTap={canClick ? { scale: 0.95 } : {}}
+-                        >
+-                          <img
+-                            src={image}
+-                            alt={label}
+-                            className={`mx-auto rounded-full object-cover ${isMobile ? 'w-8 h-8 mb-1' : 'w-12 h-12 mb-2'}`}
+-                            onError={(e) => {
+-                              e.target.src = '/assets/images/stone_yellow.JPG'
+-                            }}
+-                          />
+-                          <div className={`font-medium text-gray-700 ${isMobile ? 'text-[10px]' : 'text-xs'}`}>
+-                            {label}
+-                          </div>
+-                          <div className={`text-gray-500 ${isMobile ? 'text-[9px] mt-0.5' : 'text-xs mt-1'}`}>
+-                            Available: {remaining}
+-                          </div>
+-                          {isSelected && (
+-                            <motion.div
+-                              className={`
+-                                absolute bg-purple-500 rounded-full flex items-center justify-center
+-                                ${isMobile ? 'top-0.5 right-0.5 w-4 h-4' : 'top-1 right-1 w-6 h-6'}
+-                              `}
+-                              initial={{ scale: 0 }}
+-                              animate={{ scale: 1 }}
+-                            >
+-                              <span className={`text-white ${isMobile ? 'text-[8px]' : 'text-xs'}`}>✓</span>
+-                            </motion.div>
+-                          )}
+-                        </motion.button>
+-                      )
+-                    })}
+-                  </div>
+-                </div>
+-              ))}
++  return (
++    <Modal
++      open
++      onClose={onClose}
++      title={slots === 0 ? 'Take Card' : 'Place Crystals'}
++      icon={<CardImage name={card.name} className="h-14 w-10 rounded-stone-sm border border-ink/30" />}
++      footer={(
++        <>
++          <Button variant="outline" onClick={onClose}>Cancel</Button>
++          <Button onClick={handleConfirm} disabled={!canConfirm}>{slots === 0 ? 'Take Card' : 'Place & Take'}</Button>
++        </>
++      )}
++    >
++      <div className="flex flex-col gap-4">
++        <p className="text-center text-sm text-ink-muted">
++          {slots === 0
++            ? 'The first card is free.'
++            : `Card ${cardIndex + 1} costs one crystal on each of the ${slots} card${slots > 1 ? 's' : ''} to its left. Cheapest crystals are picked — tap to change.`}
++        </p>
++
++        {deposits.map((chosen, slot) => {
++          const othersUse = (c) => deposits.filter((d, i) => d === c && i !== slot).length
++          return (
++            <div key={slot} className="flex flex-wrap items-center gap-3 rounded-stone border border-ink/15 bg-ink/5 px-3 py-2">
++              <span className="w-16 font-display text-sm font-bold text-ink">Card {slot + 1}</span>
++              <div role="radiogroup" aria-label={`Crystal for card ${slot + 1}`} className="flex flex-1 flex-wrap gap-1.5">
++                {COLORS.map((c) => {
++                  const free = caravan[c] - othersUse(c)
++                  const selected = chosen === c
++                  return (
++                    <button
++                      key={c}
++                      type="button"
++                      role="radio"
++                      aria-checked={selected}
++                      aria-label={`${NAME[c]} (${free} left)`}
++                      disabled={!selected && free <= 0}
++                      onClick={() => choose(slot, c)}
++                      className={`inline-flex h-11 min-w-[56px] items-center justify-center gap-1 rounded-stone border px-2 text-sm font-semibold tabular-nums transition-colors
++                        disabled:cursor-not-allowed disabled:opacity-30
++                        ${selected ? 'border-bronze-700 bg-bronze-300/50 text-ink shadow-bevel' : 'border-ink/25 text-ink-muted hover:bg-ink/10'}`}
++                    >
++                      <Gem color={c} size={20} label={false} />
++                      {free}
++                    </button>
++                  )
++                })}
++              </div>
+             </div>
+-          )}
++          )
++        })}
+ 
+-          <div className={`flex ${isMobile ? 'gap-2' : 'gap-4'}`}>
+-            <motion.button
+-              onClick={onClose}
+-              className={`
+-                flex-1 bg-gray-300 text-gray-700 font-bold rounded-lg 
+-                hover:bg-gray-400 transition-all
+-                ${isMobile ? 'py-2 px-3 text-sm' : 'py-3 px-6'}
+-              `}
+-              whileHover={{ scale: 1.05 }}
+-              whileTap={{ scale: 0.95 }}
+-            >
+-              Cancel
+-            </motion.button>
+-            <motion.button
+-              onClick={handleConfirm}
+-              disabled={!canConfirm}
+-              className={`
+-                flex-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold 
+-                rounded-lg disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl
+-                ${isMobile ? 'py-2 px-3 text-sm' : 'py-3 px-6'}
+-              `}
+-              whileHover={canConfirm ? { scale: 1.05 } : {}}
+-              whileTap={canConfirm ? { scale: 0.95 } : {}}
+-            >
+-              {requiredPositions.length === 0 
+-                ? (isMobile ? 'Acquire' : 'Acquire Card (No Deposit Required)')
+-                : (isMobile ? `Deposit & Acquire` : `Deposit & Acquire Card (Positions ${requiredPositions.join(', ')})`)
+-              }
+-            </motion.button>
++        {total(pickedUp) > 0 ? (
++          <div className="flex flex-wrap items-center justify-center gap-2 text-sm text-ink-muted">
++            You also pick up: <CrystalRow resources={pickedUp} showZero={false} size="sm" tone="parchment" />
+           </div>
+-        </motion.div>
+-      </motion.div>
+-    </AnimatePresence>,
+-    document.body
++        ) : null}
++        <div className="flex flex-wrap items-center justify-center gap-2 text-sm text-ink-muted">
++          After: <CrystalRow resources={after} capacity={MAX_CARAVAN} size="sm" tone="parchment" />
++        </div>
++        {overflow > 0 ? (
++          <p className="rounded-stone-sm border border-bronze-700/50 bg-bronze-300/25 px-3 py-2 text-center text-sm text-ink">
++            You will have {total(after)} crystals and must discard {overflow}.
++          </p>
++        ) : null}
++      </div>
++    </Modal>
+   )
+ }
+ 
 --- a/web/react-frontend/src/components/desktop/FantasyGameLayout.jsx
 +++ b/web/react-frontend/src/components/desktop/FantasyGameLayout.jsx
 @@ -5,7 +5,10 @@
@@ -245,53 +771,299 @@
 +export default DifficultyBadge
 --- a/web/react-frontend/src/components/DiscardModal.jsx
 +++ b/web/react-frontend/src/components/DiscardModal.jsx
-@@ -5,7 +5,7 @@
- import useOrientation from '../hooks/useOrientation'
- 
+@@ -1,219 +1,89 @@
+-import React, { useState, useEffect } from 'react'
+-import { createPortal } from 'react-dom'
+-import { motion, AnimatePresence } from 'framer-motion'
++import React, { useEffect, useState } from 'react'
+ import useGameStore from '../store/gameStore'
+-import useOrientation from '../hooks/useOrientation'
+-
++import Modal from './ui/Modal'
++import Button from './ui/Button'
++import Gem from './ui/Gem'
++import Stepper from './ui/Stepper'
++import CrystalRow from './ui/CrystalRow'
++import { COLORS, MAX_CARAVAN, cheapest, of, sub, total } from '../utils/crystals'
++
++const NAME = { yellow: 'Yellow', green: 'Green', blue: 'Blue', pink: 'Pink' }
++
++/**
++ * More than 10 crystals after a move: discard the excess before the turn ends. Starts with the cheapest
++ * crystals chosen; adjust per colour. Can't be dismissed — but a card play can be taken back (Undo).
++ */
  const DiscardModal = () => {
 -  const { myPlayer, discardCrystals } = useGameStore()
+-  const { isMobile, isPortrait } = useOrientation()
+-  const [discardCounts, setDiscardCounts] = useState({
+-    yellow: 0,
+-    green: 0,
+-    blue: 0,
+-    pink: 0
+-  })
 +  const { myPlayer, discardCrystals, undoPlay } = useGameStore()
-   const { isMobile, isPortrait } = useOrientation()
-   const [discardCounts, setDiscardCounts] = useState({
-     yellow: 0,
-@@ -45,6 +45,11 @@
-     })
-   }
++  const pending = myPlayer?.pendingDiscard || 0
++  const caravan = of(myPlayer?.caravan)
++  const [discardCounts, setDiscardCounts] = useState(() => cheapest(caravan, pending))
  
+-  // Lock body scroll when modal is open
++  // a new overflow (or the same one after an undo + replay): start again from the cheapest crystals
++  const key = `${pending}:${COLORS.map((c) => caravan[c]).join(',')}`
+   useEffect(() => {
+-    if (myPlayer?.pendingDiscard > 0) {
+-      document.body.style.overflow = 'hidden';
+-      return () => {
+-        document.body.style.overflow = '';
+-      };
+-    }
+-  }, [myPlayer?.pendingDiscard]);
++    if (pending > 0) setDiscardCounts(cheapest(caravan, pending))
++  }, [key]) // eslint-disable-line react-hooks/exhaustive-deps
+ 
+-  if (!myPlayer || !myPlayer.pendingDiscard || myPlayer.pendingDiscard <= 0) {
+-    return null
+-  }
++  if (!myPlayer || pending <= 0) return null
++
++  const chosen = total(discardCounts)
++  const remaining = pending - chosen
++  const canConfirm = chosen === pending
+ 
+-  const pending = myPlayer.pendingDiscard
+-  const currentTotal = discardCounts.yellow + discardCounts.green + discardCounts.blue + discardCounts.pink
+-  const remaining = pending - currentTotal
+-  const canConfirm = currentTotal === pending
+-
+-  const updateDiscard = (type, delta) => {
+-    setDiscardCounts(prev => {
+-      const newCounts = { ...prev }
+-      const current = newCounts[type] || 0
+-      // Use caravan (same as CompactGameBoard)
+-      const available = (myPlayer.caravan && myPlayer.caravan[type]) || 0
+-      const newValue = Math.max(0, Math.min(available, current + delta))
+-      newCounts[type] = newValue
+-      return newCounts
+-    })
++  const setCount = (c, v) => setDiscardCounts((prev) => ({ ...prev, [c]: Math.max(0, Math.min(caravan[c], v)) }))
++
 +  const handleUndo = () => {
 +    setDiscardCounts({ yellow: 0, green: 0, blue: 0, pink: 0 })
 +    undoPlay()
-+  }
-+
+   }
+ 
    const handleConfirm = () => {
-     const total = discardCounts.yellow + discardCounts.green + discardCounts.blue + discardCounts.pink
-     if (total === pending && total > 0) {
-@@ -210,6 +215,25 @@
-               : `Select ${remaining} more crystal${remaining !== 1 ? 's' : ''}`
-             }
-           </motion.button>
-+
-+          {/* Take the overflowing card play back (e.g. trade multiplier one too high) */}
+-    const total = discardCounts.yellow + discardCounts.green + discardCounts.blue + discardCounts.pink
+-    if (total === pending && total > 0) {
+-      discardCrystals(discardCounts)
+-      setDiscardCounts({ yellow: 0, green: 0, blue: 0, pink: 0 })
+-    }
++    if (canConfirm && chosen > 0) discardCrystals(discardCounts)
+   }
+ 
+-  const crystalTypes = [
+-    { key: 'yellow', label: 'Yellow', color: 'bg-yellow-400' },
+-    { key: 'green', label: 'Green', color: 'bg-green-400' },
+-    { key: 'blue', label: 'Blue', color: 'bg-blue-400' },
+-    { key: 'pink', label: 'Pink', color: 'bg-pink-400' }
+-  ]
+-
+-  return createPortal(
+-    <AnimatePresence>
+-      <motion.div
+-        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-2 sm:p-4"
+-        initial={{ opacity: 0 }}
+-        animate={{ opacity: 1 }}
+-        exit={{ opacity: 0 }}
+-        onClick={(e) => {
+-          // Don't close on backdrop click for discard modal - user must confirm
+-          e.stopPropagation()
+-        }}
+-      >
+-        <motion.div
+-          className={`
+-            bg-white rounded-xl sm:rounded-2xl shadow-2xl border-4 border-red-500 w-full
+-            ${isMobile 
+-              ? 'max-w-[95vw] p-3 mx-2' 
+-              : 'max-w-md p-8 mx-4'
+-            }
+-          `}
+-          initial={{ scale: 0.8, y: 50 }}
+-          animate={{ scale: 1, y: 0 }}
+-          exit={{ scale: 0.8, y: 50 }}
+-          transition={{ type: "spring", stiffness: 300, damping: 30 }}
+-        >
+-          <div className={`text-center ${isMobile ? 'mb-3' : 'mb-6'}`}>
+-            <h2 className={`font-bold text-red-600 ${isMobile ? 'text-xl mb-1' : 'text-3xl mb-2'}`}>
+-              ⚠️ Too Many Crystals!
+-            </h2>
+-            <p className={`text-gray-700 ${isMobile ? 'text-xs' : 'text-base'}`}>
+-              You have <span className="font-bold text-red-600">{pending}</span> excess crystals.
+-              <br />
+-              Discard <span className="font-bold">{remaining}</span> more to continue.
+-            </p>
+-          </div>
+-
+-          <div className={`space-y-2 ${isMobile ? 'mb-3' : 'space-y-4 mb-6'}`}>
+-            {crystalTypes.map(({ key, label, color }) => {
+-              // Use caravan (same as CompactGameBoard)
+-              const available = (myPlayer.caravan && myPlayer.caravan[key]) || 0
+-              const selected = discardCounts[key] || 0
+-              
+-              return (
+-                <div key={key} className={`flex items-center ${isMobile ? 'gap-2' : 'gap-4'}`}>
+-                  <div className={`
+-                    ${color} rounded-full flex items-center justify-center text-white font-bold shadow-lg
+-                    ${isMobile ? 'w-10 h-10' : 'w-12 h-12'}
+-                  `}>
+-                    <img
+-                      src={`/assets/images/stone_${key}.JPG`}
+-                      alt={label}
+-                      className={`rounded-full object-cover ${isMobile ? 'w-8 h-8' : 'w-10 h-10'}`}
+-                      onError={(e) => {
+-                        e.target.src = '/assets/images/stone_yellow.JPG'
+-                      }}
+-                    />
+-                  </div>
+-                  <div className="flex-1">
+-                    <div className={`flex justify-between items-center ${isMobile ? 'mb-0.5' : 'mb-1'}`}>
+-                      <span className={`font-medium text-gray-700 ${isMobile ? 'text-xs' : 'text-sm'}`}>{label}</span>
+-                      <span className={`text-gray-500 ${isMobile ? 'text-[10px]' : 'text-xs'}`}>
+-                        Available: {available} | Selected: {selected}
+-                      </span>
+-                    </div>
+-                    <div className="flex items-center gap-2">
+-                      <motion.button
+-                        onClick={() => updateDiscard(key, -1)}
+-                        disabled={selected <= 0}
+-                        className={`
+-                          rounded-full bg-gray-200 hover:bg-gray-300 
+-                          disabled:opacity-50 disabled:cursor-not-allowed 
+-                          flex items-center justify-center font-bold text-gray-700
+-                          ${isMobile ? 'w-7 h-7 text-sm' : 'w-8 h-8'}
+-                        `}
+-                        whileHover={{ scale: 1.1 }}
+-                        whileTap={{ scale: 0.9 }}
+-                      >
+-                        −
+-                      </motion.button>
+-                      <div className={`
+-                        flex-1 bg-gray-100 rounded-lg text-center font-bold
+-                        ${isMobile ? 'px-2 py-1 text-base' : 'px-4 py-2 text-lg'}
+-                      `}>
+-                        {selected}
+-                      </div>
+-                      <motion.button
+-                        onClick={() => updateDiscard(key, 1)}
+-                        disabled={selected >= available || currentTotal >= pending}
+-                        className={`
+-                          rounded-full bg-gray-200 hover:bg-gray-300 
+-                          disabled:opacity-50 disabled:cursor-not-allowed 
+-                          flex items-center justify-center font-bold text-gray-700
+-                          ${isMobile ? 'w-7 h-7 text-sm' : 'w-8 h-8'}
+-                        `}
+-                        whileHover={{ scale: 1.1 }}
+-                        whileTap={{ scale: 0.9 }}
+-                      >
+-                        +
+-                      </motion.button>
+-                    </div>
+-                  </div>
+-                </div>
+-              )
+-            })}
+-          </div>
+-
+-          <div className={`
+-            bg-yellow-50 border-2 border-yellow-300 rounded-lg
+-            ${isMobile ? 'p-2 mb-3' : 'p-4 mb-6'}
+-          `}>
+-            <div className="text-center">
+-              <div className={`text-gray-600 ${isMobile ? 'text-xs mb-0.5' : 'text-sm mb-1'}`}>Progress</div>
+-              <div className={`font-bold text-yellow-700 ${isMobile ? 'text-xl' : 'text-2xl'}`}>
+-                {currentTotal} / {pending}
+-              </div>
+-              <div className={`w-full bg-gray-200 rounded-full overflow-hidden ${isMobile ? 'h-2 mt-1' : 'h-3 mt-2'}`}>
+-                <motion.div
+-                  className="bg-gradient-to-r from-yellow-400 to-red-500 h-full rounded-full"
+-                  initial={{ width: 0 }}
+-                  animate={{ width: `${(currentTotal / pending) * 100}%` }}
+-                  transition={{ duration: 0.3 }}
+-                />
+-              </div>
++  return (
++    <Modal
++      open
++      dismissible={false}
++      title="Too Many Crystals!"
++      footer={(
++        <>
++          {/* take back the card play that overflowed (e.g. a trade multiplier one too high) */}
 +          {myPlayer.canUndo && (
-+            <button
-+              type="button"
-+              onClick={(e) => {
-+                e.preventDefault()
-+                e.stopPropagation()
-+                handleUndo()
-+              }}
-+              className={`
-+                w-full mt-2 rounded-lg border-2 border-gray-300 bg-white text-gray-700 font-semibold
-+                hover:bg-gray-100 transition-colors
-+                ${isMobile ? 'py-2 px-4 text-sm' : 'py-3 px-6'}
-+              `}
-+            >
-+              ↩ Undo — take the card back
-+            </button>
++            <Button variant="outline" onClick={handleUndo}>↩ Undo — take the card back</Button>
 +          )}
-         </motion.div>
-       </motion.div>
-     </AnimatePresence>,
++          <Button onClick={handleConfirm} disabled={!canConfirm}>
++            {canConfirm ? 'Confirm Discard' : `Select ${remaining} more`}
++          </Button>
++        </>
++      )}
++    >
++      <div className="flex flex-col gap-3">
++        <p className="text-center text-sm text-ink">
++          You can keep {MAX_CARAVAN}. Discard <span className="font-bold">{pending}</span> crystal{pending > 1 ? 's' : ''} — the cheapest are picked.
++        </p>
++        {COLORS.map((c) => (
++          <div key={c} className={`flex items-center gap-3 rounded-stone border border-ink/15 bg-ink/5 px-3 py-1.5 ${caravan[c] === 0 ? 'opacity-40' : ''}`}>
++            <Gem color={c} size={26} label={false} />
++            <div className="flex flex-1 flex-col">
++              <span className="text-sm font-semibold text-ink">{NAME[c]}</span>
++              <span className="text-xs text-ink-muted">have {caravan[c]}</span>
+             </div>
++            <Stepper
++              label={`${NAME[c]} to discard`}
++              value={discardCounts[c]}
++              min={0}
++              max={Math.min(caravan[c], discardCounts[c] + remaining)}
++              onChange={(v) => setCount(c, v)}
++            />
+           </div>
+-
+-          <motion.button
+-            onClick={(e) => {
+-              e.preventDefault()
+-              e.stopPropagation()
+-              handleConfirm()
+-            }}
+-            disabled={!canConfirm}
+-            className={`
+-              w-full bg-gradient-to-r from-red-500 to-orange-500 text-white font-bold 
+-              rounded-lg shadow-lg transition-all relative z-10
+-              ${isMobile ? 'py-3 px-4 text-sm' : 'py-4 px-6'}
+-              ${canConfirm 
+-                ? 'cursor-pointer hover:shadow-xl opacity-100' 
+-                : 'cursor-not-allowed opacity-50'
+-              }
+-            `}
+-            whileHover={canConfirm ? { scale: 1.05 } : {}}
+-            whileTap={canConfirm ? { scale: 0.95 } : {}}
+-          >
+-            {currentTotal === pending 
+-              ? 'Confirm Discard' 
+-              : `Select ${remaining} more crystal${remaining !== 1 ? 's' : ''}`
+-            }
+-          </motion.button>
+-        </motion.div>
+-      </motion.div>
+-    </AnimatePresence>,
+-    document.body
++        ))}
++        <div className="flex flex-wrap items-center justify-center gap-2 text-sm text-ink-muted">
++          Keep: <CrystalRow resources={sub(caravan, discardCounts)} capacity={MAX_CARAVAN} size="sm" tone="parchment" />
++        </div>
++      </div>
++    </Modal>
+   )
+ }
+ 
 --- a/web/react-frontend/src/components/FantasyMarketArea.jsx
 +++ b/web/react-frontend/src/components/FantasyMarketArea.jsx
 @@ -213,12 +213,10 @@
@@ -313,65 +1085,519 @@
    // Handle action card click
 --- a/web/react-frontend/src/components/GameOverModal.jsx
 +++ b/web/react-frontend/src/components/GameOverModal.jsx
-@@ -2,6 +2,7 @@
- import { createPortal } from 'react-dom'
- import { motion, AnimatePresence } from 'framer-motion'
+@@ -1,384 +1,143 @@
+-import React, { useEffect, useState } from 'react'
+-import { createPortal } from 'react-dom'
+-import { motion, AnimatePresence } from 'framer-motion'
++import React, { useMemo } from 'react'
++import { motion } from 'framer-motion'
  import useGameStore from '../store/gameStore'
-+import PlayerAvatar from './PlayerAvatar'
- import useOrientation from '../hooks/useOrientation'
- import { getCardSpriteStyle, getCardImagePath } from '../utils/cardNames'
+-import useOrientation from '../hooks/useOrientation'
+-import { getCardSpriteStyle, getCardImagePath } from '../utils/cardNames'
+-
+-const GameOverModal = ({ onNewGame, onBackToMenu }) => {
+-  const { gameState } = useGameStore()
+-  const { isMobile } = useOrientation()
+-  const [showConfetti, setShowConfetti] = useState(true)
+-
+-  useEffect(() => {
+-    // Auto-hide confetti after 5 seconds
+-    const timer = setTimeout(() => setShowConfetti(false), 5000)
+-    return () => clearTimeout(timer)
+-  }, [])
+-
+-  if (!gameState?.gameOver) {
+-    return null
+-  }
++import Modal from './ui/Modal'
++import Button from './ui/Button'
++import Avatar from './ui/Avatar'
++import Coin from './ui/Coin'
++import Gem, { CRYSTALS } from './ui/Gem'
++import GolemIcon from './ui/GolemIcon'
++
++// Final score = golem points + coin points + 1 per non-yellow crystal (official rules).
++export function scoreOf(player) {
++  const golems = player?.pointCards?.reduce((s, c) => s + (c.points || 0), 0) || 0
++  const coins = player?.coins?.reduce((s, c) => s + (c.points || 0), 0) || 0
++  const res = player?.caravan || player?.resources || {}
++  const crystals = (res.green || 0) + (res.blue || 0) + (res.pink || 0)
++  return { golems, coins, crystals, total: golems + coins + crystals }
++}
  
-@@ -28,12 +29,14 @@
-   const copperRemaining = marketCoins[0]?.amount ?? 0
-   const silverRemaining = marketCoins[1]?.amount ?? 0
- 
+-  const winner = gameState.winner
+-  const players = gameState.players || []
+-  const marketCoins = gameState.market?.coins || []
+-  
+-  // Get remaining coins
+-  const copperRemaining = marketCoins[0]?.amount ?? 0
+-  const silverRemaining = marketCoins[1]?.amount ?? 0
+-
 -  // Sort players by total points (descending)
-+  // Sort players by total points (descending); ties: the player later in turn order ranks first
-+  // (official rule — the server already picked the winner that way)
-   const sortedPlayers = [...players].sort((a, b) => {
-     const aPoints = calculateTotalPoints(a)
-     const bPoints = calculateTotalPoints(b)
+-  const sortedPlayers = [...players].sort((a, b) => {
+-    const aPoints = calculateTotalPoints(a)
+-    const bPoints = calculateTotalPoints(b)
 -    return bPoints - aPoints
-+    return bPoints - aPoints || (b.id || 0) - (a.id || 0)
-   })
-+  const wonOnTieBreak = winner && players.some((p) => p.id !== winner.id && calculateTotalPoints(p) === winner.points)
+-  })
+-
+-  function calculateTotalPoints(player) {
+-    const pointCardPoints = player.pointCards?.reduce((sum, card) => sum + (card.points || 0), 0) || 0
+-    const coinPoints = player.coins?.reduce((sum, coin) => sum + (coin.points || 0), 0) || 0
+-    // Non-yellow crystals are worth 1 point each
+-    const crystalPoints = (player.caravan?.green || player.resources?.green || 0) + 
+-                         (player.caravan?.blue || player.resources?.blue || 0) + 
+-                         (player.caravan?.pink || player.resources?.pink || 0)
+-    return pointCardPoints + coinPoints + crystalPoints
+-  }
+-
+-  // Confetti particles
+-  const confettiColors = ['#FFD700', '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8']
+-  const confettiParticles = Array.from({ length: 50 }, (_, i) => ({
+-    id: i,
+-    color: confettiColors[i % confettiColors.length],
+-    left: Math.random() * 100,
+-    delay: Math.random() * 2,
+-    duration: 3 + Math.random() * 2
+-  }))
+-
+-  return createPortal(
+-    <AnimatePresence>
+-      <motion.div
+-        className="fixed inset-0 z-[200] flex items-center justify-center bg-black/85 backdrop-blur-md p-2 sm:p-4 overflow-y-auto"
+-        initial={{ opacity: 0 }}
+-        animate={{ opacity: 1 }}
+-        exit={{ opacity: 0 }}
+-      >
+-        {/* Confetti Animation */}
+-        {showConfetti && (
+-          <div className="fixed inset-0 pointer-events-none overflow-hidden z-[201]">
+-            {confettiParticles.map((particle) => (
+-              <motion.div
+-                key={particle.id}
+-                className="absolute w-3 h-3 rounded-sm"
+-                style={{
+-                  backgroundColor: particle.color,
+-                  left: `${particle.left}%`,
+-                  top: '-20px'
+-                }}
+-                initial={{ y: 0, rotate: 0, opacity: 1 }}
+-                animate={{
+-                  y: '100vh',
+-                  rotate: 720,
+-                  opacity: [1, 1, 0]
+-                }}
+-                transition={{
+-                  duration: particle.duration,
+-                  delay: particle.delay,
+-                  ease: 'easeIn'
+-                }}
+-              />
+-            ))}
+-          </div>
+-        )}
++const reducedMotion = () => {
++  try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches } catch { return false }
++}
  
-   function calculateTotalPoints(player) {
-     const pointCardPoints = player.pointCards?.reduce((sum, card) => sum + (card.points || 0), 0) || 0
-@@ -143,6 +146,12 @@
-             >
-               <div className="flex items-center justify-center gap-3">
-                 <span className={`${isMobile ? 'text-2xl' : 'text-3xl'}`}>👑</span>
-+                {winner && (
-+                  <PlayerAvatar
-+                    player={winner}
-+                    className={`rounded-full bg-purple-600 text-white border-2 border-yellow-400 ${isMobile ? 'w-10 h-10 text-base' : 'w-14 h-14 text-xl'}`}
-+                  />
-+                )}
-                 <div className="text-center">
-                   <div className={`text-yellow-300 font-bold ${isMobile ? 'text-lg' : 'text-xl sm:text-2xl'}`}>
-                     {winner?.name || 'Unknown'}
-@@ -150,6 +159,9 @@
-                   <div className={`text-white/80 ${isMobile ? 'text-sm' : 'text-base'}`}>
-                     Wins with <span className="text-yellow-400 font-bold">{winner?.points || 0}</span> points!
-                   </div>
-+                  {wonOnTieBreak && (
-+                    <div className="text-white/60 text-xs">Tied on points — the player later in turn order wins.</div>
-+                  )}
-                 </div>
-                 <span className={`${isMobile ? 'text-2xl' : 'text-3xl'}`}>👑</span>
++// A short shower of crystals over the result, computed once per finished game.
++function GemShower({ seed }) {
++  const gems = useMemo(() => {
++    let a = seed >>> 0
++    const rnd = () => { a = (a * 1664525 + 1013904223) >>> 0; return a / 4294967296 }
++    return Array.from({ length: 24 }, (_, i) => ({
++      id: i, color: CRYSTALS[i % 4], left: rnd() * 100, delay: rnd() * 1.6, duration: 2.6 + rnd() * 1.6, size: 14 + rnd() * 14, spin: (rnd() - 0.5) * 540,
++    }))
++  }, [seed])
++  if (reducedMotion()) return null
++  return (
++    <div className="pointer-events-none fixed inset-0 z-modal overflow-hidden" aria-hidden="true">
++      {gems.map((g) => (
+         <motion.div
+-          className={`
+-            relative bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 
+-            rounded-2xl sm:rounded-3xl shadow-2xl border-2 border-yellow-500/50
+-            w-full overflow-hidden
+-            ${isMobile ? 'max-w-[95vw] max-h-[90vh]' : 'max-w-3xl max-h-[85vh]'}
+-          `}
+-          initial={{ scale: 0.8, y: 50, opacity: 0 }}
+-          animate={{ scale: 1, y: 0, opacity: 1 }}
+-          exit={{ scale: 0.8, y: 50, opacity: 0 }}
+-          transition={{ type: "spring", stiffness: 300, damping: 25 }}
++          key={g.id}
++          className="absolute -top-8"
++          style={{ left: `${g.left}%` }}
++          initial={{ y: 0, rotate: 0, opacity: 1 }}
++          animate={{ y: '110vh', rotate: g.spin, opacity: [1, 1, 0] }}
++          transition={{ duration: g.duration, delay: g.delay, ease: 'easeIn' }}
+         >
+-          {/* Glowing border effect */}
+-          <div className="absolute inset-0 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-yellow-400 via-orange-500 to-yellow-400 opacity-20 blur-xl" />
+-          
+-          {/* Content */}
+-          <div className={`relative z-10 ${isMobile ? 'p-4' : 'p-6 sm:p-8'} overflow-y-auto max-h-[85vh]`}>
+-            {/* Header */}
+-            <motion.div 
+-              className="text-center mb-4 sm:mb-6"
+-              initial={{ y: -20, opacity: 0 }}
+-              animate={{ y: 0, opacity: 1 }}
+-              transition={{ delay: 0.2 }}
+-            >
+-              <motion.div
+-                className={`inline-block ${isMobile ? 'text-4xl' : 'text-5xl sm:text-6xl'} mb-2`}
+-                animate={{ 
+-                  scale: [1, 1.1, 1],
+-                  rotate: [0, -5, 5, 0]
+-                }}
+-                transition={{ 
+-                  duration: 2, 
+-                  repeat: Infinity,
+-                  repeatType: "reverse"
+-                }}
+-              >
+-                🏆
+-              </motion.div>
+-              <h2 className={`font-black bg-gradient-to-r from-yellow-300 via-orange-400 to-yellow-300 bg-clip-text text-transparent ${isMobile ? 'text-2xl' : 'text-3xl sm:text-4xl'}`}>
+-                GAME OVER!
+-              </h2>
+-            </motion.div>
+-
+-            {/* Winner Announcement */}
+-            <motion.div
+-              className={`bg-gradient-to-r from-yellow-500/20 via-orange-500/20 to-yellow-500/20 rounded-xl border border-yellow-500/30 ${isMobile ? 'p-3 mb-4' : 'p-4 sm:p-6 mb-6'}`}
+-              initial={{ scale: 0.9, opacity: 0 }}
+-              animate={{ scale: 1, opacity: 1 }}
+-              transition={{ delay: 0.3 }}
+-            >
+-              <div className="flex items-center justify-center gap-3">
+-                <span className={`${isMobile ? 'text-2xl' : 'text-3xl'}`}>👑</span>
+-                <div className="text-center">
+-                  <div className={`text-yellow-300 font-bold ${isMobile ? 'text-lg' : 'text-xl sm:text-2xl'}`}>
+-                    {winner?.name || 'Unknown'}
+-                  </div>
+-                  <div className={`text-white/80 ${isMobile ? 'text-sm' : 'text-base'}`}>
+-                    Wins with <span className="text-yellow-400 font-bold">{winner?.points || 0}</span> points!
+-                  </div>
+-                </div>
+-                <span className={`${isMobile ? 'text-2xl' : 'text-3xl'}`}>👑</span>
+-              </div>
+-            </motion.div>
++          <Gem color={g.color} size={g.size} label={false} />
++        </motion.div>
++      ))}
++    </div>
++  )
++}
+ 
+-            {/* Bonus Coins Remaining */}
+-            <motion.div
+-              className={`bg-slate-800/50 rounded-xl border border-slate-600/30 ${isMobile ? 'p-2 mb-3' : 'p-3 mb-4'}`}
+-              initial={{ scale: 0.9, opacity: 0 }}
+-              animate={{ scale: 1, opacity: 1 }}
+-              transition={{ delay: 0.35 }}
+-            >
+-              <div className={`text-white/60 text-center ${isMobile ? 'text-xs mb-1' : 'text-sm mb-2'}`}>
+-                Bonus Coins Remaining
++const rankLabel = (i) => ['1st', '2nd', '3rd', '4th', '5th'][i] || `${i + 1}th`
++
++/** End of game: winner, full scoreboard with the breakdown, coins left, Play Again / Back to Menu. */
++const GameOverModal = ({ onNewGame, onBackToMenu }) => {
++  const gameState = useGameStore((s) => s.gameState)
++  const myId = useGameStore((s) => s.myPlayer?.id)
++  if (!gameState?.gameOver) return null
++
++  const players = gameState.players || []
++  const winner = players.find((p) => p.id === gameState.winner?.id) || gameState.winner
++  const coins = gameState.market?.coins || []
++  const copperLeft = coins[0]?.amount ?? 0
++  const silverLeft = coins[1]?.amount ?? 0
++
++  // highest total first; ties: the player later in turn order ranks first (official rule — the server
++  // already picked the winner that way)
++  const ranked = [...players]
++    .map((p, seat) => ({ p, seat, s: scoreOf(p) }))
++    .sort((a, b) => b.s.total - a.s.total || b.seat - a.seat)
++  const winnerScore = scoreOf(winner).total
++  const wonOnTieBreak = ranked.filter((r) => r.s.total === winnerScore).length > 1
++
++  return (
++    <>
++      <GemShower seed={(gameState.currentTurn || 1) * 7919} />
++      <Modal
++        open
++        dismissible={false}
++        variant="stone"
++        size="lg"
++        title="Game Over"
++        footer={(
++          <>
++            <Button variant="secondary" onClick={onBackToMenu}>Back to Menu</Button>
++            <Button onClick={onNewGame}>Play Again</Button>
++          </>
++        )}
++      >
++        <div className="flex flex-col gap-5">
++          {/* Winner */}
++          <div className="flex items-center gap-4 rounded-stone border border-bronze-500/60 bg-bronze-500/15 px-4 py-3">
++            <Avatar player={winner} size={64} turn />
++            <div className="min-w-0">
++              <div className="font-display text-xs font-bold uppercase tracking-widest text-bronze-300">Winner</div>
++              <div className="truncate font-display text-2xl font-bold text-bronze-100">
++                {winner?.id === myId ? 'You win!' : winner?.name || 'Unknown'}
                </div>
-@@ -227,6 +239,10 @@
-                           {rankEmojis[index] || `#${index + 1}`}
-                         </span>
-                         {isWinner && <span className="text-lg">👑</span>}
-+                        <PlayerAvatar
-+                          player={player}
-+                          className={`rounded-full bg-purple-600 text-white border-2 border-white/60 ${isMobile ? 'w-7 h-7 text-xs' : 'w-9 h-9 text-sm'}`}
-+                        />
-                         <span className={`font-bold text-white ${isMobile ? 'text-sm' : 'text-base sm:text-lg'}`}>
-                           {player.name}
-                         </span>
+-              <div className="flex justify-center gap-6">
+-                <div className="flex items-center gap-2">
+-                  <span className={isMobile ? 'text-lg' : 'text-xl'}>🥉</span>
+-                  <div className="text-center">
+-                    <div className={`text-orange-400 font-bold ${isMobile ? 'text-sm' : 'text-base'}`}>
+-                      {copperRemaining}/10
+-                    </div>
+-                    <div className={`text-white/50 ${isMobile ? 'text-[10px]' : 'text-xs'}`}>Copper (3pts)</div>
+-                  </div>
+-                </div>
+-                <div className="flex items-center gap-2">
+-                  <span className={isMobile ? 'text-lg' : 'text-xl'}>🥈</span>
+-                  <div className="text-center">
+-                    <div className={`text-gray-300 font-bold ${isMobile ? 'text-sm' : 'text-base'}`}>
+-                      {silverRemaining}/10
+-                    </div>
+-                    <div className={`text-white/50 ${isMobile ? 'text-[10px]' : 'text-xs'}`}>Silver (1pt)</div>
+-                  </div>
+-                </div>
++              <div className="text-sm text-fg-muted">
++                {winnerScore} points{wonOnTieBreak ? ' · tied on points, the player later in turn order wins' : ''}
+               </div>
+-            </motion.div>
+-
+-            {/* Players Ranking */}
+-            <div className={`space-y-3 ${isMobile ? 'mb-4' : 'mb-6'}`}>
+-              <h3 className={`text-white/80 font-semibold ${isMobile ? 'text-sm' : 'text-base'}`}>
+-                Ranking
+-              </h3>
+-              
+-              {sortedPlayers.map((player, index) => {
+-                const isWinner = player.id === winner?.id
+-                const pointCardPoints = player.pointCards?.reduce((sum, card) => sum + (card.points || 0), 0) || 0
+-                const coinPoints = player.coins?.reduce((sum, coin) => sum + (coin.points || 0), 0) || 0
+-                const copperCoins = player.coins?.filter(c => c.points === 3) || []
+-                const silverCoins = player.coins?.filter(c => c.points === 1) || []
+-                const resources = player.caravan || player.resources || {}
+-                const crystalPoints = (resources.green || 0) + (resources.blue || 0) + (resources.pink || 0)
+-                const totalPoints = pointCardPoints + coinPoints + crystalPoints
+-
+-                const rankColors = ['from-yellow-500/30 to-amber-600/30 border-yellow-500/50', 
+-                                   'from-gray-400/20 to-gray-500/20 border-gray-400/40',
+-                                   'from-orange-700/20 to-orange-800/20 border-orange-600/40']
+-                const rankEmojis = ['🥇', '🥈', '🥉']
+-
+-                return (
+-                  <motion.div
+-                    key={player.id}
+-                    className={`
+-                      bg-gradient-to-r ${rankColors[index] || 'from-slate-700/30 to-slate-800/30 border-slate-600/30'}
+-                      rounded-xl border backdrop-blur-sm overflow-hidden
+-                      ${isWinner ? 'ring-2 ring-yellow-400/50' : ''}
+-                    `}
+-                    initial={{ x: -50, opacity: 0 }}
+-                    animate={{ x: 0, opacity: 1 }}
+-                    transition={{ delay: 0.4 + index * 0.1 }}
+-                  >
+-                    {/* Player Header */}
+-                    <div className={`flex items-center justify-between ${isMobile ? 'p-2' : 'p-3 sm:p-4'}`}>
+-                      <div className="flex items-center gap-2 sm:gap-3">
+-                        <span className={`${isMobile ? 'text-lg' : 'text-xl sm:text-2xl'}`}>
+-                          {rankEmojis[index] || `#${index + 1}`}
+-                        </span>
+-                        {isWinner && <span className="text-lg">👑</span>}
+-                        <span className={`font-bold text-white ${isMobile ? 'text-sm' : 'text-base sm:text-lg'}`}>
+-                          {player.name}
+-                        </span>
+-                      </div>
+-                      <div className={`font-black text-yellow-300 ${isMobile ? 'text-lg' : 'text-xl sm:text-2xl'}`}>
+-                        {totalPoints} pts
+-                      </div>
+-                    </div>
+-
+-                    {/* Points Breakdown */}
+-                    <div className={`bg-black/30 ${isMobile ? 'p-2' : 'p-3 sm:p-4'}`}>
+-                      {/* Golems */}
+-                      <div className={`flex items-center gap-2 ${isMobile ? 'mb-2' : 'mb-3'}`}>
+-                        <span className={`text-white/60 ${isMobile ? 'text-xs w-16' : 'text-sm w-20'}`}>Golems:</span>
+-                        <div className="flex gap-1 flex-wrap flex-1">
+-                          {player.pointCards?.length > 0 ? (
+-                            player.pointCards.map((card, i) => {
+-                              const cardName = card.name || `golem_${String(card.points).padStart(4, '0')}`
+-                              const spriteStyle = getCardSpriteStyle(cardName)
+-                              return (
+-                                <div key={i} className="relative group">
+-                                  {spriteStyle ? (
+-                                    <div
+-                                      className={`rounded border border-white/30 ${isMobile ? 'w-8 h-10' : 'w-10 h-12 sm:w-12 sm:h-14'}`}
+-                                      style={spriteStyle}
+-                                    />
+-                                  ) : (
+-                                    <img
+-                                      src={getCardImagePath(cardName)}
+-                                      alt={`Golem ${card.points}pts`}
+-                                      className={`rounded object-cover border border-white/30 ${isMobile ? 'w-8 h-10' : 'w-10 h-12 sm:w-12 sm:h-14'}`}
+-                                      onError={(e) => { e.target.style.display = 'none' }}
+-                                    />
+-                                  )}
+-                                  <span className={`absolute -bottom-1 -right-1 bg-yellow-500 text-black rounded-full font-bold ${isMobile ? 'text-[8px] w-4 h-4' : 'text-[10px] w-5 h-5'} flex items-center justify-center`}>
+-                                    {card.points}
+-                                  </span>
+-                                </div>
+-                              )
+-                            })
+-                          ) : (
+-                            <span className="text-white/40 text-xs">None</span>
+-                          )}
+-                        </div>
+-                        <span className={`text-green-400 font-semibold ${isMobile ? 'text-xs' : 'text-sm'}`}>
+-                          = {pointCardPoints}pts
+-                        </span>
+-                      </div>
+-
+-                      {/* Coins */}
+-                      <div className={`flex items-center gap-2 ${isMobile ? 'mb-2' : 'mb-3'}`}>
+-                        <span className={`text-white/60 ${isMobile ? 'text-xs w-16' : 'text-sm w-20'}`}>Coins:</span>
+-                        <div className="flex gap-1 flex-1">
+-                          {copperCoins.length > 0 && (
+-                            <div className="flex items-center gap-0.5">
+-                              <span className={isMobile ? 'text-sm' : 'text-base'}>🥉</span>
+-                              <span className={`text-orange-400 ${isMobile ? 'text-xs' : 'text-sm'}`}>×{copperCoins.length}</span>
+-                            </div>
+-                          )}
+-                          {silverCoins.length > 0 && (
+-                            <div className="flex items-center gap-0.5">
+-                              <span className={isMobile ? 'text-sm' : 'text-base'}>🥈</span>
+-                              <span className={`text-gray-300 ${isMobile ? 'text-xs' : 'text-sm'}`}>×{silverCoins.length}</span>
+-                            </div>
+-                          )}
+-                          {copperCoins.length === 0 && silverCoins.length === 0 && (
+-                            <span className="text-white/40 text-xs">None</span>
+-                          )}
+-                        </div>
+-                        <span className={`text-green-400 font-semibold ${isMobile ? 'text-xs' : 'text-sm'}`}>
+-                          = {coinPoints}pts
+-                        </span>
+-                      </div>
+-
+-                      {/* Crystals */}
+-                      <div className="flex items-center gap-2">
+-                        <span className={`text-white/60 ${isMobile ? 'text-xs w-16' : 'text-sm w-20'}`}>Crystals:</span>
+-                        <div className="flex gap-2 flex-1">
+-                          {resources.green > 0 && (
+-                            <div className="flex items-center gap-0.5">
+-                              <img src="/assets/images/stone_green.JPG" alt="green" className={`rounded-full ${isMobile ? 'w-4 h-4' : 'w-5 h-5'}`} />
+-                              <span className={`text-green-400 ${isMobile ? 'text-xs' : 'text-sm'}`}>{resources.green}</span>
+-                            </div>
+-                          )}
+-                          {resources.blue > 0 && (
+-                            <div className="flex items-center gap-0.5">
+-                              <img src="/assets/images/stone_blue.JPG" alt="blue" className={`rounded-full ${isMobile ? 'w-4 h-4' : 'w-5 h-5'}`} />
+-                              <span className={`text-blue-400 ${isMobile ? 'text-xs' : 'text-sm'}`}>{resources.blue}</span>
+-                            </div>
+-                          )}
+-                          {resources.pink > 0 && (
+-                            <div className="flex items-center gap-0.5">
+-                              <img src="/assets/images/stone_pink.JPG" alt="pink" className={`rounded-full ${isMobile ? 'w-4 h-4' : 'w-5 h-5'}`} />
+-                              <span className={`text-pink-400 ${isMobile ? 'text-xs' : 'text-sm'}`}>{resources.pink}</span>
+-                            </div>
+-                          )}
+-                          {crystalPoints === 0 && (
+-                            <span className="text-white/40 text-xs">None</span>
+-                          )}
+-                        </div>
+-                        <span className={`text-green-400 font-semibold ${isMobile ? 'text-xs' : 'text-sm'}`}>
+-                          = {crystalPoints}pts
+-                        </span>
+-                      </div>
+-                    </div>
+-                  </motion.div>
+-                )
+-              })}
+             </div>
++          </div>
++
++          {/* Scoreboard */}
++          <ol className="surface-parchment flex flex-col divide-y divide-ink/15 !rounded-stone !shadow-none" aria-label="Final scores">
++            {ranked.map(({ p, s }, i) => (
++              <li key={p.id} className={`flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5 ${p.id === winner?.id ? 'bg-bronze-300/25' : ''}`}>
++                <span className="w-9 font-display text-sm font-bold text-ink-muted">{rankLabel(i)}</span>
++                <Avatar player={p} size={36} />
++                <span className="min-w-0 flex-1 truncate font-semibold text-ink">
++                  {p.name}{p.id === myId ? <span className="text-ink-muted"> (you)</span> : null}
++                </span>
++                <span className="order-last flex w-full flex-wrap items-center gap-x-4 gap-y-1 pl-12 text-sm text-ink-muted sm:order-none sm:w-auto sm:pl-0">
++                  <span className="inline-flex items-center gap-1" title="Golems">
++                    <GolemIcon size={16} label="Golems" /> {p.pointCards?.length || 0} · {s.golems}
++                  </span>
++                  <span className="inline-flex items-center gap-1" title="Coins">
++                    <Coin kind="copper" size={16} label={false} />×{p.coins?.filter((c) => c.points === 3).length || 0}
++                    <Coin kind="silver" size={16} label={false} />×{p.coins?.filter((c) => c.points === 1).length || 0}
++                    <span className="sr-only">coins worth</span> · {s.coins}
++                  </span>
++                  <span className="inline-flex items-center gap-1" title="Green, blue and pink crystals: 1 point each">
++                    <Gem color="pink" size={14} label={false} /> {s.crystals}
++                  </span>
++                </span>
++                <span className="font-display text-xl font-bold tabular-nums text-ink">{s.total}</span>
++              </li>
++            ))}
++          </ol>
+ 
+-            {/* Action Buttons */}
+-            <motion.div
+-              className={`flex gap-3 ${isMobile ? 'flex-col' : 'flex-row justify-center'}`}
+-              initial={{ y: 20, opacity: 0 }}
+-              animate={{ y: 0, opacity: 1 }}
+-              transition={{ delay: 0.7 }}
+-            >
+-              <motion.button
+-                onClick={onNewGame}
+-                className={`
+-                  flex-1 bg-gradient-to-r from-emerald-500 to-green-600 text-white font-bold 
+-                  rounded-xl shadow-lg transition-all
+-                  hover:from-emerald-600 hover:to-green-700 hover:shadow-emerald-500/30
+-                  ${isMobile ? 'py-3 px-4 text-sm' : 'py-4 px-6 text-base'}
+-                `}
+-                whileHover={{ scale: 1.02 }}
+-                whileTap={{ scale: 0.98 }}
+-              >
+-                🎮 Play Again
+-              </motion.button>
+-              
+-              <motion.button
+-                onClick={onBackToMenu}
+-                className={`
+-                  flex-1 bg-gradient-to-r from-slate-600 to-slate-700 text-white font-bold 
+-                  rounded-xl shadow-lg transition-all
+-                  hover:from-slate-700 hover:to-slate-800
+-                  ${isMobile ? 'py-3 px-4 text-sm' : 'py-4 px-6 text-base'}
+-                `}
+-                whileHover={{ scale: 1.02 }}
+-                whileTap={{ scale: 0.98 }}
+-              >
+-                🏠 Back to Menu
+-              </motion.button>
+-            </motion.div>
++          <div className="flex flex-wrap items-center justify-center gap-4 text-sm text-fg-muted">
++            <span>Coins left:</span>
++            <span className="inline-flex items-center gap-1"><Coin kind="copper" size={18} /> {copperLeft}</span>
++            <span className="inline-flex items-center gap-1"><Coin kind="silver" size={18} /> {silverLeft}</span>
+           </div>
+-        </motion.div>
+-      </motion.div>
+-    </AnimatePresence>,
+-    document.body
++        </div>
++      </Modal>
++    </>
+   )
+ }
+ 
+ export default GameOverModal
+-
 --- a/web/react-frontend/src/components/HistorySection.jsx
 +++ b/web/react-frontend/src/components/HistorySection.jsx
 @@ -67,10 +67,8 @@
@@ -2231,6 +3457,434 @@
                </span>
                <span className="flex-1">{toast.message}</span>
                <button
+--- a/web/react-frontend/src/components/TradeModal.jsx
++++ b/web/react-frontend/src/components/TradeModal.jsx
+@@ -1,327 +1,113 @@
+ import React, { useState, useEffect } from "react";
+-import { createPortal } from "react-dom";
+-import { motion, AnimatePresence } from "framer-motion";
+-import useOrientation from "../hooks/useOrientation";
++import Modal from "./ui/Modal";
++import Button from "./ui/Button";
++import Stepper from "./ui/Stepper";
++import CardImage from "./ui/CardImage";
++import CrystalRow, { CrystalCost } from "./ui/CrystalRow";
++import { COLORS, MAX_CARAVAN, add, sub, times, total } from "../utils/crystals";
++
++// How many times the trade fits in the caravan (0 = not even once).
++function maxTimes(card, res) {
++  let max = Infinity;
++  let any = false;
++  for (const c of COLORS) {
++    const need = card?.input?.[c] || 0;
++    if (need > 0) {
++      any = true;
++      max = Math.min(max, Math.floor((res?.[c] || 0) / need));
++    }
++  }
++  return any && max !== Infinity ? Math.max(0, max) : 0;
++}
+ 
++/** Trade card: choose how many times to run it (×1…×max), see what you pay, get and end up with. */
+ const TradeModal = ({ card, playerResources, onConfirm, onCancel }) => {
+-  const [multiplier, setMultiplier] = useState(1);
++  const maxMultiplier = card?.input && playerResources ? maxTimes(card, playerResources) : 0;
++  const [multiplier, setMultiplier] = useState(maxMultiplier > 0 ? 1 : 0);
+   const [error, setError] = useState("");
+-  const { isMobile } = useOrientation();
+ 
+-  // Lock body scroll when modal is open
+-  useEffect(() => {
+-    document.body.style.overflow = 'hidden';
+-    return () => {
+-      document.body.style.overflow = '';
+-    };
+-  }, []);
+-
+-  // Calculate required input and output based on multiplier
+-  const requiredInput = {
+-    yellow: (card?.input?.yellow || 0) * multiplier,
+-    green: (card?.input?.green || 0) * multiplier,
+-    blue: (card?.input?.blue || 0) * multiplier,
+-    pink: (card?.input?.pink || 0) * multiplier,
+-  };
+-
+-  const outputResult = {
+-    yellow: (card?.output?.yellow || 0) * multiplier,
+-    green: (card?.output?.green || 0) * multiplier,
+-    blue: (card?.output?.blue || 0) * multiplier,
+-    pink: (card?.output?.pink || 0) * multiplier,
+-  };
+-
+-  // Calculate maximum possible multiplier
+-  const calculateMaxMultiplier = () => {
+-    if (!card?.input || !playerResources) return 0;
+-
+-    let maxMultiplier = Infinity;
+-    let hasAnyInput = false;
+-
+-    if ((card.input.yellow || 0) > 0) {
+-      hasAnyInput = true;
+-      const possible = Math.floor((playerResources.yellow || 0) / card.input.yellow);
+-      maxMultiplier = Math.min(maxMultiplier, possible);
+-    }
+-    if ((card.input.green || 0) > 0) {
+-      hasAnyInput = true;
+-      const possible = Math.floor((playerResources.green || 0) / card.input.green);
+-      maxMultiplier = Math.min(maxMultiplier, possible);
+-    }
+-    if ((card.input.blue || 0) > 0) {
+-      hasAnyInput = true;
+-      const possible = Math.floor((playerResources.blue || 0) / card.input.blue);
+-      maxMultiplier = Math.min(maxMultiplier, possible);
+-    }
+-    if ((card.input.pink || 0) > 0) {
+-      hasAnyInput = true;
+-      const possible = Math.floor((playerResources.pink || 0) / card.input.pink);
+-      maxMultiplier = Math.min(maxMultiplier, possible);
+-    }
+-
+-    if (!hasAnyInput) return 0;
+-    if (maxMultiplier === Infinity) return 0;
+-    return Math.max(0, maxMultiplier);
+-  };
+-
+-  const maxMultiplier = calculateMaxMultiplier();
+-
+-  // Validate trade
+-  const validateTrade = () => {
+-    if (multiplier < 1) {
+-      setError("Multiplier must be at least 1");
+-      return false;
+-    }
+-
+-    if (multiplier > maxMultiplier) {
+-      setError(`Max ${maxMultiplier} times`);
+-      return false;
+-    }
+-
+-    const hasEnoughYellow = requiredInput.yellow <= (playerResources?.yellow || 0);
+-    const hasEnoughGreen = requiredInput.green <= (playerResources?.green || 0);
+-    const hasEnoughBlue = requiredInput.blue <= (playerResources?.blue || 0);
+-    const hasEnoughPink = requiredInput.pink <= (playerResources?.pink || 0);
+-    
+-    if (!hasEnoughYellow || !hasEnoughGreen || !hasEnoughBlue || !hasEnoughPink) {
+-      setError("Not enough resources");
+-      return false;
+-    }
+-
+-    setError("");
+-    return true;
+-  };
+-
+-  const handleConfirm = () => {
+-    if (validateTrade()) {
+-      if (typeof onConfirm === "function") onConfirm(multiplier);
+-    }
+-  };
+-
+-  const adjustMultiplier = (delta) => {
+-    setMultiplier((prev) => {
+-      const minVal = maxMultiplier === 0 ? 0 : 1;
+-      const newVal = prev + delta;
+-      if (newVal < minVal) return minVal;
+-      if (maxMultiplier > 0 && newVal > maxMultiplier) return maxMultiplier;
+-      return newVal;
+-    });
++  const requiredInput = times(card?.input, multiplier);
++  const outputResult = times(card?.output, multiplier);
++  const after = add(sub(playerResources, requiredInput), outputResult);
++  const overflow = total(after) - MAX_CARAVAN;
++
++  const validate = (m) => {
++    if (m < 1) return "Multiplier must be at least 1";
++    if (m > maxMultiplier) return `Max ${maxMultiplier} times`;
++    const need = times(card?.input, m);
++    if (COLORS.some((c) => need[c] > (playerResources?.[c] || 0))) return "Not enough resources";
++    return "";
+   };
+ 
++  // keep the multiplier inside 1..max when the caravan changes
+   useEffect(() => {
+-    const mm = calculateMaxMultiplier();
+-    if (mm === 0) {
+-      setMultiplier(0);
+-      setError("Not enough resources");
+-    } else {
+-      setMultiplier((prev) => {
+-        if (prev < 1) return 1;
+-        if (prev > mm) return mm;
+-        return prev;
+-      });
+-      setError("");
+-    }
+-  }, [playerResources, card]);
++    setMultiplier((prev) => (maxMultiplier === 0 ? 0 : Math.min(Math.max(prev, 1), maxMultiplier)));
++  }, [maxMultiplier]);
+ 
+   useEffect(() => {
+-    validateTrade();
+-  }, [multiplier]);
+-
+-  const crystalTypes = [
+-    { key: "yellow", label: "Yellow", image: "/assets/images/stone_yellow.JPG" },
+-    { key: "green", label: "Green", image: "/assets/images/stone_green.JPG" },
+-    { key: "blue", label: "Blue", image: "/assets/images/stone_blue.JPG" },
+-    { key: "pink", label: "Pink", image: "/assets/images/stone_pink.JPG" },
+-  ];
++    setError(validate(multiplier));
++  }, [multiplier, maxMultiplier]); // eslint-disable-line react-hooks/exhaustive-deps
+ 
+   const canConfirm = !error && multiplier >= 1;
+-
+-  return createPortal(
+-    <AnimatePresence>
+-      <motion.div
+-        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-2 sm:p-4"
+-        initial={{ opacity: 0 }}
+-        animate={{ opacity: 1 }}
+-        exit={{ opacity: 0 }}
+-        onClick={onCancel}
+-      >
+-        <motion.div
+-          className={`
+-            bg-white rounded-xl sm:rounded-2xl shadow-2xl border-4 border-pink-500 w-full overflow-y-auto
+-            max-h-[85vh]
+-            ${isMobile ? 'max-w-[95vw] p-3 mx-2' : 'max-w-2xl p-6 mx-4'}
+-          `}
+-          initial={{ scale: 0.8, y: 50 }}
+-          animate={{ scale: 1, y: 0 }}
+-          exit={{ scale: 0.8, y: 50 }}
+-          transition={{ type: "spring", stiffness: 300, damping: 30 }}
+-          onClick={(e) => e.stopPropagation()}
+-        >
+-          {/* Header */}
+-          <div className={`text-center ${isMobile ? 'mb-3' : 'mb-6'}`}>
+-            <h2 className={`font-bold text-pink-600 ${isMobile ? 'text-xl mb-1' : 'text-3xl mb-2'}`}>
+-              🔄 Trade Crystals
+-            </h2>
+-            <p className={`text-gray-700 ${isMobile ? 'text-xs' : 'text-base'}`}>
+-              {card?.name || "Trade Card"} - Select multiplier (max {maxMultiplier}x)
+-            </p>
+-          </div>
+-
+-          {/* Input Section - You Pay */}
+-          <div className={`bg-red-50 rounded-lg ${isMobile ? 'p-2 mb-2' : 'p-4 mb-4'}`}>
+-            <h3 className={`font-semibold text-gray-800 ${isMobile ? 'text-sm mb-2' : 'text-lg mb-3'}`}>
+-              You Pay (x{multiplier})
+-            </h3>
+-            <div className={`grid gap-2 ${isMobile ? 'grid-cols-4' : 'grid-cols-4 gap-3'}`}>
+-              {crystalTypes.map(({ key, label, image }) => {
+-                const amount = requiredInput[key] || 0;
+-                return (
+-                  <div
+-                    key={key}
+-                    className={`
+-                      rounded-lg border-2 text-center
+-                      ${isMobile ? 'p-1.5' : 'p-2'}
+-                      ${amount > 0 ? 'border-red-400 bg-red-100' : 'border-gray-200 bg-white'}
+-                    `}
+-                  >
+-                    <img
+-                      src={image}
+-                      alt={label}
+-                      className={`mx-auto rounded-full object-cover ${isMobile ? 'w-6 h-6' : 'w-10 h-10'}`}
+-                      onError={(e) => { e.target.src = '/assets/images/stone_yellow.JPG' }}
+-                    />
+-                    <div className={`font-bold text-gray-800 ${isMobile ? 'text-sm' : 'text-lg'}`}>
+-                      {amount}
+-                    </div>
+-                  </div>
+-                );
+-              })}
+-            </div>
+-          </div>
+-
+-          {/* Arrow */}
+-          <div className="flex justify-center my-2">
+-            <motion.div
+-              animate={{ y: [0, 5, 0] }}
+-              transition={{ duration: 1.5, repeat: Infinity }}
+-              className={`text-pink-400 ${isMobile ? 'text-2xl' : 'text-4xl'}`}
+-            >
+-              ↓
+-            </motion.div>
+-          </div>
+-
+-          {/* Output Section - You Receive */}
+-          <div className={`bg-green-50 rounded-lg ${isMobile ? 'p-2 mb-3' : 'p-4 mb-4'}`}>
+-            <h3 className={`font-semibold text-gray-800 ${isMobile ? 'text-sm mb-2' : 'text-lg mb-3'}`}>
+-              You Receive (x{multiplier})
+-            </h3>
+-            <div className={`grid gap-2 ${isMobile ? 'grid-cols-4' : 'grid-cols-4 gap-3'}`}>
+-              {crystalTypes.map(({ key, label, image }) => {
+-                const amount = outputResult[key] || 0;
+-                return (
+-                  <div
+-                    key={key}
+-                    className={`
+-                      rounded-lg border-2 text-center
+-                      ${isMobile ? 'p-1.5' : 'p-2'}
+-                      ${amount > 0 ? 'border-green-400 bg-green-100' : 'border-gray-200 bg-white'}
+-                    `}
+-                  >
+-                    <img
+-                      src={image}
+-                      alt={label}
+-                      className={`mx-auto rounded-full object-cover ${isMobile ? 'w-6 h-6' : 'w-10 h-10'}`}
+-                      onError={(e) => { e.target.src = '/assets/images/stone_yellow.JPG' }}
+-                    />
+-                    <div className={`font-bold text-gray-800 ${isMobile ? 'text-sm' : 'text-lg'}`}>
+-                      {amount}
+-                    </div>
+-                  </div>
+-                );
+-              })}
+-            </div>
+-          </div>
+-
+-          {/* Multiplier Selection */}
+-          <div className={`bg-gray-50 rounded-lg ${isMobile ? 'p-2 mb-3' : 'p-4 mb-4'}`}>
+-            <h3 className={`font-semibold text-gray-800 text-center ${isMobile ? 'text-sm mb-2' : 'text-base mb-3'}`}>
+-              Trade Multiplier
+-            </h3>
+-            <div className="flex items-center justify-center gap-3">
+-              <motion.button
+-                onClick={() => adjustMultiplier(-1)}
+-                disabled={multiplier <= 1}
+-                className={`
+-                  rounded-full bg-red-500 text-white font-bold 
+-                  disabled:bg-gray-300 disabled:cursor-not-allowed
+-                  ${isMobile ? 'w-10 h-10 text-xl' : 'w-12 h-12 text-2xl'}
+-                `}
+-                whileTap={{ scale: 0.9 }}
+-              >
+-                −
+-              </motion.button>
+-              <div className={`
+-                font-bold text-gray-800 text-center bg-white border-2 border-gray-300 rounded-lg
+-                ${isMobile ? 'w-16 py-2 text-2xl' : 'w-20 py-2 text-3xl'}
+-              `}>
+-                {multiplier}
+-              </div>
+-              <motion.button
+-                onClick={() => adjustMultiplier(1)}
+-                disabled={multiplier >= maxMultiplier}
+-                className={`
+-                  rounded-full bg-green-500 text-white font-bold 
+-                  disabled:bg-gray-300 disabled:cursor-not-allowed
+-                  ${isMobile ? 'w-10 h-10 text-xl' : 'w-12 h-12 text-2xl'}
+-                `}
+-                whileTap={{ scale: 0.9 }}
+-              >
+-                +
+-              </motion.button>
+-            </div>
+-            <div className={`text-center text-gray-600 ${isMobile ? 'text-xs mt-1' : 'text-sm mt-2'}`}>
+-              {multiplier === 1 ? "Single trade" : `${multiplier}x trade`}
+-            </div>
+-          </div>
+-
+-          {/* Error Message */}
+-          {error && (
+-            <div className={`bg-red-50 border border-red-300 text-red-700 rounded-lg text-center ${isMobile ? 'px-2 py-1.5 mb-3 text-xs' : 'px-4 py-2 mb-4 text-sm'}`}>
+-              ⚠️ {error}
+-            </div>
+-          )}
+-
+-          {/* Buttons */}
+-          <div className={`flex ${isMobile ? 'gap-2' : 'gap-4'}`}>
+-            <motion.button
+-              onClick={onCancel}
+-              className={`
+-                flex-1 bg-gray-300 text-gray-700 font-bold rounded-lg hover:bg-gray-400 transition-all
+-                ${isMobile ? 'py-2 px-3 text-sm' : 'py-3 px-6'}
+-              `}
+-              whileHover={{ scale: 1.02 }}
+-              whileTap={{ scale: 0.95 }}
+-            >
+-              Cancel
+-            </motion.button>
+-            <motion.button
+-              onClick={handleConfirm}
+-              disabled={!canConfirm}
+-              className={`
+-                flex-1 bg-gradient-to-r from-pink-500 to-purple-500 text-white font-bold 
+-                rounded-lg disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl
+-                ${isMobile ? 'py-2 px-3 text-sm' : 'py-3 px-6'}
+-              `}
+-              whileHover={canConfirm ? { scale: 1.02 } : {}}
+-              whileTap={canConfirm ? { scale: 0.95 } : {}}
+-            >
+-              Confirm Trade
+-            </motion.button>
+-          </div>
+-        </motion.div>
+-      </motion.div>
+-    </AnimatePresence>,
+-    document.body
++  const handleConfirm = () => {
++    const err = validate(multiplier);
++    setError(err);
++    if (!err && typeof onConfirm === "function") onConfirm(multiplier);
++  };
++
++  return (
++    <Modal
++      open
++      onClose={onCancel}
++      title="Trade"
++      icon={card?.name ? <CardImage name={card.name} className="h-14 w-10 rounded-stone-sm border border-ink/30" /> : null}
++      footer={(
++        <>
++          <Button variant="outline" onClick={onCancel}>Cancel</Button>
++          <Button onClick={handleConfirm} disabled={!canConfirm}>Confirm Trade</Button>
++        </>
++      )}
++    >
++      <div className="flex flex-col items-center gap-5">
++        <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-3">
++          <div className="flex flex-col items-center gap-1.5 rounded-stone border border-ink/15 bg-ink/5 px-2 py-3">
++            <span className="text-xs font-semibold uppercase tracking-wider text-ink-muted">You pay</span>
++            <CrystalCost resources={requiredInput} size={26} max={6} className="justify-center" />
++          </div>
++          <span aria-hidden="true" className="font-display text-2xl text-ink-muted">→</span>
++          <div className="flex flex-col items-center gap-1.5 rounded-stone border border-ink/15 bg-ink/5 px-2 py-3">
++            <span className="text-xs font-semibold uppercase tracking-wider text-ink-muted">You get</span>
++            <CrystalCost resources={outputResult} size={26} max={6} className="justify-center" />
++          </div>
++        </div>
++
++        <div className="flex flex-col items-center gap-1">
++          <Stepper
++            label="trades"
++            value={multiplier}
++            min={maxMultiplier > 0 ? 1 : 0}
++            max={maxMultiplier}
++            onChange={setMultiplier}
++            format={(v) => `×${v}`}
++          />
++          <span className="text-xs text-ink-muted">You can trade up to ×{maxMultiplier}</span>
++        </div>
++
++        <div className="flex flex-wrap items-center justify-center gap-2 text-sm text-ink-muted">
++          After: <CrystalRow resources={after} capacity={MAX_CARAVAN} size="sm" tone="parchment" />
++        </div>
++
++        {error ? (
++          <p role="alert" className="w-full rounded-stone-sm border border-ember/50 bg-ember/10 px-3 py-2 text-center text-sm font-semibold text-[rgb(140_40_20)]">
++            {error}
++          </p>
++        ) : overflow > 0 ? (
++          <p className="w-full rounded-stone-sm border border-bronze-700/50 bg-bronze-300/25 px-3 py-2 text-center text-sm text-ink">
++            You will have {total(after)} crystals and must discard {overflow}. Lower the multiplier to keep them all.
++          </p>
++        ) : null}
++      </div>
++    </Modal>
+   );
+ };
+ 
 --- a/web/react-frontend/src/components/ui/Avatar.jsx
 +++ b/web/react-frontend/src/components/ui/Avatar.jsx
 @@ -0,0 +1,49 @@
@@ -2389,6 +4043,28 @@
 +})
 +
 +export default Button
+--- a/web/react-frontend/src/components/ui/CardImage.jsx
++++ b/web/react-frontend/src/components/ui/CardImage.jsx
+@@ -0,0 +1,19 @@
++import React from 'react'
++import { getCardSpriteStyle, getCardImagePath } from '../../utils/cardNames'
++
++/** A card's artwork (sprite sheet when enabled, else the single image). Size/shape via className. */
++const CardImage = ({ name, alt = '', className = '' }) => {
++  const sprite = getCardSpriteStyle(name)
++  if (sprite) return <div role={alt ? 'img' : undefined} aria-label={alt || undefined} className={className} style={sprite} />
++  return (
++    <img
++      src={getCardImagePath(name)}
++      alt={alt}
++      className={`object-cover ${className}`}
++      draggable="false"
++      onError={(e) => { e.currentTarget.style.visibility = 'hidden' }}
++    />
++  )
++}
++
++export default CardImage
 --- a/web/react-frontend/src/components/ui/Coin.jsx
 +++ b/web/react-frontend/src/components/ui/Coin.jsx
 @@ -0,0 +1,24 @@
@@ -2626,7 +4302,7 @@
 +export default GolemIcon
 --- a/web/react-frontend/src/components/ui/index.js
 +++ b/web/react-frontend/src/components/ui/index.js
-@@ -0,0 +1,16 @@
+@@ -0,0 +1,18 @@
 +// Shared "Stone & Crystal" UI primitives — build every screen from these (tokens: src/styles/tokens.css).
 +export { default as Avatar } from './Avatar'
 +export { default as AvatarPicker } from './AvatarPicker'
@@ -2643,6 +4319,8 @@
 +export { default as Pill } from './Pill'
 +export { default as Segmented } from './Segmented'
 +export { default as TurnBanner } from './TurnBanner'
++export { default as Stepper } from './Stepper'
++export { default as CardImage } from './CardImage'
 --- a/web/react-frontend/src/components/ui/Modal.jsx
 +++ b/web/react-frontend/src/components/ui/Modal.jsx
 @@ -0,0 +1,133 @@
@@ -2992,6 +4670,28 @@
 +}
 +
 +export default Segmented
+--- a/web/react-frontend/src/components/ui/Stepper.jsx
++++ b/web/react-frontend/src/components/ui/Stepper.jsx
+@@ -0,0 +1,19 @@
++import React from 'react'
++
++/** − value + with 44px buttons. `format` shapes the value (e.g. v => `×${v}`). */
++const Stepper = ({ value, min = 0, max = Infinity, onChange, label, format = (v) => v, tone = 'parchment', className = '' }) => {
++  const btn = tone === 'parchment'
++    ? 'border-ink/40 text-ink hover:bg-ink/10'
++    : 'border-bronze-500/50 text-fg hover:bg-rock-700/60'
++  const cls = `inline-flex h-11 w-11 items-center justify-center rounded-stone border text-2xl font-bold leading-none transition-colors
++    disabled:cursor-not-allowed disabled:opacity-35 ${btn}`
++  return (
++    <div className={`inline-flex items-center gap-2 ${className}`} role="group" aria-label={label}>
++      <button type="button" className={cls} onClick={() => onChange(Math.max(min, value - 1))} disabled={value <= min} aria-label={`Fewer${label ? ` ${label}` : ''}`}>−</button>
++      <output aria-live="polite" className="min-w-[3ch] text-center font-display text-2xl font-bold tabular-nums">{format(value)}</output>
++      <button type="button" className={cls} onClick={() => onChange(Math.min(max, value + 1))} disabled={value >= max} aria-label={`More${label ? ` ${label}` : ''}`}>+</button>
++    </div>
++  )
++}
++
++export default Stepper
 --- a/web/react-frontend/src/components/ui/TurnBanner.jsx
 +++ b/web/react-frontend/src/components/ui/TurnBanner.jsx
 @@ -0,0 +1,23 @@
@@ -3018,6 +4718,409 @@
 +}
 +
 +export default TurnBanner
+--- a/web/react-frontend/src/components/UpgradeModal.jsx
++++ b/web/react-frontend/src/components/UpgradeModal.jsx
+@@ -1,322 +1,89 @@
+-import React, { useState, useEffect } from "react";
+-import { createPortal } from "react-dom";
+-import { motion, AnimatePresence } from "framer-motion";
+-import useOrientation from "../hooks/useOrientation";
+-
++import React, { useState } from "react";
++import Modal from "./ui/Modal";
++import Button from "./ui/Button";
++import Gem from "./ui/Gem";
++import CardImage from "./ui/CardImage";
++import CrystalRow from "./ui/CrystalRow";
++import { COLORS, of, sub, levels } from "../utils/crystals";
++
++const NEXT = { yellow: "green", green: "blue", blue: "pink" };
++const NAME = { yellow: "yellow", green: "green", blue: "blue", pink: "pink" };
++
++/**
++ * Upgrade card: each tap raises one crystal by one level (yellow → green → blue → pink), up to the
++ * card's number of steps; the same crystal may be raised again. The server gets the crystals given up
++ * (input) and the ones received (output), which is the difference between the caravan before and after.
++ */
+ const UpgradeModal = ({ card, playerResources, onConfirm, onCancel, maxTurnUpgrade }) => {
+-  const [inputResources, setInputResources] = useState({ yellow: 0, green: 0, blue: 0, pink: 0 });
+-  const [outputResources, setOutputResources] = useState({ yellow: 0, green: 0, blue: 0, pink: 0 });
+-  const [error, setError] = useState("");
+-  const { isMobile } = useOrientation();
+-
+-  // Lock body scroll when modal is open
+-  useEffect(() => {
+-    document.body.style.overflow = 'hidden';
+-    return () => {
+-      document.body.style.overflow = '';
+-    };
+-  }, []);
+-
+-  const availableResources = {
+-    yellow: (playerResources?.yellow || 0) - inputResources.yellow,
+-    green: (playerResources?.green || 0) - inputResources.green,
+-    blue: (playerResources?.blue || 0) - inputResources.blue,
+-    pink: (playerResources?.pink || 0) - inputResources.pink,
+-  };
+-
+-  const totalInput = inputResources.yellow + inputResources.green + inputResources.blue + inputResources.pink;
+-  const totalOutput = outputResources.yellow + outputResources.green + outputResources.blue + outputResources.pink;
+-
+-  const getValidationError = () => {
+-    if (totalInput === 0) return "Please select crystals to upgrade";
+-    if (totalInput !== totalOutput) return "Input and output must be equal";
+-
+-    const inputLevel = inputResources.yellow * 1 + inputResources.green * 2 + inputResources.blue * 3 + inputResources.pink * 4;
+-    const outputLevel = outputResources.yellow * 1 + outputResources.green * 2 + outputResources.blue * 3 + outputResources.pink * 4;
+-    const levelDiff = outputLevel - inputLevel;
+-
+-    if (levelDiff <= 0) return "Output must be higher level";
+-    if (levelDiff > maxTurnUpgrade) return `Max ${maxTurnUpgrade} levels`;
+-
+-    const before = [inputResources.yellow, inputResources.green, inputResources.blue, inputResources.pink];
+-    const after = [outputResources.yellow, outputResources.green, outputResources.blue, outputResources.pink];
+-
+-    let aidx = 0;
+-    for (let bidx = 0; bidx < before.length; bidx++) {
+-      let stones = before[bidx];
+-      while (stones > 0) {
+-        while (aidx < after.length && after[aidx] === 0) aidx++;
+-        if (aidx >= after.length || aidx < bidx) return "Invalid upgrade";
+-        stones--;
+-        after[aidx]--;
+-      }
+-    }
+-    while (aidx < after.length && after[aidx] === 0) aidx++;
+-    if (aidx < after.length) return "Invalid upgrade";
+-
+-    return "";
+-  };
+-
+-  const handleConfirm = () => {
+-    const validationError = getValidationError();
+-    if (validationError === "") {
+-      onConfirm(inputResources, outputResources);
+-    }
+-  };
+-
+-  const adjustInput = (color, delta) => {
+-    setInputResources((prev) => {
+-      const current = prev[color] || 0;
+-      const available = playerResources?.[color] || 0;
+-      const newVal = current + delta;
+-      if (newVal < 0 || newVal > available) return prev;
+-      return { ...prev, [color]: newVal };
+-    });
++  const start = of(playerResources);
++  const [after, setAfter] = useState(start);
++  const used = levels(after) - levels(start);
++  const left = Math.max(0, (maxTurnUpgrade || 0) - used);
++
++  const raise = (c) => {
++    if (left <= 0 || !NEXT[c] || after[c] <= 0) return;
++    setAfter((prev) => ({ ...prev, [c]: prev[c] - 1, [NEXT[c]]: prev[NEXT[c]] + 1 }));
+   };
+ 
+-  const adjustOutput = (color, delta) => {
+-    setOutputResources((prev) => {
+-      const current = prev[color] || 0;
+-      const currentTotal = prev.yellow + prev.green + prev.blue + prev.pink;
+-      const newVal = current + delta;
+-      if (newVal < 0) return prev;
+-      const newTotal = currentTotal - current + newVal;
+-      if (newTotal > totalInput) return prev;
+-      return { ...prev, [color]: newVal };
+-    });
+-  };
+-
+-  useEffect(() => {
+-    if (totalInput === 0) {
+-      setOutputResources({ yellow: 0, green: 0, blue: 0, pink: 0 });
+-      setError("");
+-    }
+-  }, [totalInput]);
+-
+-  useEffect(() => {
+-    setError(getValidationError());
+-  }, [inputResources, outputResources, totalInput, totalOutput, maxTurnUpgrade]);
+-
+-  const crystalTypes = [
+-    { key: "yellow", label: "Yellow", level: 1, image: "/assets/images/stone_yellow.JPG" },
+-    { key: "green", label: "Green", level: 2, image: "/assets/images/stone_green.JPG" },
+-    { key: "blue", label: "Blue", level: 3, image: "/assets/images/stone_blue.JPG" },
+-    { key: "pink", label: "Pink", level: 4, image: "/assets/images/stone_pink.JPG" },
+-  ];
+-
+-  const canConfirm = totalInput > 0 && totalInput === totalOutput && error === "";
+-
+-  return createPortal(
+-    <AnimatePresence>
+-      {/* Fixed overlay - rendered via portal to escape stacking context */}
+-      <div 
+-        className="fixed inset-0 z-[100] overflow-y-auto bg-black/60 backdrop-blur-sm"
+-        onClick={onCancel}
+-      >
+-        {/* Centering wrapper */}
+-        <div className="min-h-full flex items-center justify-center p-2 sm:p-4">
+-          <motion.div
+-            className={`
+-              bg-white rounded-xl sm:rounded-2xl shadow-2xl border-4 border-blue-500 w-full
+-              max-h-[85vh] overflow-y-auto
+-              ${isMobile ? 'max-w-[95vw] p-3' : 'max-w-2xl p-6'}
+-            `}
+-            initial={{ opacity: 0, scale: 0.9 }}
+-            animate={{ opacity: 1, scale: 1 }}
+-            exit={{ opacity: 0, scale: 0.9 }}
+-            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+-            onClick={(e) => e.stopPropagation()}
+-          >
+-          {/* Header */}
+-          <div className={`text-center ${isMobile ? 'mb-3' : 'mb-6'}`}>
+-            <h2 className={`font-bold text-blue-600 ${isMobile ? 'text-xl mb-1' : 'text-3xl mb-2'}`}>
+-              💎 Upgrade Crystals
+-            </h2>
+-            <p className={`text-gray-700 ${isMobile ? 'text-xs' : 'text-base'}`}>
+-              Select crystals to upgrade (max {maxTurnUpgrade} levels)
+-            </p>
+-          </div>
+-
+-          {/* Input Section */}
+-          <div className={`bg-gray-50 rounded-lg ${isMobile ? 'p-2 mb-3' : 'p-4 mb-4'}`}>
+-            <h3 className={`font-semibold text-gray-800 ${isMobile ? 'text-sm mb-2' : 'text-lg mb-3'}`}>
+-              Input Crystals (You have)
+-            </h3>
+-            <div className={`grid gap-2 ${isMobile ? 'grid-cols-2' : 'grid-cols-4 gap-3'}`}>
+-              {crystalTypes.map(({ key, label, level, image }) => {
+-                const hasResources = availableResources[key] + inputResources[key] > 0;
+-                return (
+-                  <div
+-                    key={key}
+-                    className={`
+-                      relative rounded-lg border-2 transition-all text-center
+-                      ${isMobile ? 'p-2' : 'p-3'}
+-                      ${inputResources[key] > 0 ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-white'}
+-                    `}
+-                  >
+-                    <img
+-                      src={image}
+-                      alt={label}
+-                      className={`mx-auto rounded-full object-cover ${isMobile ? 'w-8 h-8 mb-1' : 'w-10 h-10 mb-2'}`}
+-                      onError={(e) => { e.target.src = '/assets/images/stone_yellow.JPG' }}
+-                    />
+-                    <div className={`font-medium text-gray-700 ${isMobile ? 'text-[10px]' : 'text-xs'}`}>
+-                      {label} (Lv.{level})
+-                    </div>
+-                    <div className={`text-gray-500 ${isMobile ? 'text-[9px]' : 'text-xs'}`}>
+-                      Have: {availableResources[key] + inputResources[key]}
+-                    </div>
+-                    {/* Controls */}
+-                    <div className={`flex items-center justify-center ${isMobile ? 'gap-1 mt-1' : 'gap-2 mt-2'}`}>
+-                      <motion.button
+-                        onClick={() => adjustInput(key, -1)}
+-                        disabled={inputResources[key] <= 0}
+-                        className={`rounded-full bg-red-500 text-white font-bold disabled:bg-gray-300 ${isMobile ? 'w-6 h-6 text-xs' : 'w-7 h-7 text-sm'}`}
+-                        whileTap={{ scale: 0.9 }}
+-                      >
+-                        −
+-                      </motion.button>
+-                      <span className={`font-bold text-gray-800 ${isMobile ? 'w-5 text-sm' : 'w-6 text-base'}`}>
+-                        {inputResources[key]}
+-                      </span>
+-                      <motion.button
+-                        onClick={() => adjustInput(key, 1)}
+-                        disabled={availableResources[key] <= 0}
+-                        className={`rounded-full bg-green-500 text-white font-bold disabled:bg-gray-300 ${isMobile ? 'w-6 h-6 text-xs' : 'w-7 h-7 text-sm'}`}
+-                        whileTap={{ scale: 0.9 }}
+-                      >
+-                        +
+-                      </motion.button>
+-                    </div>
+-                  </div>
+-                );
+-              })}
+-            </div>
+-            <div className={`font-semibold text-gray-700 ${isMobile ? 'mt-2 text-xs' : 'mt-3 text-sm'}`}>
+-              Total: {totalInput} crystals
+-            </div>
+-          </div>
+-
+-          {/* Arrow */}
+-          <div className="flex justify-center my-2">
+-            <motion.div
+-              animate={{ y: [0, 5, 0] }}
+-              transition={{ duration: 1.5, repeat: Infinity }}
+-              className={`text-blue-400 ${isMobile ? 'text-2xl' : 'text-4xl'}`}
+-            >
+-              ↓
+-            </motion.div>
+-          </div>
+-
+-          {/* Output Section */}
+-          <div className={`bg-green-50 rounded-lg ${isMobile ? 'p-2 mb-3' : 'p-4 mb-4'}`}>
+-            <h3 className={`font-semibold text-gray-800 ${isMobile ? 'text-sm mb-2' : 'text-lg mb-3'}`}>
+-              Output Crystals (You receive)
+-            </h3>
+-            <div className={`grid gap-2 ${isMobile ? 'grid-cols-2' : 'grid-cols-4 gap-3'}`}>
+-              {crystalTypes.map(({ key, label, level, image }) => (
+-                <div
+-                  key={key}
+-                  className={`
+-                    relative rounded-lg border-2 transition-all text-center
+-                    ${isMobile ? 'p-2' : 'p-3'}
+-                    ${outputResources[key] > 0 ? 'border-green-500 bg-green-100' : 'border-gray-200 bg-white'}
+-                  `}
+-                >
+-                  <img
+-                    src={image}
+-                    alt={label}
+-                    className={`mx-auto rounded-full object-cover ${isMobile ? 'w-8 h-8 mb-1' : 'w-10 h-10 mb-2'}`}
+-                    onError={(e) => { e.target.src = '/assets/images/stone_yellow.JPG' }}
+-                  />
+-                  <div className={`font-medium text-gray-700 ${isMobile ? 'text-[10px]' : 'text-xs'}`}>
+-                    {label} (Lv.{level})
+-                  </div>
+-                  {/* Controls */}
+-                  <div className={`flex items-center justify-center ${isMobile ? 'gap-1 mt-1' : 'gap-2 mt-2'}`}>
+-                    <motion.button
+-                      onClick={() => adjustOutput(key, -1)}
+-                      disabled={outputResources[key] <= 0}
+-                      className={`rounded-full bg-red-500 text-white font-bold disabled:bg-gray-300 ${isMobile ? 'w-6 h-6 text-xs' : 'w-7 h-7 text-sm'}`}
+-                      whileTap={{ scale: 0.9 }}
+-                    >
+-                      −
+-                    </motion.button>
+-                    <span className={`font-bold text-gray-800 ${isMobile ? 'w-5 text-sm' : 'w-6 text-base'}`}>
+-                      {outputResources[key]}
+-                    </span>
+-                    <motion.button
+-                      onClick={() => adjustOutput(key, 1)}
+-                      disabled={totalOutput >= totalInput || totalInput === 0}
+-                      className={`rounded-full bg-green-500 text-white font-bold disabled:bg-gray-300 ${isMobile ? 'w-6 h-6 text-xs' : 'w-7 h-7 text-sm'}`}
+-                      whileTap={{ scale: 0.9 }}
+-                    >
+-                      +
+-                    </motion.button>
+-                  </div>
+-                </div>
+-              ))}
+-            </div>
+-            <div className={`font-semibold text-gray-700 ${isMobile ? 'mt-2 text-xs' : 'mt-3 text-sm'}`}>
+-              Total: {totalOutput} crystals
+-              {totalInput > 0 && totalInput === totalOutput && (
+-                <span className="text-green-600 ml-2">
+-                  (⬆️ +{outputResources.yellow * 1 + outputResources.green * 2 + outputResources.blue * 3 + outputResources.pink * 4 -
+-                    (inputResources.yellow * 1 + inputResources.green * 2 + inputResources.blue * 3 + inputResources.pink * 4)} levels)
++  const diff = sub(start, after); // > 0: given up (input), < 0: received (output)
++  const inputResources = Object.fromEntries(COLORS.map((c) => [c, Math.max(0, diff[c])]));
++  const outputResources = Object.fromEntries(COLORS.map((c) => [c, Math.max(0, -diff[c])]));
++  const canConfirm = used > 0;
++
++  return (
++    <Modal
++      open
++      onClose={onCancel}
++      title="Upgrade Crystals"
++      icon={card?.name ? <CardImage name={card.name} className="h-14 w-10 rounded-stone-sm border border-ink/30" /> : null}
++      footer={(
++        <>
++          <Button variant="outline" onClick={onCancel}>Cancel</Button>
++          {used > 0 ? <Button variant="outline" onClick={() => setAfter(start)}>Reset</Button> : null}
++          <Button onClick={() => canConfirm && onConfirm(inputResources, outputResources)} disabled={!canConfirm}>Confirm Upgrade</Button>
++        </>
++      )}
++    >
++      <div className="flex flex-col gap-4">
++        <p className="text-center text-sm text-ink-muted">
++          Tap a crystal to raise it one level.{" "}
++          <span className="font-semibold text-ink">{left} of {maxTurnUpgrade} upgrade{maxTurnUpgrade === 1 ? "" : "s"} left</span>
++        </p>
++
++        <div className="grid grid-cols-3 gap-2">
++          {COLORS.filter((c) => NEXT[c]).map((c) => {
++            const can = left > 0 && after[c] > 0;
++            return (
++              <button
++                key={c}
++                type="button"
++                onClick={() => raise(c)}
++                disabled={!can}
++                aria-label={`Upgrade one ${NAME[c]} to ${NAME[NEXT[c]]} (you have ${after[c]})`}
++                className="flex min-h-[64px] flex-col items-center justify-center gap-1 rounded-stone border border-ink/25 bg-ink/5 px-2 py-2
++                  transition-colors hover:border-bronze-700 hover:bg-bronze-300/25 disabled:cursor-not-allowed disabled:opacity-40"
++              >
++                <span className="flex items-center gap-1.5">
++                  <Gem color={c} size={22} label={false} />
++                  <span aria-hidden="true" className="text-ink-muted">→</span>
++                  <Gem color={NEXT[c]} size={22} label={false} />
+                 </span>
+-              )}
+-            </div>
+-          </div>
+-
+-          {/* Error Message */}
+-          {error && (
+-            <div className={`bg-red-50 border border-red-300 text-red-700 rounded-lg ${isMobile ? 'px-2 py-1.5 mb-3 text-xs' : 'px-4 py-2 mb-4 text-sm'}`}>
+-              ⚠️ {error}
+-            </div>
+-          )}
+-          {!error && totalInput > 0 && (
+-            <div className={`bg-green-50 border border-green-300 text-green-700 rounded-lg ${isMobile ? 'px-2 py-1.5 mb-3 text-xs' : 'px-4 py-2 mb-4 text-sm'}`}>
+-              ✅ You can upgrade now
+-            </div>
+-          )}
+-          {!error && totalInput === 0 && (
+-            <div className={`bg-red-50 border border-red-300 text-red-700 rounded-lg ${isMobile ? 'px-2 py-1.5 mb-3 text-xs' : 'px-4 py-2 mb-4 text-sm'}`}>
+-              ❌ No crystals to upgrade
+-            </div>
+-          )}
++                <span className="text-xs font-semibold text-ink-muted">have {after[c]}</span>
++              </button>
++            );
++          })}
++        </div>
+ 
+-          {/* Buttons */}
+-          <div className={`flex ${isMobile ? 'gap-2' : 'gap-4'}`}>
+-            <motion.button
+-              onClick={onCancel}
+-              className={`
+-                flex-1 bg-gray-300 text-gray-700 font-bold rounded-lg hover:bg-gray-400 transition-all
+-                ${isMobile ? 'py-2 px-3 text-sm' : 'py-3 px-6'}
+-              `}
+-              whileHover={{ scale: 1.02 }}
+-              whileTap={{ scale: 0.95 }}
+-            >
+-              Cancel
+-            </motion.button>
+-            <motion.button
+-              onClick={handleConfirm}
+-              disabled={!canConfirm}
+-              className={`
+-                flex-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white font-bold 
+-                rounded-lg disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl
+-                ${isMobile ? 'py-2 px-3 text-sm' : 'py-3 px-6'}
+-              `}
+-              whileHover={canConfirm ? { scale: 1.02 } : {}}
+-              whileTap={canConfirm ? { scale: 0.95 } : {}}
+-            >
+-              {isMobile ? 'Confirm Upgrade' : 'Confirm Upgrade'}
+-            </motion.button>
++        <div className="flex flex-col items-center gap-2 rounded-stone border border-ink/15 bg-ink/5 px-3 py-3 text-sm">
++          <div className="flex flex-wrap items-center justify-center gap-2 text-ink-muted">
++            Before: <CrystalRow resources={start} size="sm" tone="parchment" />
++          </div>
++          <div className="flex flex-wrap items-center justify-center gap-2 font-semibold text-ink">
++            After: <CrystalRow resources={after} size="sm" tone="parchment" />
+           </div>
+-        </motion.div>
+         </div>
+       </div>
+-    </AnimatePresence>,
+-    document.body
++    </Modal>
+   );
+ };
+ 
 --- a/web/react-frontend/src/components/WaitingRoom.jsx
 +++ b/web/react-frontend/src/components/WaitingRoom.jsx
 @@ -0,0 +1,40 @@
@@ -3061,9 +5164,60 @@
 +)
 +
 +export default WaitingRoom
+--- a/web/react-frontend/src/dev/ModalGallery.jsx
++++ b/web/react-frontend/src/dev/ModalGallery.jsx
+@@ -0,0 +1,48 @@
++import React, { useEffect, useState } from 'react'
++import useGameStore from '../store/gameStore'
++import NightBackdrop from '../components/ui/NightBackdrop'
++import TradeModal from '../components/TradeModal'
++import UpgradeModal from '../components/UpgradeModal'
++import DepositModal from '../components/DepositModal'
++import DiscardModal from '../components/DiscardModal'
++import ConfirmGolemModal from '../components/ConfirmGolemModal'
++import GameOverModal from '../components/GameOverModal'
++
++// Dev only (?gallery&modal=trade|upgrade|deposit|discard|claim|gameover): one popup on fake game data.
++const golem = (id, points, req) => ({ id, name: 'golem_2022', points, requirement: req })
++const card = (name, extra = {}) => ({ name, ...extra })
++const players = [
++  { id: 1, name: 'Basalt', isAI: true, aiAvatar: true, avatar: '1', aiLevel: 'veryhard', caravan: { yellow: 1, green: 2, blue: 0, pink: 1 },
++    pointCards: [{ points: 12 }, { points: 8 }, { points: 16 }, { points: 6 }, { points: 10 }], coins: [{ points: 3 }, { points: 3 }, { points: 3 }] },
++  { id: 2, name: 'Mossback', isAI: true, aiAvatar: true, avatar: '2', aiLevel: 'veryhard', caravan: { yellow: 2, green: 4 },
++    pointCards: [{ points: 8 }, { points: 12 }, { points: 10 }, { points: 9 }], coins: [{ points: 3 }, { points: 3 }] },
++  { id: 3, name: 'Đặng Thị Ngọc Ánh', avatar: '4', caravan: { yellow: 9, green: 3, blue: 1, pink: 0 }, pendingDiscard: 3, canUndo: true,
++    pointCards: [{ points: 8 }, { points: 9 }, { points: 11 }, { points: 13 }], coins: [{ points: 3 }, { points: 1 }, { points: 3 }, { points: 3 }] },
++  { id: 4, name: 'Cinder', isAI: true, aiAvatar: true, avatar: '4', aiLevel: 'veryhard', caravan: {},
++    pointCards: [{ points: 17 }, { points: 15 }, { points: 20 }], coins: [] },
++]
++
++export default function ModalGallery({ which }) {
++  const [ready, setReady] = useState(false)
++  useEffect(() => {
++    useGameStore.setState({
++      myPlayer: players[2],
++      gameState: { gameOver: which === 'gameover', currentTurn: 115, winner: { id: 1 }, players, market: { coins: [{ amount: 1 }, { amount: 6 }] } },
++    })
++    setReady(true)
++  }, [which])
++  if (!ready) return null
++  const res = { yellow: 4, green: 2, blue: 1, pink: 0 }
++  const noop = () => {}
++  return (
++    <div className="min-h-screen">
++      <NightBackdrop />
++      {which === 'trade' && <TradeModal card={card('trade_0002_0020', { input: { yellow: 2 }, output: { green: 2 } })} playerResources={{ yellow: 6, green: 1, blue: 1 }} onConfirm={noop} onCancel={noop} />}
++      {which === 'upgrade' && <UpgradeModal card={card('upgrade_3')} playerResources={res} maxTurnUpgrade={3} onConfirm={noop} onCancel={noop} />}
++      {which === 'deposit' && <DepositModal card={card('trade_0003_0110', { deposits: { yellow: 1, pink: 1 } })} cardIndex={3} onClose={noop} />}
++      {which === 'discard' && <DiscardModal />}
++      {which === 'claim' && <ConfirmGolemModal isOpen golem={golem(124, 17, { yellow: 2, blue: 2, pink: 2 })} coin="copper" onConfirm={noop} onCancel={noop} />}
++      {which === 'gameover' && <GameOverModal onNewGame={noop} onBackToMenu={noop} />}
++    </div>
++  )
++}
 --- a/web/react-frontend/src/dev/UiGallery.jsx
 +++ b/web/react-frontend/src/dev/UiGallery.jsx
-@@ -0,0 +1,194 @@
+@@ -0,0 +1,197 @@
 +import React, { useState } from 'react'
 +import {
 +  Avatar, Button, IconButton, Coin, CrystalRow, CrystalCost, Gem, CRYSTALS, GolemIcon, Modal, NightBackdrop, Panel, Pill, TurnBanner,
@@ -3098,8 +5252,11 @@
 +  </Panel>
 +)
 +
++import ModalGallery from './ModalGallery'
++
 +export default function UiGallery() {
 +  const params = new URLSearchParams(window.location.search)
++  if (params.get('modal') && params.get('modal') !== '1' && params.get('modal') !== '') return <ModalGallery which={params.get('modal')} />
 +  const [open, setOpen] = useState(params.has('modal'))
 +  const [mult, setMult] = useState(2)
 +  return (
@@ -4649,6 +6806,57 @@
 +
 +  it('builds versioned URLs', () => {
 +    expect(avatarSrc('3')).toMatch(/^\/assets\/images\/avatar\/3\.svg\?v=/)
++  })
++})
+--- a/web/react-frontend/src/utils/crystals.js
++++ b/web/react-frontend/src/utils/crystals.js
+@@ -0,0 +1,30 @@
++// Crystal maps {yellow, green, blue, pink} — small helpers shared by the popups.
++export const COLORS = ['yellow', 'green', 'blue', 'pink']
++export const LEVEL = { yellow: 1, green: 2, blue: 3, pink: 4 }
++export const MAX_CARAVAN = 10
++
++export const empty = () => ({ yellow: 0, green: 0, blue: 0, pink: 0 })
++export const of = (res) => Object.fromEntries(COLORS.map((c) => [c, res?.[c] || 0]))
++export const total = (res) => COLORS.reduce((n, c) => n + (res?.[c] || 0), 0)
++export const levels = (res) => COLORS.reduce((n, c) => n + (res?.[c] || 0) * LEVEL[c], 0)
++export const add = (a, b) => Object.fromEntries(COLORS.map((c) => [c, (a?.[c] || 0) + (b?.[c] || 0)]))
++export const sub = (a, b) => Object.fromEntries(COLORS.map((c) => [c, (a?.[c] || 0) - (b?.[c] || 0)]))
++export const times = (a, k) => Object.fromEntries(COLORS.map((c) => [c, (a?.[c] || 0) * k]))
++
++/** The n cheapest crystals of `res`, yellow first (what you give away when the choice doesn't matter). */
++export function cheapest(res, n) {
++  const out = empty()
++  let left = n
++  for (const c of COLORS) {
++    const take = Math.min(left, res?.[c] || 0)
++    out[c] = take
++    left -= take
++  }
++  return out
++}
++
++/** Colours of the n cheapest crystals in order, e.g. ['yellow', 'yellow', 'green']. */
++export function cheapestList(res, n) {
++  const pick = cheapest(res, n)
++  return COLORS.flatMap((c) => Array(pick[c]).fill(c))
++}
+--- a/web/react-frontend/src/utils/crystals.test.js
++++ b/web/react-frontend/src/utils/crystals.test.js
+@@ -0,0 +1,15 @@
++import { describe, test, expect } from 'vitest'
++import { cheapest, cheapestList, total, levels, add, sub } from './crystals'
++
++describe('crystals', () => {
++  test('cheapest takes yellow first, then green, blue, pink', () => {
++    expect(cheapest({ yellow: 1, green: 2, blue: 3, pink: 1 }, 3)).toEqual({ yellow: 1, green: 2, blue: 0, pink: 0 })
++    expect(cheapestList({ yellow: 0, green: 0, blue: 3, pink: 7 }, 1)).toEqual(['blue'])
++    expect(cheapest({ yellow: 1 }, 4)).toEqual({ yellow: 1, green: 0, blue: 0, pink: 0 }) // not enough: what there is
++  })
++  test('totals, levels and arithmetic', () => {
++    expect(total({ yellow: 3, pink: 2 })).toBe(5)
++    expect(levels({ yellow: 1, green: 1, blue: 1, pink: 1 })).toBe(10)
++    expect(sub(add({ yellow: 2 }, { green: 1 }), { yellow: 1 })).toEqual({ yellow: 1, green: 1, blue: 0, pink: 0 })
 +  })
 +})
 --- a/web/react-frontend/src/utils/rest.js

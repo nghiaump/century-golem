@@ -32,8 +32,11 @@ const Section = ({ title, children }) => (
   </Panel>
 )
 
+import ModalGallery from './ModalGallery'
+
 export default function UiGallery() {
   const params = new URLSearchParams(window.location.search)
+  if (params.get('modal') && params.get('modal') !== '1' && params.get('modal') !== '') return <ModalGallery which={params.get('modal')} />
   const [open, setOpen] = useState(params.has('modal'))
   const [mult, setMult] = useState(2)
   return (

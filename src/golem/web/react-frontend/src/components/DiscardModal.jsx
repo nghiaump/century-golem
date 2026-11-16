@@ -1,49 +1,37 @@
-import React, { useState, useEffect } from 'react'
-import { createPortal } from 'react-dom'
-import { motion, AnimatePresence } from 'framer-motion'
+import React, { useEffect, useState } from 'react'
 import useGameStore from '../store/gameStore'
-import useOrientation from '../hooks/useOrientation'
+import Modal from './ui/Modal'
+import Button from './ui/Button'
+import Gem from './ui/Gem'
+import Stepper from './ui/Stepper'
+import CrystalRow from './ui/CrystalRow'
+import { COLORS, MAX_CARAVAN, cheapest, of, sub, total } from '../utils/crystals'
 
+const NAME = { yellow: 'Yellow', green: 'Green', blue: 'Blue', pink: 'Pink' }
+
+/**
+ * More than 10 crystals after a move: discard the excess before the turn ends. Starts with the cheapest
+ * crystals chosen; adjust per colour. Can't be dismissed — but a card play can be taken back (Undo).
+ */
 const DiscardModal = () => {
   const { myPlayer, discardCrystals, undoPlay } = useGameStore()
-  const { isMobile, isPortrait } = useOrientation()
-  const [discardCounts, setDiscardCounts] = useState({
-    yellow: 0,
-    green: 0,
-    blue: 0,
-    pink: 0
-  })
+  const pending = myPlayer?.pendingDiscard || 0
+  const caravan = of(myPlayer?.caravan)
+  const [discardCounts, setDiscardCounts] = useState(() => cheapest(caravan, pending))
 
-  // Lock body scroll when modal is open
+  // a new overflow (or the same one after an undo + replay): start again from the cheapest crystals
+  const key = `${pending}:${COLORS.map((c) => caravan[c]).join(',')}`
   useEffect(() => {
-    if (myPlayer?.pendingDiscard > 0) {
-      document.body.style.overflow = 'hidden';
-      return () => {
-        document.body.style.overflow = '';
-      };
-    }
-  }, [myPlayer?.pendingDiscard]);
+    if (pending > 0) setDiscardCounts(cheapest(caravan, pending))
+  }, [key]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!myPlayer || !myPlayer.pendingDiscard || myPlayer.pendingDiscard <= 0) {
-    return null
-  }
+  if (!myPlayer || pending <= 0) return null
 
-  const pending = myPlayer.pendingDiscard
-  const currentTotal = discardCounts.yellow + discardCounts.green + discardCounts.blue + discardCounts.pink
-  const remaining = pending - currentTotal
-  const canConfirm = currentTotal === pending
+  const chosen = total(discardCounts)
+  const remaining = pending - chosen
+  const canConfirm = chosen === pending
 
-  const updateDiscard = (type, delta) => {
-    setDiscardCounts(prev => {
-      const newCounts = { ...prev }
-      const current = newCounts[type] || 0
-      // Use caravan (same as CompactGameBoard)
-      const available = (myPlayer.caravan && myPlayer.caravan[type]) || 0
-      const newValue = Math.max(0, Math.min(available, current + delta))
-      newCounts[type] = newValue
-      return newCounts
-    })
-  }
+  const setCount = (c, v) => setDiscardCounts((prev) => ({ ...prev, [c]: Math.max(0, Math.min(caravan[c], v)) }))
 
   const handleUndo = () => {
     setDiscardCounts({ yellow: 0, green: 0, blue: 0, pink: 0 })
@@ -51,193 +39,51 @@ const DiscardModal = () => {
   }
 
   const handleConfirm = () => {
-    const total = discardCounts.yellow + discardCounts.green + discardCounts.blue + discardCounts.pink
-    if (total === pending && total > 0) {
-      discardCrystals(discardCounts)
-      setDiscardCounts({ yellow: 0, green: 0, blue: 0, pink: 0 })
-    }
+    if (canConfirm && chosen > 0) discardCrystals(discardCounts)
   }
 
-  const crystalTypes = [
-    { key: 'yellow', label: 'Yellow', color: 'bg-yellow-400' },
-    { key: 'green', label: 'Green', color: 'bg-green-400' },
-    { key: 'blue', label: 'Blue', color: 'bg-blue-400' },
-    { key: 'pink', label: 'Pink', color: 'bg-pink-400' }
-  ]
-
-  return createPortal(
-    <AnimatePresence>
-      <motion.div
-        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-2 sm:p-4"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={(e) => {
-          // Don't close on backdrop click for discard modal - user must confirm
-          e.stopPropagation()
-        }}
-      >
-        <motion.div
-          className={`
-            bg-white rounded-xl sm:rounded-2xl shadow-2xl border-4 border-red-500 w-full
-            ${isMobile 
-              ? 'max-w-[95vw] p-3 mx-2' 
-              : 'max-w-md p-8 mx-4'
-            }
-          `}
-          initial={{ scale: 0.8, y: 50 }}
-          animate={{ scale: 1, y: 0 }}
-          exit={{ scale: 0.8, y: 50 }}
-          transition={{ type: "spring", stiffness: 300, damping: 30 }}
-        >
-          <div className={`text-center ${isMobile ? 'mb-3' : 'mb-6'}`}>
-            <h2 className={`font-bold text-red-600 ${isMobile ? 'text-xl mb-1' : 'text-3xl mb-2'}`}>
-              ⚠️ Too Many Crystals!
-            </h2>
-            <p className={`text-gray-700 ${isMobile ? 'text-xs' : 'text-base'}`}>
-              You have <span className="font-bold text-red-600">{pending}</span> excess crystals.
-              <br />
-              Discard <span className="font-bold">{remaining}</span> more to continue.
-            </p>
-          </div>
-
-          <div className={`space-y-2 ${isMobile ? 'mb-3' : 'space-y-4 mb-6'}`}>
-            {crystalTypes.map(({ key, label, color }) => {
-              // Use caravan (same as CompactGameBoard)
-              const available = (myPlayer.caravan && myPlayer.caravan[key]) || 0
-              const selected = discardCounts[key] || 0
-              
-              return (
-                <div key={key} className={`flex items-center ${isMobile ? 'gap-2' : 'gap-4'}`}>
-                  <div className={`
-                    ${color} rounded-full flex items-center justify-center text-white font-bold shadow-lg
-                    ${isMobile ? 'w-10 h-10' : 'w-12 h-12'}
-                  `}>
-                    <img
-                      src={`/assets/images/stone_${key}.JPG`}
-                      alt={label}
-                      className={`rounded-full object-cover ${isMobile ? 'w-8 h-8' : 'w-10 h-10'}`}
-                      onError={(e) => {
-                        e.target.src = '/assets/images/stone_yellow.JPG'
-                      }}
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <div className={`flex justify-between items-center ${isMobile ? 'mb-0.5' : 'mb-1'}`}>
-                      <span className={`font-medium text-gray-700 ${isMobile ? 'text-xs' : 'text-sm'}`}>{label}</span>
-                      <span className={`text-gray-500 ${isMobile ? 'text-[10px]' : 'text-xs'}`}>
-                        Available: {available} | Selected: {selected}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <motion.button
-                        onClick={() => updateDiscard(key, -1)}
-                        disabled={selected <= 0}
-                        className={`
-                          rounded-full bg-gray-200 hover:bg-gray-300 
-                          disabled:opacity-50 disabled:cursor-not-allowed 
-                          flex items-center justify-center font-bold text-gray-700
-                          ${isMobile ? 'w-7 h-7 text-sm' : 'w-8 h-8'}
-                        `}
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
-                      >
-                        −
-                      </motion.button>
-                      <div className={`
-                        flex-1 bg-gray-100 rounded-lg text-center font-bold
-                        ${isMobile ? 'px-2 py-1 text-base' : 'px-4 py-2 text-lg'}
-                      `}>
-                        {selected}
-                      </div>
-                      <motion.button
-                        onClick={() => updateDiscard(key, 1)}
-                        disabled={selected >= available || currentTotal >= pending}
-                        className={`
-                          rounded-full bg-gray-200 hover:bg-gray-300 
-                          disabled:opacity-50 disabled:cursor-not-allowed 
-                          flex items-center justify-center font-bold text-gray-700
-                          ${isMobile ? 'w-7 h-7 text-sm' : 'w-8 h-8'}
-                        `}
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
-                      >
-                        +
-                      </motion.button>
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-
-          <div className={`
-            bg-yellow-50 border-2 border-yellow-300 rounded-lg
-            ${isMobile ? 'p-2 mb-3' : 'p-4 mb-6'}
-          `}>
-            <div className="text-center">
-              <div className={`text-gray-600 ${isMobile ? 'text-xs mb-0.5' : 'text-sm mb-1'}`}>Progress</div>
-              <div className={`font-bold text-yellow-700 ${isMobile ? 'text-xl' : 'text-2xl'}`}>
-                {currentTotal} / {pending}
-              </div>
-              <div className={`w-full bg-gray-200 rounded-full overflow-hidden ${isMobile ? 'h-2 mt-1' : 'h-3 mt-2'}`}>
-                <motion.div
-                  className="bg-gradient-to-r from-yellow-400 to-red-500 h-full rounded-full"
-                  initial={{ width: 0 }}
-                  animate={{ width: `${(currentTotal / pending) * 100}%` }}
-                  transition={{ duration: 0.3 }}
-                />
-              </div>
-            </div>
-          </div>
-
-          <motion.button
-            onClick={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              handleConfirm()
-            }}
-            disabled={!canConfirm}
-            className={`
-              w-full bg-gradient-to-r from-red-500 to-orange-500 text-white font-bold 
-              rounded-lg shadow-lg transition-all relative z-10
-              ${isMobile ? 'py-3 px-4 text-sm' : 'py-4 px-6'}
-              ${canConfirm 
-                ? 'cursor-pointer hover:shadow-xl opacity-100' 
-                : 'cursor-not-allowed opacity-50'
-              }
-            `}
-            whileHover={canConfirm ? { scale: 1.05 } : {}}
-            whileTap={canConfirm ? { scale: 0.95 } : {}}
-          >
-            {currentTotal === pending 
-              ? 'Confirm Discard' 
-              : `Select ${remaining} more crystal${remaining !== 1 ? 's' : ''}`
-            }
-          </motion.button>
-
-          {/* Take the overflowing card play back (e.g. trade multiplier one too high) */}
+  return (
+    <Modal
+      open
+      dismissible={false}
+      title="Too Many Crystals!"
+      footer={(
+        <>
+          {/* take back the card play that overflowed (e.g. a trade multiplier one too high) */}
           {myPlayer.canUndo && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                handleUndo()
-              }}
-              className={`
-                w-full mt-2 rounded-lg border-2 border-gray-300 bg-white text-gray-700 font-semibold
-                hover:bg-gray-100 transition-colors
-                ${isMobile ? 'py-2 px-4 text-sm' : 'py-3 px-6'}
-              `}
-            >
-              ↩ Undo — take the card back
-            </button>
+            <Button variant="outline" onClick={handleUndo}>↩ Undo — take the card back</Button>
           )}
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>,
-    document.body
+          <Button onClick={handleConfirm} disabled={!canConfirm}>
+            {canConfirm ? 'Confirm Discard' : `Select ${remaining} more`}
+          </Button>
+        </>
+      )}
+    >
+      <div className="flex flex-col gap-3">
+        <p className="text-center text-sm text-ink">
+          You can keep {MAX_CARAVAN}. Discard <span className="font-bold">{pending}</span> crystal{pending > 1 ? 's' : ''} — the cheapest are picked.
+        </p>
+        {COLORS.map((c) => (
+          <div key={c} className={`flex items-center gap-3 rounded-stone border border-ink/15 bg-ink/5 px-3 py-1.5 ${caravan[c] === 0 ? 'opacity-40' : ''}`}>
+            <Gem color={c} size={26} label={false} />
+            <div className="flex flex-1 flex-col">
+              <span className="text-sm font-semibold text-ink">{NAME[c]}</span>
+              <span className="text-xs text-ink-muted">have {caravan[c]}</span>
+            </div>
+            <Stepper
+              label={`${NAME[c]} to discard`}
+              value={discardCounts[c]}
+              min={0}
+              max={Math.min(caravan[c], discardCounts[c] + remaining)}
+              onChange={(v) => setCount(c, v)}
+            />
+          </div>
+        ))}
+        <div className="flex flex-wrap items-center justify-center gap-2 text-sm text-ink-muted">
+          Keep: <CrystalRow resources={sub(caravan, discardCounts)} capacity={MAX_CARAVAN} size="sm" tone="parchment" />
+        </div>
+      </div>
+    </Modal>
   )
 }
 
