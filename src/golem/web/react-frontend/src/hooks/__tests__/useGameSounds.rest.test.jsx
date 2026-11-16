@@ -2,7 +2,8 @@ import { renderHook, cleanup, act } from '@testing-library/react'
 import { describe, test, expect, vi, afterEach } from 'vitest'
 
 const play = vi.fn()
-vi.mock('../../utils/sounds', () => ({ default: { play: (...a) => play(...a), toggleMute: vi.fn(), setMuted: vi.fn(), getMuted: () => false } }))
+const playVictory = vi.fn()
+vi.mock('../../utils/sounds', () => ({ default: { play: (...a) => play(...a), playVictory: (...a) => playVictory(...a), toggleMute: vi.fn(), setMuted: vi.fn(), getMuted: () => false } }))
 
 import useGameSounds from '../useGameSounds'
 import useGameStore from '../../store/gameStore'
@@ -23,6 +24,7 @@ describe('useGameSounds', () => {
   afterEach(() => {
     cleanup()
     play.mockReset()
+    playVictory.mockReset()
   })
 
   test('my rest plays only the rest sound (same as an opponent rest)', () => {
@@ -33,5 +35,22 @@ describe('useGameSounds', () => {
   })
   test('taking back an overflowing card play is silent', () => {
     expect(soundsFor(me(3, 1, { pendingDiscard: 2 }), me(4, 0))).toEqual([])
+  })
+
+  test('game end: the winner hears the victory fanfare, the others the game-over sound', () => {
+    const end = (winnerId) => {
+      act(() => useGameStore.setState({
+        playerId: 1, isSpectator: false, myPlayer: me(3, 0), currentPlayer: { id: 2 },
+        previousGameState: { players: [me(3, 0)] }, gameState: { players: [me(3, 0)], gameOver: true, winner: { id: winnerId } },
+      }))
+      renderHook(() => useGameSounds())
+    }
+    end(1)
+    expect(playVictory).toHaveBeenCalledTimes(1)
+    expect(play).not.toHaveBeenCalledWith('gameOver', true)
+    cleanup()
+    end(2)
+    expect(play).toHaveBeenCalledWith('gameOver', true)
+    expect(playVictory).toHaveBeenCalledTimes(1)
   })
 })

@@ -57,13 +57,16 @@ export default function useGameSounds() {
     }
   }, [gameState]);
   
-  // Play "game over" sound when game ends
+  // Game end: a victory fanfare for the winner, the game-over sound for everyone else (and spectators)
   useEffect(() => {
     if (!gameState) return;
     
     if (gameState.gameOver) {
-      logger.info('Game over - playing game over sound');
-      soundManager.play('gameOver', true);
+      const me = myPlayer?.id ?? playerId;
+      const iWon = !isSpectator && me != null && gameState.winner?.id === me;
+      logger.info(iWon ? 'Game over - I won, playing the victory fanfare' : 'Game over - playing game over sound');
+      if (iWon) soundManager.playVictory();
+      else soundManager.play('gameOver', true);
     }
   }, [gameState?.gameOver]);
   

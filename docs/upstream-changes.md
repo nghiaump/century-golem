@@ -190,6 +190,11 @@ Chi tiết: [`ui/thiet-ke-giao-dien.md`](ui/thiet-ke-giao-dien.md). Tóm tắt t
 - Frontend: `utils/customAvatar.js` (+ test), `components/AvatarCropper.jsx`, ô Upload trong `ui/AvatarPicker.jsx`, `utils/avatar.js`
   (`isCustomAvatar`, `avatarSrc` cho `u_…`, giá trị lạ ⇒ golem 1); `SinglePlayerLobby`/`Lobby`/Play Again tải ảnh lên trước khi tạo/vào ván.
 
+### Màn kết thúc cho người thắng (2026-11-16)
+- `GameOverModal.jsx`: người thắng thấy "Victory!" + vương miện + tia sáng + pha lê nổ/mưa (thay mưa gem chung); người thua thấy
+  thứ hạng của mình. `utils/sounds.js` `playVictory()` (fanfare Web Audio, tôn trọng mute), `hooks/useGameSounds.js` chọn fanfare khi
+  `winner.id` = mình (không phải người xem). `index.css` `.victory-title`/`.victory-rays`. Test thêm ở `useGameSounds.rest.test.jsx`.
+
 ## 2. Asset — sinh bởi script
 | Thứ | Script | Chi tiết |
 |---|---|---|
@@ -213,7 +218,7 @@ Avatar: 1 Basalt · 2 Mossback · 3 Rime · 4 Cinder · 5 Rivet · 6 Dune · 7 Q
 ## Test
 - Frontend (vitest, chạy trong `node:18-alpine` trên bản sao có `node_modules`): cấu hình vitest upstream không bật DOM
   (khoá `vitest.environment` trong package.json không có tác dụng) ⇒ chạy `vitest run --environment jsdom`. Khi đó upstream
-  12 pass / 2 fail (useGameSounds) + 2 file không chạy (cardNames, sounds); bản này **giống hệt phần lỗi**, 50 pass
+  12 pass / 2 fail (useGameSounds) + 2 file không chạy (cardNames, sounds); bản này **giống hệt phần lỗi**, 51 pass
   (2026-11-16 sau giao diện mới; thêm test avatar, aiLevel, lobby, rest, RestPopup, undo, DiscardModal, crystals,
   `hooks/__tests__/useGameSounds.rest.test.jsx`). Kiểm giao diện thật: `deploy/ui-shots.mjs` (6 viewport, sạch).
 - Backend (`go test -race ./internal/...` trong `golang:1.24`): `auth`, `eventstore`, `game`, `server`, `telegram` pass.

@@ -3467,7 +3467,7 @@
                        )}
 --- a/web/react-frontend/src/components/GameOverModal.jsx
 +++ b/web/react-frontend/src/components/GameOverModal.jsx
-@@ -1,384 +1,143 @@
+@@ -1,384 +1,188 @@
 -import React, { useEffect, useState } from 'react'
 -import { createPortal } from 'react-dom'
 -import { motion, AnimatePresence } from 'framer-motion'
@@ -3476,21 +3476,6 @@
  import useGameStore from '../store/gameStore'
 -import useOrientation from '../hooks/useOrientation'
 -import { getCardSpriteStyle, getCardImagePath } from '../utils/cardNames'
--
--const GameOverModal = ({ onNewGame, onBackToMenu }) => {
--  const { gameState } = useGameStore()
--  const { isMobile } = useOrientation()
--  const [showConfetti, setShowConfetti] = useState(true)
--
--  useEffect(() => {
--    // Auto-hide confetti after 5 seconds
--    const timer = setTimeout(() => setShowConfetti(false), 5000)
--    return () => clearTimeout(timer)
--  }, [])
--
--  if (!gameState?.gameOver) {
--    return null
--  }
 +import Modal from './ui/Modal'
 +import Button from './ui/Button'
 +import Avatar from './ui/Avatar'
@@ -3505,6 +3490,24 @@
 +  const res = player?.caravan || player?.resources || {}
 +  const crystals = (res.green || 0) + (res.blue || 0) + (res.pink || 0)
 +  return { golems, coins, crystals, total: golems + coins + crystals }
++}
+ 
+-const GameOverModal = ({ onNewGame, onBackToMenu }) => {
+-  const { gameState } = useGameStore()
+-  const { isMobile } = useOrientation()
+-  const [showConfetti, setShowConfetti] = useState(true)
+-
+-  useEffect(() => {
+-    // Auto-hide confetti after 5 seconds
+-    const timer = setTimeout(() => setShowConfetti(false), 5000)
+-    return () => clearTimeout(timer)
+-  }, [])
+-
+-  if (!gameState?.gameOver) {
+-    return null
+-  }
++const reducedMotion = () => {
++  try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches } catch { return false }
 +}
  
 -  const winner = gameState.winner
@@ -3577,23 +3580,44 @@
 -            ))}
 -          </div>
 -        )}
-+const reducedMotion = () => {
-+  try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches } catch { return false }
++function rng(seed) {
++  let a = seed >>> 0
++  return () => { a = (a * 1664525 + 1013904223) >>> 0; return a / 4294967296 }
 +}
  
-+// A short shower of crystals over the result, computed once per finished game.
-+function GemShower({ seed }) {
-+  const gems = useMemo(() => {
-+    let a = seed >>> 0
-+    const rnd = () => { a = (a * 1664525 + 1013904223) >>> 0; return a / 4294967296 }
-+    return Array.from({ length: 24 }, (_, i) => ({
-+      id: i, color: CRYSTALS[i % 4], left: rnd() * 100, delay: rnd() * 1.6, duration: 2.6 + rnd() * 1.6, size: 14 + rnd() * 14, spin: (rnd() - 0.5) * 540,
-+    }))
++// Winner only: golden rays turning behind the result, a burst of crystals from the centre, then a
++// crystal rain — computed once per finished game; nothing at all when the OS asks for less motion.
++function VictoryCelebration({ seed }) {
++  const { burst, rain } = useMemo(() => {
++    const r = rng(seed)
++    return {
++      burst: Array.from({ length: 20 }, (_, i) => {
++        const angle = (i / 20) * Math.PI * 2 + r() * 0.3
++        const vmin = Math.min(window.innerWidth, window.innerHeight) / 100
++        const dist = (30 + r() * 18) * vmin
++        return { id: i, color: CRYSTALS[i % 4], x: Math.cos(angle) * dist, y: Math.sin(angle) * dist, size: 18 + r() * 16, spin: (r() - 0.5) * 360 }
++      }),
++      rain: Array.from({ length: 30 }, (_, i) => ({
++        id: i, color: CRYSTALS[i % 4], left: r() * 100, delay: 0.7 + r() * 2.2, duration: 2.6 + r() * 1.8, size: 14 + r() * 14, spin: (r() - 0.5) * 540,
++      })),
++    }
 +  }, [seed])
 +  if (reducedMotion()) return null
 +  return (
 +    <div className="pointer-events-none fixed inset-0 z-modal overflow-hidden" aria-hidden="true">
-+      {gems.map((g) => (
++      <div className="victory-rays absolute left-1/2 top-1/2 h-[160vmax] w-[160vmax]" />
++      {burst.map((g) => (
++        <div key={`b${g.id}`} className="absolute left-1/2 top-1/2" style={{ transform: 'translate(-50%, -50%)' }}>
++          <motion.div
++            initial={{ x: 0, y: 0, scale: 0.2, opacity: 0 }}
++            animate={{ x: g.x, y: g.y, scale: [0.2, 1.2, 1], rotate: g.spin, opacity: [0, 1, 1, 0] }}
++            transition={{ duration: 1.6, ease: 'easeOut' }}
++          >
++            <Gem color={g.color} size={g.size} label={false} />
++          </motion.div>
++        </div>
++      ))}
++      {rain.map((g) => (
          <motion.div
 -          className={`
 -            relative bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 
@@ -3605,7 +3629,7 @@
 -          animate={{ scale: 1, y: 0, opacity: 1 }}
 -          exit={{ scale: 0.8, y: 50, opacity: 0 }}
 -          transition={{ type: "spring", stiffness: 300, damping: 25 }}
-+          key={g.id}
++          key={`r${g.id}`}
 +          className="absolute -top-8"
 +          style={{ left: `${g.left}%` }}
 +          initial={{ y: 0, rotate: 0, opacity: 1 }}
@@ -3669,6 +3693,17 @@
 +    </div>
 +  )
 +}
++
++// Crown with three crystals — the winner's title icon.
++const Crown = () => (
++  <svg viewBox="0 0 48 40" width="40" height="34" aria-hidden="true">
++    <path d="M4 14l10 9 10-17 10 17 10-9-4 22H8z" style={{ fill: 'rgb(var(--bronze-300))', stroke: 'rgb(var(--bronze-700))' }} strokeWidth="2" strokeLinejoin="round" />
++    <rect x="8" y="33" width="32" height="5" rx="1.5" style={{ fill: 'rgb(var(--bronze-500))', stroke: 'rgb(var(--bronze-700))' }} strokeWidth="1.5" />
++    <circle cx="24" cy="27" r="3.2" style={{ fill: 'rgb(var(--gem-pink))' }} />
++    <circle cx="15" cy="29" r="2.4" style={{ fill: 'rgb(var(--gem-blue))' }} />
++    <circle cx="33" cy="29" r="2.4" style={{ fill: 'rgb(var(--gem-green))' }} />
++  </svg>
++)
  
 -            {/* Bonus Coins Remaining */}
 -            <motion.div
@@ -3700,16 +3735,20 @@
 +    .sort((a, b) => b.s.total - a.s.total || b.seat - a.seat)
 +  const winnerScore = scoreOf(winner).total
 +  const wonOnTieBreak = ranked.filter((r) => r.s.total === winnerScore).length > 1
++  const iWon = !!myId && winner?.id === myId
++  const myPlace = ranked.findIndex((r) => r.p.id === myId)
 +
 +  return (
 +    <>
-+      <GemShower seed={(gameState.currentTurn || 1) * 7919} />
++      {iWon ? <VictoryCelebration seed={(gameState.currentTurn || 1) * 7919} /> : null}
 +      <Modal
 +        open
 +        dismissible={false}
 +        variant="stone"
 +        size="lg"
-+        title="Game Over"
++        title={iWon ? <span className="victory-title">Victory!</span> : 'Game Over'}
++        icon={iWon ? <Crown /> : null}
++        className={iWon ? 'turn-glow' : ''}
 +        footer={(
 +          <>
 +            <Button variant="secondary" onClick={onBackToMenu}>Back to Menu</Button>
@@ -3898,35 +3937,13 @@
 -                  </motion.div>
 -                )
 -              })}
++              {!iWon && myPlace >= 0 ? (
++                <div className="mt-1 text-sm text-fg">
++                  You finished <b>{rankLabel(myPlace)}</b> of {ranked.length} with {ranked[myPlace].s.total} points
++                </div>
++              ) : null}
              </div>
 +          </div>
-+
-+          {/* Scoreboard */}
-+          <ol className="surface-parchment flex flex-col divide-y divide-ink/15 !rounded-stone !shadow-none" aria-label="Final scores">
-+            {ranked.map(({ p, s }, i) => (
-+              <li key={p.id} className={`flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5 ${p.id === winner?.id ? 'bg-bronze-300/25' : ''}`}>
-+                <span className="w-9 font-display text-sm font-bold text-ink-muted">{rankLabel(i)}</span>
-+                <Avatar player={p} size={36} />
-+                <span className="min-w-0 flex-1 truncate font-semibold text-ink">
-+                  {p.name}{p.id === myId ? <span className="text-ink-muted"> (you)</span> : null}
-+                </span>
-+                <span className="order-last flex w-full flex-wrap items-center gap-x-4 gap-y-1 pl-12 text-sm text-ink-muted sm:order-none sm:w-auto sm:pl-0">
-+                  <span className="inline-flex items-center gap-1" title="Golems">
-+                    <GolemIcon size={16} label="Golems" /> {p.pointCards?.length || 0} · {s.golems}
-+                  </span>
-+                  <span className="inline-flex items-center gap-1" title="Coins">
-+                    <Coin kind="copper" size={16} label={false} />×{p.coins?.filter((c) => c.points === 3).length || 0}
-+                    <Coin kind="silver" size={16} label={false} />×{p.coins?.filter((c) => c.points === 1).length || 0}
-+                    <span className="sr-only">coins worth</span> · {s.coins}
-+                  </span>
-+                  <span className="inline-flex items-center gap-1" title="Green, blue and pink crystals: 1 point each">
-+                    <Gem color="pink" size={14} label={false} /> {s.crystals}
-+                  </span>
-+                </span>
-+                <span className="font-display text-xl font-bold tabular-nums text-ink">{s.total}</span>
-+              </li>
-+            ))}
-+          </ol>
  
 -            {/* Action Buttons */}
 -            <motion.div
@@ -3963,6 +3980,33 @@
 -                🏠 Back to Menu
 -              </motion.button>
 -            </motion.div>
++          {/* Scoreboard */}
++          <ol className="surface-parchment flex flex-col divide-y divide-ink/15 !rounded-stone !shadow-none" aria-label="Final scores">
++            {ranked.map(({ p, s }, i) => (
++              <li key={p.id} className={`flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5 ${p.id === winner?.id ? 'bg-bronze-300/25' : ''}`}>
++                <span className="w-9 font-display text-sm font-bold text-ink-muted">{rankLabel(i)}</span>
++                <Avatar player={p} size={36} />
++                <span className="min-w-0 flex-1 truncate font-semibold text-ink">
++                  {p.name}{p.id === myId ? <span className="text-ink-muted"> (you)</span> : null}
++                </span>
++                <span className="order-last flex w-full flex-wrap items-center gap-x-4 gap-y-1 pl-12 text-sm text-ink-muted sm:order-none sm:w-auto sm:pl-0">
++                  <span className="inline-flex items-center gap-1" title="Golems">
++                    <GolemIcon size={16} label="Golems" /> {p.pointCards?.length || 0} · {s.golems}
++                  </span>
++                  <span className="inline-flex items-center gap-1" title="Coins">
++                    <Coin kind="copper" size={16} label={false} />×{p.coins?.filter((c) => c.points === 3).length || 0}
++                    <Coin kind="silver" size={16} label={false} />×{p.coins?.filter((c) => c.points === 1).length || 0}
++                    <span className="sr-only">coins worth</span> · {s.coins}
++                  </span>
++                  <span className="inline-flex items-center gap-1" title="Green, blue and pink crystals: 1 point each">
++                    <Gem color="pink" size={14} label={false} /> {s.crystals}
++                  </span>
++                </span>
++                <span className="font-display text-xl font-bold tabular-nums text-ink">{s.total}</span>
++              </li>
++            ))}
++          </ol>
++
 +          <div className="flex flex-wrap items-center justify-center gap-4 text-sm text-fg-muted">
 +            <span>Coins left:</span>
 +            <span className="inline-flex items-center gap-1"><Coin kind="copper" size={18} /> {copperLeft}</span>
@@ -9420,7 +9464,7 @@
 +import ConfirmGolemModal from '../components/ConfirmGolemModal'
 +import GameOverModal from '../components/GameOverModal'
 +
-+// Dev only (?gallery&modal=trade|upgrade|deposit|discard|claim|gameover): one popup on fake game data.
++// Dev only (?gallery&modal=trade|upgrade|deposit|discard|claim|gameover|victory): one popup on fake game data.
 +const golem = (id, points, req) => ({ id, name: 'golem_2022', points, requirement: req })
 +const card = (name, extra = {}) => ({ name, ...extra })
 +const players = [
@@ -9439,7 +9483,7 @@
 +  useEffect(() => {
 +    useGameStore.setState({
 +      myPlayer: players[2],
-+      gameState: { gameOver: which === 'gameover', currentTurn: 115, winner: { id: 1 }, players, market: { coins: [{ amount: 1 }, { amount: 6 }] } },
++      gameState: { gameOver: which === 'gameover' || which === 'victory', currentTurn: 115, winner: { id: which === 'victory' ? 3 : 1 }, players, market: { coins: [{ amount: 1 }, { amount: 6 }] } },
 +    })
 +    setReady(true)
 +  }, [which])
@@ -9454,7 +9498,7 @@
 +      {which === 'deposit' && <DepositModal card={card('trade_0003_0110', { deposits: { yellow: 1, pink: 1 } })} cardIndex={3} onClose={noop} />}
 +      {which === 'discard' && <DiscardModal />}
 +      {which === 'claim' && <ConfirmGolemModal isOpen golem={golem(124, 17, { yellow: 2, blue: 2, pink: 2 })} coin="copper" onConfirm={noop} onCancel={noop} />}
-+      {which === 'gameover' && <GameOverModal onNewGame={noop} onBackToMenu={noop} />}
++      {(which === 'gameover' || which === 'victory') && <GameOverModal onNewGame={noop} onBackToMenu={noop} />}
 +    </div>
 +  )
 +}
@@ -9660,12 +9704,13 @@
 +}
 --- a/web/react-frontend/src/hooks/__tests__/useGameSounds.rest.test.jsx
 +++ b/web/react-frontend/src/hooks/__tests__/useGameSounds.rest.test.jsx
-@@ -0,0 +1,37 @@
+@@ -0,0 +1,56 @@
 +import { renderHook, cleanup, act } from '@testing-library/react'
 +import { describe, test, expect, vi, afterEach } from 'vitest'
 +
 +const play = vi.fn()
-+vi.mock('../../utils/sounds', () => ({ default: { play: (...a) => play(...a), toggleMute: vi.fn(), setMuted: vi.fn(), getMuted: () => false } }))
++const playVictory = vi.fn()
++vi.mock('../../utils/sounds', () => ({ default: { play: (...a) => play(...a), playVictory: (...a) => playVictory(...a), toggleMute: vi.fn(), setMuted: vi.fn(), getMuted: () => false } }))
 +
 +import useGameSounds from '../useGameSounds'
 +import useGameStore from '../../store/gameStore'
@@ -9686,6 +9731,7 @@
 +  afterEach(() => {
 +    cleanup()
 +    play.mockReset()
++    playVictory.mockReset()
 +  })
 +
 +  test('my rest plays only the rest sound (same as an opponent rest)', () => {
@@ -9696,6 +9742,23 @@
 +  })
 +  test('taking back an overflowing card play is silent', () => {
 +    expect(soundsFor(me(3, 1, { pendingDiscard: 2 }), me(4, 0))).toEqual([])
++  })
++
++  test('game end: the winner hears the victory fanfare, the others the game-over sound', () => {
++    const end = (winnerId) => {
++      act(() => useGameStore.setState({
++        playerId: 1, isSpectator: false, myPlayer: me(3, 0), currentPlayer: { id: 2 },
++        previousGameState: { players: [me(3, 0)] }, gameState: { players: [me(3, 0)], gameOver: true, winner: { id: winnerId } },
++      }))
++      renderHook(() => useGameSounds())
++    }
++    end(1)
++    expect(playVictory).toHaveBeenCalledTimes(1)
++    expect(play).not.toHaveBeenCalledWith('gameOver', true)
++    cleanup()
++    end(2)
++    expect(play).toHaveBeenCalledWith('gameOver', true)
++    expect(playVictory).toHaveBeenCalledTimes(1)
 +  })
 +})
 --- a/web/react-frontend/src/hooks/useBoardActions.js
@@ -9840,7 +9903,27 @@
  
  const logger = createLogger('GameSounds');
  
-@@ -92,13 +93,15 @@
+@@ -56,13 +57,16 @@
+     }
+   }, [gameState]);
+   
+-  // Play "game over" sound when game ends
++  // Game end: a victory fanfare for the winner, the game-over sound for everyone else (and spectators)
+   useEffect(() => {
+     if (!gameState) return;
+     
+     if (gameState.gameOver) {
+-      logger.info('Game over - playing game over sound');
+-      soundManager.play('gameOver', true);
++      const me = myPlayer?.id ?? playerId;
++      const iWon = !isSpectator && me != null && gameState.winner?.id === me;
++      logger.info(iWon ? 'Game over - I won, playing the victory fanfare' : 'Game over - playing game over sound');
++      if (iWon) soundManager.playVictory();
++      else soundManager.play('gameOver', true);
+     }
+   }, [gameState?.gameOver]);
+   
+@@ -92,13 +96,15 @@
      
      const prevHandCount = prevMyPlayer.hand?.length || 0;
      const currentHandCount = myPlayer.hand?.length || 0;
@@ -9859,7 +9942,7 @@
    
    // Detect when current player claims a point card (golem)
    useEffect(() => {
-@@ -124,14 +127,10 @@
+@@ -124,14 +130,10 @@
      const prevMyPlayer = previousGameState.players?.find(p => p.id === playerId);
      if (!prevMyPlayer) return;
      
@@ -9993,7 +10076,7 @@
      -webkit-font-smoothing: antialiased;
      -moz-osx-font-smoothing: grayscale;
    }
-@@ -29,6 +32,81 @@
+@@ -29,6 +32,105 @@
    body {
      overscroll-behavior-y: contain;
    }
@@ -10068,6 +10151,30 @@
 +    pointer-events: none;
 +    animation: turn-glow-pulse 1.6s ease-in-out infinite;
 +  }
++  /* Game over, winner: gold shimmering title and slowly turning rays behind the result */
++  .victory-title {
++    background: linear-gradient(100deg, rgb(var(--bronze-300)) 20%, #fff8e1 45%, rgb(var(--bronze-100)) 55%, rgb(var(--bronze-300)) 80%);
++    background-size: 220% 100%;
++    -webkit-background-clip: text;
++    background-clip: text;
++    color: transparent;
++    animation: victory-shimmer 2.6s linear infinite;
++  }
++  @keyframes victory-shimmer {
++    from { background-position: 120% 0; }
++    to { background-position: -120% 0; }
++  }
++  .victory-rays {
++    background: repeating-conic-gradient(from 0deg, rgb(var(--bronze-300) / 0.16) 0deg 9deg, transparent 9deg 24deg);
++    -webkit-mask-image: radial-gradient(circle, #000 0%, transparent 62%);
++    mask-image: radial-gradient(circle, #000 0%, transparent 62%);
++    transform: translate(-50%, -50%);
++    animation: victory-rays-turn 24s linear infinite;
++  }
++  @keyframes victory-rays-turn {
++    from { transform: translate(-50%, -50%) rotate(0deg); }
++    to { transform: translate(-50%, -50%) rotate(360deg); }
++  }
 +  @keyframes turn-glow-pulse {
 +    0%, 100% { opacity: 0.45; }
 +    50% { opacity: 1; }
@@ -10075,7 +10182,7 @@
  }
  
  @layer components {
-@@ -45,10 +123,6 @@
+@@ -45,10 +147,6 @@
      animation: none !important;
    }
    
@@ -10086,7 +10193,7 @@
  
    .card-base:hover {
      @apply shadow-lg;
-@@ -236,15 +310,7 @@
+@@ -236,15 +334,7 @@
      -webkit-touch-callout: none;
    }
    
@@ -10103,7 +10210,7 @@
  
    /* Disable hover states on touch */
    .card-base:hover {
-@@ -454,15 +520,6 @@
+@@ -454,15 +544,6 @@
      min-height: 300px;
    }
  
@@ -10119,7 +10226,7 @@
    /* Animation utilities */
    .animate-slide-up {
      animation: slideUp 0.3s ease-out forwards;
-@@ -503,26 +560,3 @@
+@@ -503,26 +584,3 @@
      to { opacity: 1; }
    }
  }
@@ -11625,6 +11732,100 @@
 +    expect(restAnchorPosition(undefined, docWith(null), win)).toBeNull()
 +  })
 +})
+--- a/web/react-frontend/src/utils/sounds.js
++++ b/web/react-frontend/src/utils/sounds.js
+@@ -140,6 +140,91 @@
+   }
+   
+   /**
++   * Victory fanfare for the player who won, synthesised with Web Audio (no file to download): a rising
++   * G–C–E–G call, then a held C-major chord with bell sparkles (~2.5 s). Falls back to the game-over
++   * sound where Web Audio is missing. Respects mute.
++   */
++  playVictory() {
++    if (this.isMuted) return false;
++    const Ctx = typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext);
++    if (!Ctx) {
++      this.play('gameOver', true);
++      return false;
++    }
++    try {
++      this.audioCtx = this.audioCtx || new Ctx();
++      const ctx = this.audioCtx;
++      if (ctx.state === 'suspended') ctx.resume();
++      const t0 = ctx.currentTime + 0.05;
++      const master = ctx.createGain();
++      master.gain.value = 0.2;
++      master.connect(ctx.destination);
++      // a little room: feedback echo
++      const echo = ctx.createDelay();
++      echo.delayTime.value = 0.17;
++      const feedback = ctx.createGain();
++      feedback.gain.value = 0.25;
++      echo.connect(feedback);
++      feedback.connect(echo);
++      echo.connect(master);
++      const hz = (midi) => 440 * Math.pow(2, (midi - 69) / 12);
++      const envelope = (g, at, peak, dur, attack = 0.015) => {
++        g.gain.setValueAtTime(0.0001, t0 + at);
++        g.gain.exponentialRampToValueAtTime(peak, t0 + at + attack);
++        g.gain.exponentialRampToValueAtTime(0.0001, t0 + at + dur);
++      };
++      // horn-like voice: triangle + a soft square an octave lower, lowpassed
++      const horn = (midi, at, dur, vol) => {
++        const filter = ctx.createBiquadFilter();
++        filter.type = 'lowpass';
++        filter.frequency.setValueAtTime(1200, t0 + at);
++        filter.frequency.linearRampToValueAtTime(2600, t0 + at + 0.1);
++        const g = ctx.createGain();
++        envelope(g, at, vol, dur, 0.03);
++        filter.connect(g);
++        g.connect(master);
++        g.connect(echo);
++        [['triangle', 1, 1], ['square', 0.5, 0.18]].forEach(([type, mult, amp]) => {
++          const o = ctx.createOscillator();
++          const og = ctx.createGain();
++          o.type = type;
++          o.frequency.value = hz(midi) * mult;
++          og.gain.value = amp;
++          o.connect(og);
++          og.connect(filter);
++          o.start(t0 + at);
++          o.stop(t0 + at + dur + 0.05);
++        });
++      };
++      // bell: a few inharmonic sine partials with a fast decay
++      const bell = (midi, at, dur, vol) => {
++        [[1, 1], [2.01, 0.4], [3.03, 0.2], [4.2, 0.08]].forEach(([mult, amp]) => {
++          const o = ctx.createOscillator();
++          const g = ctx.createGain();
++          o.type = 'sine';
++          o.frequency.value = hz(midi) * mult;
++          envelope(g, at, vol * amp, dur, 0.008);
++          o.connect(g);
++          g.connect(master);
++          g.connect(echo);
++          o.start(t0 + at);
++          o.stop(t0 + at + dur + 0.05);
++        });
++      };
++      [[67, 0], [72, 0.15], [76, 0.3]].forEach(([m, at]) => horn(m, at, 0.2, 0.5));
++      horn(79, 0.45, 0.55, 0.55);
++      [60, 64, 67, 72].forEach((m) => horn(m, 1.0, 1.5, 0.26));
++      bell(48, 1.0, 1.8, 0.5);
++      [84, 88, 91, 96, 91, 100].forEach((m, i) => bell(m, 1.08 + i * 0.13, 0.9, 0.3));
++      return true;
++    } catch (error) {
++      logger.warn('Victory fanfare failed, playing the game-over sound', error);
++      this.play('gameOver', true);
++      return false;
++    }
++  }
++
++  /**
+    * Stop all sounds
+    */
+   stopAll() {
 --- a/web/react-frontend/src/utils/toast.js
 +++ b/web/react-frontend/src/utils/toast.js
 @@ -11,9 +11,8 @@

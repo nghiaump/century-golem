@@ -8,7 +8,7 @@ import DiscardModal from '../components/DiscardModal'
 import ConfirmGolemModal from '../components/ConfirmGolemModal'
 import GameOverModal from '../components/GameOverModal'
 
-// Dev only (?gallery&modal=trade|upgrade|deposit|discard|claim|gameover): one popup on fake game data.
+// Dev only (?gallery&modal=trade|upgrade|deposit|discard|claim|gameover|victory): one popup on fake game data.
 const golem = (id, points, req) => ({ id, name: 'golem_2022', points, requirement: req })
 const card = (name, extra = {}) => ({ name, ...extra })
 const players = [
@@ -27,7 +27,7 @@ export default function ModalGallery({ which }) {
   useEffect(() => {
     useGameStore.setState({
       myPlayer: players[2],
-      gameState: { gameOver: which === 'gameover', currentTurn: 115, winner: { id: 1 }, players, market: { coins: [{ amount: 1 }, { amount: 6 }] } },
+      gameState: { gameOver: which === 'gameover' || which === 'victory', currentTurn: 115, winner: { id: which === 'victory' ? 3 : 1 }, players, market: { coins: [{ amount: 1 }, { amount: 6 }] } },
     })
     setReady(true)
   }, [which])
@@ -42,7 +42,7 @@ export default function ModalGallery({ which }) {
       {which === 'deposit' && <DepositModal card={card('trade_0003_0110', { deposits: { yellow: 1, pink: 1 } })} cardIndex={3} onClose={noop} />}
       {which === 'discard' && <DiscardModal />}
       {which === 'claim' && <ConfirmGolemModal isOpen golem={golem(124, 17, { yellow: 2, blue: 2, pink: 2 })} coin="copper" onConfirm={noop} onCancel={noop} />}
-      {which === 'gameover' && <GameOverModal onNewGame={noop} onBackToMenu={noop} />}
+      {(which === 'gameover' || which === 'victory') && <GameOverModal onNewGame={noop} onBackToMenu={noop} />}
     </div>
   )
 }

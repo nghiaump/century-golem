@@ -77,7 +77,10 @@ Bề mặt (`index.css`, lớp `surface-*`): `surface-stone` (gradient đá + h�
 - **Popup**: Trade (bộ đếm ×n, "After" + cảnh báo sẽ phải bỏ bớt), Upgrade (chạm crystal để nâng 1 cấp; gửi in/out = hiệu trước/sau
   như `game.UpgradeIO`), Place Crystals (chọn sẵn crystal rẻ nhất cho từng lá bên trái, hiện crystal sẽ nhặt + cảnh báo tràn; lá 1
   không có crystal đặt sẵn thì lấy ngay một chạm), Discard (chọn sẵn rẻ nhất, Undo), Claim Golem (chi phí + điểm + coin), Game Over
-  (bảng điểm: golem · coin · crystal · tổng; hoà ⇒ ghế sau; mưa gem tính một lần).
+  (bảng điểm: golem · coin · crystal · tổng; hoà ⇒ ghế sau). **Người thắng** (chỉ chính mình, không phải người xem): tiêu đề "Victory!"
+  ánh vàng + vương miện, khung sáng, tia sáng xoay sau bảng, pha lê nổ từ giữa rồi mưa (tính một lần, tắt hẳn khi reduced-motion),
+  nhạc chiến thắng `soundManager.playVictory()` (Web Audio tự tổng hợp ~2.5 s, không thêm file; thiếu Web Audio ⇒ âm game over).
+  **Người thua/người xem**: "Game Over" tĩnh, âm game over cũ, thêm dòng "You finished 2nd of 4 with 55 points".
 
 ## 6. Logic chung — `hooks/useBoardActions`
 Mọi bố cục (desktop, điện thoại, ✨ một phần) dùng chung: `isWaiting`, `isMyTurn`, `placeCost(i)`, `canAfford(i)`, `canClaim(card)`,

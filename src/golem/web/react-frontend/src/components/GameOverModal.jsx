@@ -21,21 +21,46 @@ const reducedMotion = () => {
   try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches } catch { return false }
 }
 
-// A short shower of crystals over the result, computed once per finished game.
-function GemShower({ seed }) {
-  const gems = useMemo(() => {
-    let a = seed >>> 0
-    const rnd = () => { a = (a * 1664525 + 1013904223) >>> 0; return a / 4294967296 }
-    return Array.from({ length: 24 }, (_, i) => ({
-      id: i, color: CRYSTALS[i % 4], left: rnd() * 100, delay: rnd() * 1.6, duration: 2.6 + rnd() * 1.6, size: 14 + rnd() * 14, spin: (rnd() - 0.5) * 540,
-    }))
+function rng(seed) {
+  let a = seed >>> 0
+  return () => { a = (a * 1664525 + 1013904223) >>> 0; return a / 4294967296 }
+}
+
+// Winner only: golden rays turning behind the result, a burst of crystals from the centre, then a
+// crystal rain — computed once per finished game; nothing at all when the OS asks for less motion.
+function VictoryCelebration({ seed }) {
+  const { burst, rain } = useMemo(() => {
+    const r = rng(seed)
+    return {
+      burst: Array.from({ length: 20 }, (_, i) => {
+        const angle = (i / 20) * Math.PI * 2 + r() * 0.3
+        const vmin = Math.min(window.innerWidth, window.innerHeight) / 100
+        const dist = (30 + r() * 18) * vmin
+        return { id: i, color: CRYSTALS[i % 4], x: Math.cos(angle) * dist, y: Math.sin(angle) * dist, size: 18 + r() * 16, spin: (r() - 0.5) * 360 }
+      }),
+      rain: Array.from({ length: 30 }, (_, i) => ({
+        id: i, color: CRYSTALS[i % 4], left: r() * 100, delay: 0.7 + r() * 2.2, duration: 2.6 + r() * 1.8, size: 14 + r() * 14, spin: (r() - 0.5) * 540,
+      })),
+    }
   }, [seed])
   if (reducedMotion()) return null
   return (
     <div className="pointer-events-none fixed inset-0 z-modal overflow-hidden" aria-hidden="true">
-      {gems.map((g) => (
+      <div className="victory-rays absolute left-1/2 top-1/2 h-[160vmax] w-[160vmax]" />
+      {burst.map((g) => (
+        <div key={`b${g.id}`} className="absolute left-1/2 top-1/2" style={{ transform: 'translate(-50%, -50%)' }}>
+          <motion.div
+            initial={{ x: 0, y: 0, scale: 0.2, opacity: 0 }}
+            animate={{ x: g.x, y: g.y, scale: [0.2, 1.2, 1], rotate: g.spin, opacity: [0, 1, 1, 0] }}
+            transition={{ duration: 1.6, ease: 'easeOut' }}
+          >
+            <Gem color={g.color} size={g.size} label={false} />
+          </motion.div>
+        </div>
+      ))}
+      {rain.map((g) => (
         <motion.div
-          key={g.id}
+          key={`r${g.id}`}
           className="absolute -top-8"
           style={{ left: `${g.left}%` }}
           initial={{ y: 0, rotate: 0, opacity: 1 }}
@@ -48,6 +73,17 @@ function GemShower({ seed }) {
     </div>
   )
 }
+
+// Crown with three crystals — the winner's title icon.
+const Crown = () => (
+  <svg viewBox="0 0 48 40" width="40" height="34" aria-hidden="true">
+    <path d="M4 14l10 9 10-17 10 17 10-9-4 22H8z" style={{ fill: 'rgb(var(--bronze-300))', stroke: 'rgb(var(--bronze-700))' }} strokeWidth="2" strokeLinejoin="round" />
+    <rect x="8" y="33" width="32" height="5" rx="1.5" style={{ fill: 'rgb(var(--bronze-500))', stroke: 'rgb(var(--bronze-700))' }} strokeWidth="1.5" />
+    <circle cx="24" cy="27" r="3.2" style={{ fill: 'rgb(var(--gem-pink))' }} />
+    <circle cx="15" cy="29" r="2.4" style={{ fill: 'rgb(var(--gem-blue))' }} />
+    <circle cx="33" cy="29" r="2.4" style={{ fill: 'rgb(var(--gem-green))' }} />
+  </svg>
+)
 
 const rankLabel = (i) => ['1st', '2nd', '3rd', '4th', '5th'][i] || `${i + 1}th`
 
@@ -70,16 +106,20 @@ const GameOverModal = ({ onNewGame, onBackToMenu }) => {
     .sort((a, b) => b.s.total - a.s.total || b.seat - a.seat)
   const winnerScore = scoreOf(winner).total
   const wonOnTieBreak = ranked.filter((r) => r.s.total === winnerScore).length > 1
+  const iWon = !!myId && winner?.id === myId
+  const myPlace = ranked.findIndex((r) => r.p.id === myId)
 
   return (
     <>
-      <GemShower seed={(gameState.currentTurn || 1) * 7919} />
+      {iWon ? <VictoryCelebration seed={(gameState.currentTurn || 1) * 7919} /> : null}
       <Modal
         open
         dismissible={false}
         variant="stone"
         size="lg"
-        title="Game Over"
+        title={iWon ? <span className="victory-title">Victory!</span> : 'Game Over'}
+        icon={iWon ? <Crown /> : null}
+        className={iWon ? 'turn-glow' : ''}
         footer={(
           <>
             <Button variant="secondary" onClick={onBackToMenu}>Back to Menu</Button>
@@ -99,6 +139,11 @@ const GameOverModal = ({ onNewGame, onBackToMenu }) => {
               <div className="text-sm text-fg-muted">
                 {winnerScore} points{wonOnTieBreak ? ' · tied on points, the player later in turn order wins' : ''}
               </div>
+              {!iWon && myPlace >= 0 ? (
+                <div className="mt-1 text-sm text-fg">
+                  You finished <b>{rankLabel(myPlace)}</b> of {ranked.length} with {ranked[myPlace].s.total} points
+                </div>
+              ) : null}
             </div>
           </div>
 

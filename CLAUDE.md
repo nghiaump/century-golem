@@ -160,7 +160,7 @@ docker run --rm -v "$PWD/../src/golem":/src:ro -v golem-gomod:/go/pkg -v golem-g
 - `sudo` cần mật khẩu ⇒ mọi thứ thiết kế để không cần root (docker group + systemd --user, linger bật).
 - Test UI thật: Chrome headless qua playwright-core có sẵn ở `~/.npm/_npx/f0a362733743bae2/node_modules/playwright-core`
   với `executablePath: '/usr/bin/google-chrome'` — dùng `deploy/ui-shots.mjs`. Gallery dev: `vite dev` trên bản sao + `?gallery`
-  (mọi primitive) / `?gallery&modal=trade|upgrade|deposit|discard|claim|gameover` (popup với dữ liệu giả; không vào bản build).
+  (mọi primitive) / `?gallery&modal=trade|upgrade|deposit|discard|claim|gameover|victory` (popup với dữ liệu giả; không vào bản build).
 
 ## Lỗi upstream đã biết (chưa sửa)
 - `session.sendToPlayer`/broadcast gửi vào `WriteChan` của người chơi vừa bị gỡ (kênh đã đóng) ⇒ **panic "send on

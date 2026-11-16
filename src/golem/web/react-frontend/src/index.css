@@ -103,6 +103,30 @@
     pointer-events: none;
     animation: turn-glow-pulse 1.6s ease-in-out infinite;
   }
+  /* Game over, winner: gold shimmering title and slowly turning rays behind the result */
+  .victory-title {
+    background: linear-gradient(100deg, rgb(var(--bronze-300)) 20%, #fff8e1 45%, rgb(var(--bronze-100)) 55%, rgb(var(--bronze-300)) 80%);
+    background-size: 220% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: victory-shimmer 2.6s linear infinite;
+  }
+  @keyframes victory-shimmer {
+    from { background-position: 120% 0; }
+    to { background-position: -120% 0; }
+  }
+  .victory-rays {
+    background: repeating-conic-gradient(from 0deg, rgb(var(--bronze-300) / 0.16) 0deg 9deg, transparent 9deg 24deg);
+    -webkit-mask-image: radial-gradient(circle, #000 0%, transparent 62%);
+    mask-image: radial-gradient(circle, #000 0%, transparent 62%);
+    transform: translate(-50%, -50%);
+    animation: victory-rays-turn 24s linear infinite;
+  }
+  @keyframes victory-rays-turn {
+    from { transform: translate(-50%, -50%) rotate(0deg); }
+    to { transform: translate(-50%, -50%) rotate(360deg); }
+  }
   @keyframes turn-glow-pulse {
     0%, 100% { opacity: 0.45; }
     50% { opacity: 1; }

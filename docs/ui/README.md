@@ -37,4 +37,4 @@ node ui-shots.mjs http://127.0.0.1:8400 /tmp/shots                  # 6 viewport
 ```
 
 For one primitive or popup without playing a game: run `vite dev` on a copy of the frontend and open `/?gallery`
-(all primitives) or `/?gallery&modal=trade|upgrade|deposit|discard|claim|gameover` (popups on fake data; dev builds only).
+(all primitives) or `/?gallery&modal=trade|upgrade|deposit|discard|claim|gameover|victory` (popups on fake data; dev builds only).
