@@ -1,0 +1,12 @@
+// Shared "Stone & Crystal" UI primitives — build every screen from these (tokens: src/styles/tokens.css).
+export { default as Avatar } from './Avatar'
+export { default as Button, IconButton } from './Button'
+export { default as Coin } from './Coin'
+export { default as CrystalRow, CrystalCost } from './CrystalRow'
+export { default as Gem, CRYSTALS } from './Gem'
+export { default as GolemIcon } from './GolemIcon'
+export { default as Modal } from './Modal'
+export { default as NightBackdrop } from './NightBackdrop'
+export { default as Panel } from './Panel'
+export { default as Pill } from './Pill'
+export { default as TurnBanner } from './TurnBanner'

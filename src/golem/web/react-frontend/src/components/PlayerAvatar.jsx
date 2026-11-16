@@ -5,7 +5,7 @@ import { avatarSrc, resolveAvatarId } from '../utils/avatar'
 // In-game player avatar image. Size, shape and border come from `className`; falls back to the name initial
 // if the image fails to load. Looks the player up in the game state so partial objects (e.g. `winner`) work.
 // `restAnchor`: the opponent rest popup (RestPopup) shows just below this avatar (desktop boards).
-const PlayerAvatar = ({ player, className = '', restAnchor = false }) => {
+const PlayerAvatar = ({ player, className = '', restAnchor = false, style }) => {
   const players = useGameStore((state) => state.gameState?.players) || []
   const [failedSrc, setFailedSrc] = useState(null)
 
@@ -18,6 +18,7 @@ const PlayerAvatar = ({ player, className = '', restAnchor = false }) => {
   return (
     <div
       className={`overflow-hidden flex items-center justify-center font-bold ${className}`}
+      style={style}
       data-rest-anchor={restAnchor && fullPlayer?.id ? fullPlayer.id : undefined}
     >
       {failedSrc === src ? (

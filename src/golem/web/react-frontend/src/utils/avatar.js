@@ -1,14 +1,41 @@
-// Player avatars: /assets/images/avatar/<id>.webp, generated from a Super Mario Bros. sprite sheet
-// (deploy/make-avatars.py): 12 different characters, then at most one variant each. The count must
-// match `avatarCount` in internal/session/ai_turns.go (the server picks random AI avatars).
-export const AVATAR_IDS = Array.from({ length: 23 }, (_, i) => String(i + 1))
+// Player avatars: /assets/images/avatar/<id>.svg — 24 original golems drawn by deploy/make-golem-avatars.py
+// (12 golems, then one variant of each). Names and count must match `avatarNames` in
+// internal/session/ai_turns.go: the server picks random AI avatars and names the AI after its golem.
+export const AVATAR_NAMES = [
+  'Basalt',
+  'Mossback',
+  'Rime',
+  'Cinder',
+  'Rivet',
+  'Dune',
+  'Quartz',
+  'Terra',
+  'Onyx',
+  'Rootling',
+  'Reef',
+  'Nimbus',
+  'Granite',
+  'Fernhide',
+  'Glacier',
+  'Magma',
+  'Anvil',
+  'Mesa',
+  'Amethyst',
+  'Kiln',
+  'Jet',
+  'Thornbark',
+  'Coralline',
+  'Squall',
+]
+export const AVATAR_IDS = AVATAR_NAMES.map((_, i) => String(i + 1))
+export const avatarName = (id) => AVATAR_NAMES[Number(id) - 1] || ''
 
 // Bump AVATAR_VERSION whenever the avatar images change: Cloudflare/browsers cache /assets for 7 days,
 // and the query string makes them fetch the new files.
-const AVATAR_VERSION = 'smb2'
+const AVATAR_VERSION = 'golem1'
 
 export function avatarSrc(id) {
-  return `/assets/images/avatar/${id}.webp?v=${AVATAR_VERSION}`
+  return `/assets/images/avatar/${id}.svg?v=${AVATAR_VERSION}`
 }
 
 // Avatar id to show for a player. Humans get the avatar they picked. The server gives AIs their player ID as

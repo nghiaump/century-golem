@@ -1160,7 +1160,7 @@
                    {isCurrentTurn && (
 --- a/web/react-frontend/src/components/PlayerAvatar.jsx
 +++ b/web/react-frontend/src/components/PlayerAvatar.jsx
-@@ -0,0 +1,37 @@
+@@ -0,0 +1,38 @@
 +import React, { useState } from 'react'
 +import useGameStore from '../store/gameStore'
 +import { avatarSrc, resolveAvatarId } from '../utils/avatar'
@@ -1168,7 +1168,7 @@
 +// In-game player avatar image. Size, shape and border come from `className`; falls back to the name initial
 +// if the image fails to load. Looks the player up in the game state so partial objects (e.g. `winner`) work.
 +// `restAnchor`: the opponent rest popup (RestPopup) shows just below this avatar (desktop boards).
-+const PlayerAvatar = ({ player, className = '', restAnchor = false }) => {
++const PlayerAvatar = ({ player, className = '', restAnchor = false, style }) => {
 +  const players = useGameStore((state) => state.gameState?.players) || []
 +  const [failedSrc, setFailedSrc] = useState(null)
 +
@@ -1181,6 +1181,7 @@
 +  return (
 +    <div
 +      className={`overflow-hidden flex items-center justify-center font-bold ${className}`}
++      style={style}
 +      data-rest-anchor={restAnchor && fullPlayer?.id ? fullPlayer.id : undefined}
 +    >
 +      {failedSrc === src ? (
@@ -1946,6 +1947,654 @@
                </span>
                <span className="flex-1">{toast.message}</span>
                <button
+--- a/web/react-frontend/src/components/ui/Avatar.jsx
++++ b/web/react-frontend/src/components/ui/Avatar.jsx
+@@ -0,0 +1,49 @@
++import React from 'react'
++import PlayerAvatar from '../PlayerAvatar'
++
++// Timer ring colour by time left (share of the turn).
++const ringColor = (f) => (f > 0.5 ? 'rgb(var(--moss))' : f > 0.2 ? 'rgb(var(--bronze-300))' : 'rgb(var(--ember))')
++
++/**
++ * Player portrait in a bronze ring. `turn` lights the ring; `timer` = {remaining, total} (seconds)
++ * draws the time left around it. `restAnchor` marks it as the anchor of the opponent rest popup.
++ */
++const Avatar = ({ player, size = 48, turn = false, timer, offline = false, restAnchor = false, className = '' }) => {
++  const f = timer && timer.total > 0 ? Math.max(0, Math.min(1, timer.remaining / timer.total)) : null
++  const stroke = Math.max(3, Math.round(size / 14))
++  const box = size + stroke * 2 + 4
++  const r = (box - stroke) / 2
++  const circ = 2 * Math.PI * r
++  return (
++    <span
++      className={`relative inline-flex flex-shrink-0 items-center justify-center rounded-full ${turn ? 'turn-glow' : ''} ${className}`}
++      style={{ width: box, height: box }}
++    >
++      {f !== null ? (
++        <svg className="absolute inset-0 -rotate-90" width={box} height={box} aria-hidden="true">
++          <circle cx={box / 2} cy={box / 2} r={r} fill="none" strokeWidth={stroke} style={{ stroke: 'rgb(var(--rock-950) / 0.7)' }} />
++          <circle
++            cx={box / 2}
++            cy={box / 2}
++            r={r}
++            fill="none"
++            strokeWidth={stroke}
++            strokeLinecap="round"
++            strokeDasharray={circ}
++            strokeDashoffset={circ * (1 - f)}
++            style={{ stroke: ringColor(f), transition: 'stroke-dashoffset 1s linear, stroke 0.3s' }}
++            className={f <= 0.2 ? 'animate-pulse' : ''}
++          />
++        </svg>
++      ) : null}
++      <PlayerAvatar
++        player={player}
++        restAnchor={restAnchor}
++        className={`rounded-full border-2 bg-rock-700 text-fg text-sm ${turn ? 'border-bronze-300' : 'border-bronze-500/70'} ${offline ? 'opacity-50 grayscale' : ''}`}
++        style={{ width: size, height: size }}
++      />
++    </span>
++  )
++}
++
++export default Avatar
+--- a/web/react-frontend/src/components/ui/Button.jsx
++++ b/web/react-frontend/src/components/ui/Button.jsx
+@@ -0,0 +1,66 @@
++import React, { forwardRef } from 'react'
++
++// Full class strings only (Tailwind can't see class names built from pieces).
++const VARIANT = {
++  primary:
++    'text-ink border-bronze-700 bg-gradient-to-b from-bronze-300 to-bronze-500 shadow-bevel ' +
++    'hover:from-bronze-100 hover:to-bronze-300 active:to-bronze-700',
++  secondary:
++    'surface-stone text-fg hover:brightness-125 active:brightness-95',
++  danger:
++    'text-white border-black/40 bg-gradient-to-b from-ember/80 to-ember shadow-bevel hover:brightness-110',
++  ghost:
++    'text-fg border-transparent bg-transparent hover:bg-rock-700/60',
++  // on parchment (popups): ink outline instead of a stone slab
++  outline:
++    'text-ink border-ink/40 bg-transparent hover:bg-ink/10',
++}
++const SIZE = {
++  sm: 'h-9 px-3 text-sm gap-1.5',   // desktop only (< 44px)
++  md: 'h-11 px-4 text-sm gap-2',
++  lg: 'h-[52px] px-6 text-base gap-2',
++}
++
++/** Game button. Labels are static English, set in Cinzel. */
++const Button = forwardRef(function Button(
++  { variant = 'primary', size = 'md', block = false, icon, className = '', children, type = 'button', ...rest },
++  ref
++) {
++  return (
++    <button
++      ref={ref}
++      type={type}
++      className={`inline-flex items-center justify-center rounded-stone border font-display font-bold tracking-wide
++        select-none transition-[filter,background-color,transform] duration-150 active:translate-y-px
++        disabled:opacity-45 disabled:cursor-not-allowed disabled:active:translate-y-0 disabled:hover:brightness-100
++        ${VARIANT[variant] || VARIANT.primary} ${SIZE[size] || SIZE.md} ${block ? 'w-full' : ''} ${className}`}
++      {...rest}
++    >
++      {icon ? <span className="inline-flex flex-shrink-0" aria-hidden="true">{icon}</span> : null}
++      {children}
++    </button>
++  )
++})
++
++/** Square icon-only button (44px; 36px with size="sm", desktop only). Needs an aria-label. */
++export const IconButton = forwardRef(function IconButton(
++  { label, variant = 'secondary', size = 'md', className = '', children, type = 'button', ...rest },
++  ref
++) {
++  const box = size === 'sm' ? 'h-9 w-9' : 'h-11 w-11'
++  return (
++    <button
++      ref={ref}
++      type={type}
++      aria-label={label}
++      title={label}
++      className={`inline-flex items-center justify-center rounded-stone border transition-[filter,background-color] duration-150
++        disabled:opacity-45 disabled:cursor-not-allowed ${VARIANT[variant] || VARIANT.secondary} ${box} ${className}`}
++      {...rest}
++    >
++      {children}
++    </button>
++  )
++})
++
++export default Button
+--- a/web/react-frontend/src/components/ui/Coin.jsx
++++ b/web/react-frontend/src/components/ui/Coin.jsx
+@@ -0,0 +1,24 @@
++import React from 'react'
++
++// Copper coin = 3 points, silver coin = 1 point (official rules). Drawn, not the photo, so it stays crisp.
++const KIND = {
++  copper: { fill: 'var(--coin-copper)', dark: 'var(--coin-copper-dark)', points: 3, name: 'Copper coin' },
++  silver: { fill: 'var(--coin-silver)', dark: 'var(--coin-silver-dark)', points: 1, name: 'Silver coin' },
++}
++
++const Coin = ({ kind = 'copper', size = 20, label, className = '' }) => {
++  const k = KIND[kind] || KIND.copper
++  const a11y = label === false ? { 'aria-hidden': true } : { role: 'img', 'aria-label': label || `${k.name} (${k.points} points)` }
++  return (
++    <svg viewBox="0 0 24 24" width={size} height={size} className={`inline-block flex-shrink-0 ${className}`} {...a11y}>
++      <circle cx="12" cy="12" r="11" style={{ fill: `rgb(${k.dark})` }} />
++      <circle cx="12" cy="11.2" r="9.6" style={{ fill: `rgb(${k.fill})` }} />
++      <circle cx="12" cy="11.2" r="7.4" fill="none" strokeWidth="1" style={{ stroke: `rgb(${k.dark} / 0.6)` }} />
++      <text x="12" y="15" textAnchor="middle" fontSize="10" fontWeight="700" style={{ fill: `rgb(${k.dark})`, fontFamily: 'Cinzel, Georgia, serif' }}>
++        {k.points}
++      </text>
++    </svg>
++  )
++}
++
++export default Coin
+--- a/web/react-frontend/src/components/ui/CrystalRow.jsx
++++ b/web/react-frontend/src/components/ui/CrystalRow.jsx
+@@ -0,0 +1,62 @@
++import React from 'react'
++import Gem, { CRYSTALS } from './Gem'
++
++const totalOf = (res) => CRYSTALS.reduce((n, c) => n + (res?.[c] || 0), 0)
++
++const TEXT = { xs: 'text-xs', sm: 'text-sm', md: 'text-base', lg: 'text-lg' }
++const GEM = { xs: 14, sm: 16, md: 20, lg: 24 }
++
++/**
++ * A player's crystals: one gem + count per colour (zeros dimmed). `capacity` adds "7/10".
++ * Accessible as one label ("3 yellow, 1 green, …") instead of eight separate images.
++ */
++const CrystalRow = ({ resources, size = 'sm', capacity, showZero = true, className = '', tone = 'stone' }) => {
++  const total = totalOf(resources)
++  const label = CRYSTALS.map((c) => `${resources?.[c] || 0} ${c}`).join(', ') + (capacity ? `, ${total} of ${capacity}` : '')
++  const muted = tone === 'parchment' ? 'text-ink-muted' : 'text-fg-muted'
++  return (
++    <div className={`inline-flex items-center gap-2 ${TEXT[size]} ${className}`} role="group" aria-label={`Crystals: ${label}`}>
++      {CRYSTALS.map((c) => {
++        const n = resources?.[c] || 0
++        if (!showZero && n === 0) return null
++        return (
++          <span key={c} className={`inline-flex items-center gap-0.5 font-semibold tabular-nums ${n === 0 ? 'opacity-40' : ''}`}>
++            <Gem color={c} size={GEM[size]} label={false} />
++            <span aria-hidden="true">{n}</span>
++          </span>
++        )
++      })}
++      {capacity ? (
++        <span aria-hidden="true" className={`tabular-nums font-semibold ${total > capacity ? 'text-ember' : muted}`}>
++          {total}/{capacity}
++        </span>
++      ) : null}
++    </div>
++  )
++}
++
++/**
++ * A price or a trade side: the gems themselves, repeated (≤ 5 of a colour) or "gem ×n" beyond that.
++ * `resources` is a {yellow, green, blue, pink} count map.
++ */
++export const CrystalCost = ({ resources, size = 16, className = '', max = 5 }) => {
++  const label = CRYSTALS.filter((c) => resources?.[c]).map((c) => `${resources[c]} ${c}`).join(', ') || 'nothing'
++  return (
++    <span className={`inline-flex flex-wrap items-center gap-0.5 ${className}`} role="img" aria-label={label}>
++      {CRYSTALS.map((c) => {
++        const n = resources?.[c] || 0
++        if (!n) return null
++        if (n > max) {
++          return (
++            <span key={c} className="inline-flex items-center gap-0.5 font-semibold tabular-nums">
++              <Gem color={c} size={size} label={false} />×{n}
++            </span>
++          )
++        }
++        return Array.from({ length: n }, (_, i) => <Gem key={`${c}${i}`} color={c} size={size} label={false} />)
++      })}
++    </span>
++  )
++}
++
++export default CrystalRow
+--- a/web/react-frontend/src/components/ui/Gem.jsx
++++ b/web/react-frontend/src/components/ui/Gem.jsx
+@@ -0,0 +1,78 @@
++import React from 'react'
++
++// Crystal colours in game order (level 1 → 4). Each colour has its own silhouette so the game reads
++// without colour vision: yellow ▲ (3 sides), green ◆ (4), blue ⬟ (5), pink ⬢ (6) — sides − 2 = level.
++export const CRYSTALS = ['yellow', 'green', 'blue', 'pink']
++const SIDES = { yellow: 3, green: 4, blue: 5, pink: 6 }
++const LABEL = { yellow: 'yellow', green: 'green', blue: 'blue', pink: 'pink' }
++
++const C = 12 // centre of the 24×24 box
++const round = (n) => Math.round(n * 100) / 100
++
++// Vertices of a regular polygon pointing up; triangles sit a little lower so they look centred.
++function vertices(n, r) {
++  const cy = n === 3 ? C + 1.6 : C
++  return Array.from({ length: n }, (_, i) => {
++    const a = -Math.PI / 2 + (2 * Math.PI * i) / n
++    return [round(C + r * Math.cos(a)), round(cy + r * Math.sin(a))]
++  })
++}
++
++// Precomputed facet geometry per colour: outer outline, the facets between outline and table, and the table.
++const GEOMETRY = Object.fromEntries(
++  CRYSTALS.map((color) => {
++    const n = SIDES[color]
++    const r = n === 3 ? 12 : 11
++    const outer = vertices(n, r)
++    const table = vertices(n, r * 0.46)
++    // light comes from the top-left: a facet is lit when its outward normal points that way
++    const facets = outer.map((p, i) => {
++      const q = outer[(i + 1) % n]
++      const mx = (p[0] + q[0]) / 2 - C
++      const my = (p[1] + q[1]) / 2 - C
++      const lit = (-mx - my * 1.4) / Math.hypot(mx, my)
++      const tone = lit > 0.55 ? 'light' : lit < -0.35 ? 'dark' : 'base'
++      return { points: [p, q, table[(i + 1) % n], table[i]], tone }
++    })
++    return [color, { outer, table, facets }]
++  })
++)
++
++const pts = (list) => list.map((p) => p.join(',')).join(' ')
++const fill = (color, tone) => `rgb(var(--gem-${color}${tone === 'base' ? '' : `-${tone}`}))`
++
++/**
++ * One crystal. `size` in px. Decorative by default when `label` is false (e.g. next to a number that
++ * a screen reader already gets from the row's label); otherwise it announces "<colour> crystal".
++ */
++const Gem = ({ color = 'yellow', size = 16, label, className = '', style }) => {
++  const g = GEOMETRY[color] || GEOMETRY.yellow
++  const a11y = label === false
++    ? { 'aria-hidden': true }
++    : { role: 'img', 'aria-label': label || `${LABEL[color] || color} crystal` }
++  return (
++    <svg
++      viewBox="0 0 24 24"
++      width={size}
++      height={size}
++      className={`inline-block flex-shrink-0 ${className}`}
++      style={style}
++      {...a11y}
++    >
++      <polygon points={pts(g.outer)} style={{ fill: fill(color, 'base') }} />
++      {g.facets.map((f, i) => (
++        <polygon key={i} points={pts(f.points)} style={{ fill: fill(color, f.tone) }} />
++      ))}
++      <polygon points={pts(g.table)} style={{ fill: fill(color, 'light'), opacity: 0.85 }} />
++      <polygon
++        points={pts(g.outer)}
++        fill="none"
++        strokeWidth={1.3}
++        strokeLinejoin="round"
++        style={{ stroke: 'rgb(var(--rock-950) / 0.85)' }}
++      />
++    </svg>
++  )
++}
++
++export default Gem
+--- a/web/react-frontend/src/components/ui/GolemIcon.jsx
++++ b/web/react-frontend/src/components/ui/GolemIcon.jsx
+@@ -0,0 +1,15 @@
++import React from 'react'
++
++// Golem head (claimed golems / golem counts) — replaces the 🗿 / 🎭 emoji. Uses currentColor.
++const GolemIcon = ({ size = 16, className = '', label }) => {
++  const a11y = label ? { role: 'img', 'aria-label': label } : { 'aria-hidden': true }
++  return (
++    <svg viewBox="0 0 24 24" width={size} height={size} className={`inline-block flex-shrink-0 ${className}`} fill="currentColor" {...a11y}>
++      <path d="M7 3h10l3 4v7l-2 3v4H6v-4l-2-3V7z" opacity="0.9" />
++      <path d="M8.2 9.2h2.6v2.2H8.2zM13.2 9.2h2.6v2.2h-2.6z" style={{ fill: 'rgb(var(--gem-blue-light))' }} />
++      <path d="M9 15h6v1.6H9z" opacity="0.45" fill="rgb(0 0 0)" />
++    </svg>
++  )
++}
++
++export default GolemIcon
+--- a/web/react-frontend/src/components/ui/index.js
++++ b/web/react-frontend/src/components/ui/index.js
+@@ -0,0 +1,12 @@
++// Shared "Stone & Crystal" UI primitives — build every screen from these (tokens: src/styles/tokens.css).
++export { default as Avatar } from './Avatar'
++export { default as Button, IconButton } from './Button'
++export { default as Coin } from './Coin'
++export { default as CrystalRow, CrystalCost } from './CrystalRow'
++export { default as Gem, CRYSTALS } from './Gem'
++export { default as GolemIcon } from './GolemIcon'
++export { default as Modal } from './Modal'
++export { default as NightBackdrop } from './NightBackdrop'
++export { default as Panel } from './Panel'
++export { default as Pill } from './Pill'
++export { default as TurnBanner } from './TurnBanner'
+--- a/web/react-frontend/src/components/ui/Modal.jsx
++++ b/web/react-frontend/src/components/ui/Modal.jsx
+@@ -0,0 +1,133 @@
++import React, { useEffect, useId, useRef } from 'react'
++import { createPortal } from 'react-dom'
++import { motion, AnimatePresence } from 'framer-motion'
++
++const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])'
++
++const SURFACE = { parchment: 'surface-parchment', stone: 'surface-stone' }
++const WIDTH = { sm: 'md:max-w-sm', md: 'md:max-w-lg', lg: 'md:max-w-2xl', xl: 'md:max-w-4xl' }
++
++function CloseIcon() {
++  return (
++    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
++      <path d="M6 6l12 12M18 6L6 18" />
++    </svg>
++  )
++}
++
++/**
++ * Popup shell: parchment (default) or stone, title + Close, body, footer. Below 768px it is a bottom
++ * sheet. Escape and the backdrop close it unless `dismissible={false}` (e.g. the discard step).
++ * Focus moves into the popup (Tab stays inside) and returns to where it was when it closes; the page
++ * behind can't scroll.
++ */
++const Modal = ({ open, onClose, title, icon, dismissible = true, variant = 'parchment', size = 'md', footer, children, className = '', labelledBy }) => {
++  const autoId = useId()
++  const titleId = labelledBy || `modal-title-${autoId}`
++  const panelRef = useRef(null)
++  const restoreRef = useRef(null)
++  // latest onClose without re-running the effect (parents re-render on every game update; re-running
++  // would steal focus back to the first button each time)
++  const onCloseRef = useRef(onClose)
++  onCloseRef.current = onClose
++
++  useEffect(() => {
++    if (!open) return undefined
++    restoreRef.current = document.activeElement
++    const prevOverflow = document.body.style.overflow
++    document.body.style.overflow = 'hidden'
++    // focus the dialog itself (Tab then walks its controls); an element with data-autofocus wins
++    const t = setTimeout(() => {
++      const target = panelRef.current?.querySelector('[data-autofocus]') || panelRef.current
++      target?.focus?.()
++    }, 0)
++    const onKey = (e) => {
++      if (e.key === 'Escape' && dismissible) {
++        e.stopPropagation()
++        onCloseRef.current?.()
++      } else if (e.key === 'Tab' && panelRef.current) {
++        // keep Tab inside the popup
++        const items = [...panelRef.current.querySelectorAll(FOCUSABLE)]
++        if (!items.length) return
++        const first = items[0]
++        const last = items[items.length - 1]
++        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() }
++        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
++      }
++    }
++    document.addEventListener('keydown', onKey, true)
++    return () => {
++      clearTimeout(t)
++      document.removeEventListener('keydown', onKey, true)
++      document.body.style.overflow = prevOverflow
++      restoreRef.current?.focus?.()
++    }
++  }, [open, dismissible])
++
++  const dark = variant === 'stone'
++  return createPortal(
++    <AnimatePresence>
++      {open && (
++        <motion.div
++          key="modal"
++          className="fixed inset-0 z-modal flex items-end justify-center md:items-center md:p-6"
++          initial={{ opacity: 0 }}
++          animate={{ opacity: 1 }}
++          exit={{ opacity: 0 }}
++          transition={{ duration: 0.15 }}
++        >
++          <div
++            className="absolute inset-0 bg-rock-950/75"
++            onClick={dismissible ? onClose : undefined}
++            aria-hidden="true"
++          />
++          <motion.div
++            ref={panelRef}
++            role="dialog"
++            aria-modal="true"
++            aria-labelledby={title ? titleId : undefined}
++            tabIndex={-1}
++            className={`${SURFACE[variant] || SURFACE.parchment} relative flex w-full flex-col
++              max-h-[92dvh] rounded-b-none md:rounded-stone-lg ${WIDTH[size] || WIDTH.md}
++              pb-[var(--safe-bottom)] md:pb-0 outline-none ${className}`}
++            initial={{ y: 40, opacity: 0 }}
++            animate={{ y: 0, opacity: 1 }}
++            exit={{ y: 40, opacity: 0 }}
++            transition={{ type: 'spring', stiffness: 380, damping: 32 }}
++          >
++            {title || dismissible ? (
++              <header className={`flex items-center gap-3 px-5 pt-4 pb-2 ${dark ? '' : 'border-b border-ink/15'}`}>
++                {icon ? <span className="flex-shrink-0" aria-hidden="true">{icon}</span> : null}
++                {title ? (
++                  <h2 id={titleId} className={`flex-1 font-display text-lg md:text-xl font-bold ${dark ? 'text-bronze-100 text-engrave' : 'text-ink'}`}>
++                    {title}
++                  </h2>
++                ) : <span className="flex-1" />}
++                {dismissible ? (
++                  <button
++                    type="button"
++                    onClick={onClose}
++                    aria-label="Close"
++                    className={`-mr-2 inline-flex h-11 w-11 items-center justify-center rounded-stone transition-colors
++                      ${dark ? 'text-fg-muted hover:bg-rock-700/60 hover:text-fg' : 'text-ink-muted hover:bg-ink/10 hover:text-ink'}`}
++                  >
++                    <CloseIcon />
++                  </button>
++                ) : null}
++              </header>
++            ) : null}
++            <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
++            {footer ? (
++              <footer className={`flex flex-wrap items-center justify-end gap-2 px-5 pb-4 pt-2 ${dark ? '' : 'border-t border-ink/15'}`}>
++                {footer}
++              </footer>
++            ) : null}
++          </motion.div>
++        </motion.div>
++      )}
++    </AnimatePresence>,
++    document.body
++  )
++}
++
++export default Modal
+--- a/web/react-frontend/src/components/ui/NightBackdrop.jsx
++++ b/web/react-frontend/src/components/ui/NightBackdrop.jsx
+@@ -0,0 +1,96 @@
++import React from 'react'
++
++// Night mountains behind every screen: three ridges, stars and a few glowing crystals on the near
++// slope. Drawn once from a fixed seed (same picture every load), no image download.
++const W = 1600
++const H = 900
++
++function prng(seed) {
++  let a = seed >>> 0
++  return () => {
++    a = (a + 0x6d2b79f5) >>> 0
++    let t = a
++    t = Math.imul(t ^ (t >>> 15), t | 1)
++    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
++    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
++  }
++}
++
++// A jagged ridge line around `base` (y), `amp` px high, closed down to the bottom edge.
++function ridge(rand, base, amp, step) {
++  const pts = []
++  let y = base
++  for (let x = -step; x <= W + step; x += step) {
++    y += (rand() - 0.5) * amp * 0.9
++    y = Math.max(base - amp, Math.min(base + amp * 0.35, y))
++    // occasional sharp peak
++    const peak = rand() < 0.12 ? -amp * (0.4 + rand() * 0.5) : 0
++    pts.push([x, Math.round(y + peak)])
++  }
++  return { d: `M${pts.map((p) => p.join(',')).join(' L')} L${W + step},${H} L${-step},${H} Z`, pts }
++}
++
++const rand = prng(1847)
++const STARS = Array.from({ length: 90 }, () => ({
++  x: Math.round(rand() * W),
++  y: Math.round(rand() * H * 0.55),
++  r: rand() < 0.15 ? 1.6 : rand() < 0.5 ? 1.1 : 0.7,
++  o: 0.25 + rand() * 0.6,
++}))
++const FAR = ridge(rand, 540, 120, 60)
++const MID = ridge(rand, 650, 90, 46)
++const NEAR = ridge(rand, 770, 70, 38)
++const GEMS = ['yellow', 'green', 'blue', 'pink']
++// glints sit on the near ridge line
++const GLINTS = Array.from({ length: 7 }, (_, i) => {
++  const p = NEAR.pts[3 + Math.floor((i + rand() * 0.8) * ((NEAR.pts.length - 6) / 7))]
++  return { x: p[0], y: p[1] + 14 + Math.round(rand() * 26), c: GEMS[i % 4], s: 5 + Math.round(rand() * 4) }
++})
++
++const NightBackdrop = ({ className = '' }) => (
++  <div className={`pointer-events-none fixed inset-0 z-0 overflow-hidden ${className}`} aria-hidden="true">
++    <svg className="h-full w-full" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMax slice">
++      <defs>
++        <linearGradient id="nb-sky" x1="0" y1="0" x2="0" y2="1">
++          <stop offset="0" stopColor="#0b0e1c" />
++          <stop offset="0.55" stopColor="#171b33" />
++          <stop offset="1" stopColor="#262b47" />
++        </linearGradient>
++        <radialGradient id="nb-moon" cx="0.78" cy="0.16" r="0.35">
++          <stop offset="0" stopColor="rgb(217 178 111)" stopOpacity="0.28" />
++          <stop offset="0.35" stopColor="rgb(140 150 200)" stopOpacity="0.1" />
++          <stop offset="1" stopColor="#000" stopOpacity="0" />
++        </radialGradient>
++        <linearGradient id="nb-mist" x1="0" y1="0" x2="0" y2="1">
++          <stop offset="0" stopColor="#3a4166" stopOpacity="0" />
++          <stop offset="1" stopColor="#3a4166" stopOpacity="0.35" />
++        </linearGradient>
++        {GEMS.map((c) => (
++          <radialGradient key={c} id={`nb-glow-${c}`}>
++            <stop offset="0" style={{ stopColor: `rgb(var(--gem-${c}-light))`, stopOpacity: 0.75 }} />
++            <stop offset="1" style={{ stopColor: `rgb(var(--gem-${c}))`, stopOpacity: 0 }} />
++          </radialGradient>
++        ))}
++      </defs>
++      <rect width={W} height={H} fill="url(#nb-sky)" />
++      <rect width={W} height={H} fill="url(#nb-moon)" />
++      <circle cx={W * 0.78} cy={H * 0.15} r="26" fill="rgb(241 223 181)" opacity="0.1" />
++      <circle cx={W * 0.78} cy={H * 0.15} r="15" fill="rgb(248 238 210)" opacity="0.22" />
++      {STARS.map((s, i) => (
++        <circle key={i} cx={s.x} cy={s.y} r={s.r} fill="#e9e4f5" opacity={s.o} />
++      ))}
++      <path d={FAR.d} fill="#232843" />
++      <rect y={H * 0.5} width={W} height={H * 0.3} fill="url(#nb-mist)" />
++      <path d={MID.d} fill="#1b1f35" />
++      <path d={NEAR.d} fill="#12152a" />
++      {GLINTS.map((g, i) => (
++        <g key={i} transform={`translate(${g.x} ${g.y})`}>
++          <circle r={g.s * 4} fill={`url(#nb-glow-${g.c})`} />
++          <polygon points={`0,${-g.s} ${g.s * 0.6},0 0,${g.s} ${-g.s * 0.6},0`} style={{ fill: `rgb(var(--gem-${g.c}-light))` }} opacity="0.9" />
++        </g>
++      ))}
++    </svg>
++  </div>
++)
++
++export default NightBackdrop
+--- a/web/react-frontend/src/components/ui/Panel.jsx
++++ b/web/react-frontend/src/components/ui/Panel.jsx
+@@ -0,0 +1,25 @@
++import React from 'react'
++
++const SURFACE = { stone: 'surface-stone', inset: 'surface-inset', parchment: 'surface-parchment' }
++
++/**
++ * Carved stone (default), sunken inset, or parchment surface with an optional engraved title.
++ * `glow` = it's this panel's owner's turn.
++ */
++const Panel = ({ variant = 'stone', title, actions, glow = false, className = '', bodyClassName = '', as: Tag = 'section', children, ...rest }) => (
++  <Tag className={`${SURFACE[variant] || SURFACE.stone} ${glow ? 'turn-glow' : ''} flex flex-col min-h-0 ${className}`} {...rest}>
++    {title || actions ? (
++      <header className="flex items-center justify-between gap-2 px-3 pt-2 pb-1">
++        {title ? (
++          <h2 className={`font-display text-xs font-bold uppercase ${variant === 'parchment' ? 'text-ink-muted' : 'text-bronze-300 text-engrave'}`}>
++            {title}
++          </h2>
++        ) : <span />}
++        {actions ? <div className="flex items-center gap-1.5">{actions}</div> : null}
++      </header>
++    ) : null}
++    <div className={`flex-1 min-h-0 ${title || actions ? 'px-3 pb-3' : 'p-3'} ${bodyClassName}`}>{children}</div>
++  </Tag>
++)
++
++export default Panel
+--- a/web/react-frontend/src/components/ui/Pill.jsx
++++ b/web/react-frontend/src/components/ui/Pill.jsx
+@@ -0,0 +1,29 @@
++import React from 'react'
++
++const TONE = {
++  neutral: 'bg-rock-700 text-fg border-rock-400/40',
++  bronze: 'bg-bronze-500/25 text-bronze-100 border-bronze-500/60',
++  moss: 'bg-moss/25 text-[rgb(190_230_180)] border-moss/60',
++  ember: 'bg-ember/25 text-[rgb(255_200_185)] border-ember/60',
++  teal: 'bg-teal/25 text-[rgb(190_232_228)] border-teal/60',
++  ink: 'bg-ink/10 text-ink border-ink/30',
++}
++
++/** Small label. `pips` (1–4) adds dots, e.g. AI difficulty, so the meaning isn't carried by colour alone. */
++const Pill = ({ tone = 'neutral', pips, className = '', children, ...rest }) => (
++  <span
++    className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold leading-4 whitespace-nowrap ${TONE[tone] || TONE.neutral} ${className}`}
++    {...rest}
++  >
++    {pips ? (
++      <span className="inline-flex gap-0.5" aria-hidden="true">
++        {Array.from({ length: 4 }, (_, i) => (
++          <span key={i} className={`h-1.5 w-1.5 rounded-full ${i < pips ? 'bg-current' : 'bg-current opacity-25'}`} />
++        ))}
++      </span>
++    ) : null}
++    {children}
++  </span>
++)
++
++export default Pill
+--- a/web/react-frontend/src/components/ui/TurnBanner.jsx
++++ b/web/react-frontend/src/components/ui/TurnBanner.jsx
+@@ -0,0 +1,23 @@
++import React from 'react'
++import Gem from './Gem'
++
++/** "Your turn" ribbon (+ seconds left). Announced once to screen readers when it appears. */
++const TurnBanner = ({ show, seconds, label = 'Your turn', className = '' }) => {
++  if (!show) return null
++  return (
++    <div
++      role="status"
++      aria-live="polite"
++      className={`inline-flex items-center gap-2 rounded-stone border border-bronze-700 bg-gradient-to-b from-bronze-300 to-bronze-500
++        px-3 py-1.5 text-ink shadow-bevel ${className}`}
++    >
++      <Gem color="yellow" size={16} label={false} />
++      <span className="font-display text-sm font-bold uppercase tracking-wider">{label}</span>
++      {typeof seconds === 'number' ? (
++        <span className={`tabular-nums text-sm font-bold ${seconds <= 10 ? 'text-[rgb(140_28_14)] animate-pulse' : ''}`}>{seconds}s</span>
++      ) : null}
++    </div>
++  )
++}
++
++export default TurnBanner
 --- a/web/react-frontend/src/components/XpWaitingRoom.jsx
 +++ b/web/react-frontend/src/components/XpWaitingRoom.jsx
 @@ -0,0 +1,46 @@
@@ -2019,6 +2668,203 @@
 +)
 +
 +export default XpWindow
+--- a/web/react-frontend/src/dev/UiGallery.jsx
++++ b/web/react-frontend/src/dev/UiGallery.jsx
+@@ -0,0 +1,194 @@
++import React, { useState } from 'react'
++import {
++  Avatar, Button, IconButton, Coin, CrystalRow, CrystalCost, Gem, CRYSTALS, GolemIcon, Modal, NightBackdrop, Panel, Pill, TurnBanner,
++} from '../components/ui'
++
++// Dev-only page (vite dev + ?gallery): every primitive, for screenshots and design review.
++const SWATCHES = [
++  ['rock', [950, 900, 800, 700, 600, 400, 200]],
++  ['bronze', [700, 500, 300, 100]],
++  ['parch', [100, 200, 400]],
++]
++const SINGLE = ['ink', 'fg', 'fg-muted', 'ember', 'moss', 'teal', 'gem-yellow', 'gem-green', 'gem-blue', 'gem-pink']
++
++const Swatch = ({ name }) => (
++  <div className="flex flex-col items-center gap-1 text-xs">
++    <span className="h-10 w-14 rounded-stone-sm border border-black/40" style={{ background: `rgb(var(--${name}))` }} />
++    <span className="text-fg-muted">{name}</span>
++  </div>
++)
++
++const players = [
++  { id: 1, name: 'Đặng Thị Ngọc Ánh', avatar: '3' },
++  { id: 2, name: 'Mossback', avatar: '7', isAI: true, aiAvatar: true },
++  { id: 3, name: 'Cinder', avatar: '11', isAI: true, aiAvatar: true },
++  { id: 4, name: 'Rime', avatar: '5', isAI: true, aiAvatar: true },
++  { id: 5, name: 'Offline', avatar: '9' },
++]
++
++const Section = ({ title, children }) => (
++  <Panel title={title} className="w-full">
++    <div className="flex flex-wrap items-center gap-4">{children}</div>
++  </Panel>
++)
++
++export default function UiGallery() {
++  const params = new URLSearchParams(window.location.search)
++  const [open, setOpen] = useState(params.has('modal'))
++  const [mult, setMult] = useState(2)
++  return (
++    <div className="relative min-h-screen">
++      <NightBackdrop />
++      <main className="relative z-board mx-auto flex max-w-6xl flex-col gap-4 p-4 md:p-8">
++        <header className="flex flex-col items-center gap-1 py-4 text-center">
++          <div className="flex items-center gap-3">
++            <Gem color="blue" size={28} label={false} />
++            <h1 className="font-display text-3xl font-bold text-bronze-100 text-engrave md:text-5xl">Century</h1>
++            <Gem color="pink" size={28} label={false} />
++          </div>
++          <p className="font-display text-sm uppercase tracking-[0.35em] text-bronze-300">Golem Edition</p>
++        </header>
++
++        <Section title="Palette">
++          {SWATCHES.map(([n, steps]) => steps.map((s) => <Swatch key={`${n}${s}`} name={`${n}-${s}`} />))}
++          {SINGLE.map((n) => <Swatch key={n} name={n} />)}
++        </Section>
++
++        <Section title="Typography">
++          <div className="flex flex-col gap-2">
++            <div className="font-display text-3xl font-bold text-bronze-100 text-engrave">Claim Golem</div>
++            <div className="font-display text-xl font-bold text-bronze-300">Market · Golems · Your Hand</div>
++            <div className="text-base">Body — Be Vietnam Pro: Đặng Thị Ngọc Ánh, Nguyễn Văn Bảo, Phạm Quỳnh Hương</div>
++            <div className="text-sm text-fg-muted">Muted 14px — Waiting for Mossback… · Round 12 · 0123456789</div>
++            <div className="text-xs text-fg-muted">Smallest allowed 12px — took back 3 cards</div>
++          </div>
++        </Section>
++
++        <div className="grid gap-4 md:grid-cols-2">
++          <Panel title="Gems on stone">
++            <div className="flex flex-col gap-3">
++              {[12, 16, 20, 28, 40].map((s) => (
++                <div key={s} className="flex items-center gap-3">
++                  <span className="w-10 text-xs text-fg-muted">{s}px</span>
++                  {CRYSTALS.map((c) => <Gem key={c} color={c} size={s} />)}
++                </div>
++              ))}
++              <CrystalRow resources={{ yellow: 3, green: 1, blue: 0, pink: 2 }} capacity={10} size="md" />
++              <CrystalRow resources={{ yellow: 5, green: 2, blue: 1, pink: 3 }} capacity={10} size="sm" />
++              <div className="flex items-center gap-3">
++                <CrystalCost resources={{ yellow: 2 }} size={20} />
++                <span className="text-fg-muted">→</span>
++                <CrystalCost resources={{ green: 2 }} size={20} />
++                <span className="ml-4 flex items-center gap-2"><Coin kind="copper" size={28} /><Coin kind="silver" size={28} /></span>
++                <span className="ml-4 flex items-center gap-1 text-bronze-300"><GolemIcon size={22} label="Golems" /> 3</span>
++              </div>
++            </div>
++          </Panel>
++          <Panel variant="parchment" title="Gems on parchment">
++            <div className="flex flex-col gap-3">
++              {[12, 16, 20, 28, 40].map((s) => (
++                <div key={s} className="flex items-center gap-3">
++                  <span className="w-10 text-xs text-ink-muted">{s}px</span>
++                  {CRYSTALS.map((c) => <Gem key={c} color={c} size={s} />)}
++                </div>
++              ))}
++              <CrystalRow resources={{ yellow: 3, green: 1, blue: 0, pink: 2 }} capacity={10} size="md" tone="parchment" />
++              <div className="flex items-center gap-3">
++                <CrystalCost resources={{ yellow: 3 }} size={20} />
++                <span className="text-ink-muted">→</span>
++                <CrystalCost resources={{ green: 1, blue: 1 }} size={20} />
++              </div>
++            </div>
++          </Panel>
++        </div>
++
++        <Section title="Buttons">
++          <Button size="lg">Start Game</Button>
++          <Button>Confirm</Button>
++          <Button variant="secondary">Cancel</Button>
++          <Button variant="danger">Leave</Button>
++          <Button variant="ghost">Back</Button>
++          <Button size="sm">Rest</Button>
++          <Button disabled>Disabled</Button>
++          <Button icon={<Gem color="green" size={16} label={false} />}>Rest</Button>
++          <IconButton label="Sound">
++            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 9v6h4l5 4V5L8 9H4z" /><path d="M16 9a4 4 0 010 6" /></svg>
++          </IconButton>
++          <IconButton label="Activity" variant="ghost">
++            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 5h16v11H8l-4 4z" /></svg>
++          </IconButton>
++        </Section>
++
++        <Panel variant="parchment" title="Buttons on parchment">
++          <div className="flex flex-wrap gap-3">
++            <Button>Confirm Trade</Button>
++            <Button variant="outline">Cancel</Button>
++            <Button variant="outline" disabled>Undo</Button>
++          </div>
++        </Panel>
++
++        <Section title="Pills">
++          <Pill tone="neutral">Waiting</Pill>
++          <Pill tone="bronze">Last round</Pill>
++          <Pill tone="moss">Online</Pill>
++          <Pill tone="ember">Offline</Pill>
++          <Pill tone="teal">AI</Pill>
++          <Pill tone="moss" pips={1}>Easy</Pill>
++          <Pill tone="teal" pips={2}>Medium</Pill>
++          <Pill tone="bronze" pips={3}>Hard</Pill>
++          <Pill tone="ember" pips={4}>Very Hard</Pill>
++        </Section>
++
++        <div className="grid gap-4 md:grid-cols-3">
++          <Panel title="Stone panel">Carved stone with a bronze edge.</Panel>
++          <Panel variant="inset" title="Inset">Sunken tray (history, played cards).</Panel>
++          <Panel title="Your turn" glow>Glowing edge on your turn.</Panel>
++        </div>
++
++        <Section title="Avatars">
++          {players.map((p, i) => (
++            <div key={p.id} className="flex flex-col items-center gap-1">
++              <Avatar
++                player={p}
++                size={48}
++                turn={i === 1}
++                timer={i === 1 ? { remaining: 42, total: 60 } : i === 2 ? { remaining: 18, total: 60 } : i === 3 ? { remaining: 5, total: 60 } : undefined}
++                offline={i === 4}
++              />
++              <span className="max-w-[7rem] truncate text-xs">{p.name}</span>
++            </div>
++          ))}
++          <TurnBanner show seconds={42} />
++          <TurnBanner show seconds={7} />
++          <Button variant="secondary" onClick={() => setOpen(true)}>Open popup</Button>
++        </Section>
++      </main>
++
++      <Modal
++        open={open}
++        onClose={() => setOpen(false)}
++        title="Trade"
++        footer={(
++          <>
++            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
++            <Button onClick={() => setOpen(false)}>Confirm Trade</Button>
++          </>
++        )}
++      >
++        <div className="flex flex-col items-center gap-4">
++          <div className="flex items-center gap-3 text-lg">
++            <CrystalCost resources={{ yellow: 2 * mult }} size={24} />
++            <span className="text-ink-muted">→</span>
++            <CrystalCost resources={{ green: 2 * mult }} size={24} />
++          </div>
++          <div className="flex items-center gap-3">
++            <Button variant="outline" onClick={() => setMult(Math.max(1, mult - 1))} aria-label="Fewer">−</Button>
++            <span className="w-12 text-center font-display text-2xl font-bold tabular-nums">×{mult}</span>
++            <Button variant="outline" onClick={() => setMult(mult + 1)} aria-label="More">+</Button>
++          </div>
++          <div className="flex items-center gap-2 text-sm text-ink-muted">After: <CrystalRow resources={{ yellow: 1, green: 4, blue: 1, pink: 0 }} capacity={10} size="xs" tone="parchment" /></div>
++        </div>
++      </Modal>
++    </div>
++  )
++}
 --- a/web/react-frontend/src/hooks/__tests__/useGameSounds.rest.test.jsx
 +++ b/web/react-frontend/src/hooks/__tests__/useGameSounds.rest.test.jsx
 @@ -0,0 +1,37 @@
@@ -2107,6 +2953,43 @@
        soundManager.play('rest');
      }
    }, [myPlayer?.playedCards?.length, myPlayer?.hand?.length, isSpectator, playerId, previousGameState]);
+--- a/web/react-frontend/src/hooks/useOrientation.js
++++ b/web/react-frontend/src/hooks/useOrientation.js
+@@ -5,7 +5,9 @@
+ 
+ /**
+  * Custom hook to detect device orientation and screen size
+- * Returns: { isPortrait, isLandscape, isMobile, isTablet, isDesktop, width, height }
++ * Returns: { isPortrait, isLandscape, isMobile, isCompact, isTablet, isDesktop, width, height }
++ * isCompact: use the phone layout — narrow screens, and phones held sideways (short landscape screens
++ * are wider than 768px but too low for the desktop board).
+  */
+ 
+ // Helper to get initial values (works both SSR and client)
+@@ -15,6 +17,7 @@
+       isPortrait: true,
+       isLandscape: false,
+       isMobile: true,
++      isCompact: true,
+       isTablet: false,
+       isDesktop: false,
+       width: 375,
+@@ -29,6 +32,7 @@
+   
+   // Device type detection - matches Tailwind breakpoints
+   const isMobile = width < 768
++  const isCompact = isMobile || (isLandscape && height < 500)
+   const isTablet = width >= 768 && width < 1024
+   const isDesktop = width >= 1024
+ 
+@@ -36,6 +40,7 @@
+     isPortrait,
+     isLandscape,
+     isMobile,
++    isCompact,
+     isTablet,
+     isDesktop,
+     width,
 --- a/web/react-frontend/src/hooks/useReopenAfterUndo.js
 +++ b/web/react-frontend/src/hooks/useReopenAfterUndo.js
 @@ -0,0 +1,14 @@
@@ -2124,16 +3007,204 @@
 +    // eslint-disable-next-line react-hooks/exhaustive-deps
 +  }, [reopenPlay])
 +}
+--- a/web/react-frontend/src/index.css
++++ b/web/react-frontend/src/index.css
+@@ -1,3 +1,7 @@
++/* Font + token phải nạp trước @tailwind (@import luôn đứng đầu file) */
++@import './styles/fonts.css';
++@import './styles/tokens.css';
++
+ @tailwind base;
+ @tailwind components;
+ @tailwind utilities;
+@@ -8,19 +12,18 @@
+     height: 100%;
+     height: -webkit-fill-available;
+   }
+-  
++
++  /* Nền đêm (núi vẽ bằng <NightBackdrop/>); font lấy từ theme (Be Vietnam Pro) qua preflight của Tailwind */
+   body {
+     min-height: 100%;
+     min-height: 100dvh;
+     min-height: -webkit-fill-available;
+-    background-image: url('/assets/images/background.jpg');
+-    background-size: cover;
+-    background-position: center center;
+-    background-repeat: no-repeat;
++    background-color: rgb(var(--rock-950));
++    background-image:
++      radial-gradient(ellipse 80% 50% at 50% -10%, rgb(var(--rock-700) / 0.55), transparent 70%),
++      linear-gradient(180deg, #0f1222 0%, #161a2e 55%, rgb(var(--rock-900)) 100%);
+     background-attachment: fixed;
+-    background-color: #667eea; /* Fallback color */
+-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+-      'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
++    color: rgb(var(--fg));
+     -webkit-font-smoothing: antialiased;
+     -moz-osx-font-smoothing: grayscale;
+   }
+@@ -29,6 +32,81 @@
+   body {
+     overscroll-behavior-y: contain;
+   }
++
++  /* Vòng focus thống nhất cho mọi thứ bấm được (bàn phím) */
++  :focus-visible {
++    outline: 2px solid rgb(var(--bronze-300));
++    outline-offset: 2px;
++  }
++
++  /* Số đếm / đồng hồ không nhảy chiều rộng */
++  .tabular-nums { font-variant-numeric: tabular-nums; }
++}
++
++/* Người dùng bật "giảm chuyển động": gần như tắt mọi animation/transition */
++@media (prefers-reduced-motion: reduce) {
++  *, *::before, *::after {
++    animation-duration: 0.01ms !important;
++    animation-iteration-count: 1 !important;
++    transition-duration: 0.01ms !important;
++    scroll-behavior: auto !important;
++  }
++}
++
++/* ---- Bề mặt "Stone & Crystal" (dùng qua components/ui, hạn chế dùng trực tiếp) ---- */
++:root {
++  /* hạt đá: nhiễu trắng rất mờ / nhiễu nâu cho giấy da (SVG nội tuyến, không tải gì) */
++  --grain-light: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  .11 0 0 0 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
++  --grain-dark: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.7' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .35  0 0 0 0 .25  0 0 0 0 .12  .16 0 0 0 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
++}
++
++@layer components {
++  .surface-stone {
++    background-color: rgb(var(--rock-800));
++    background-image: var(--grain-light),
++      linear-gradient(180deg, rgb(var(--rock-700)) 0%, rgb(var(--rock-800)) 55%, rgb(var(--rock-900)) 100%);
++    border: 1px solid rgb(var(--bronze-500) / 0.45);
++    border-radius: var(--r-md);
++    box-shadow: var(--bevel), var(--elev-1);
++    color: rgb(var(--fg));
++  }
++  .surface-inset {
++    background-color: rgb(var(--rock-900) / 0.9);
++    background-image: var(--grain-light);
++    border: 1px solid rgb(0 0 0 / 0.45);
++    border-radius: var(--r-sm);
++    box-shadow: inset 0 2px 6px rgb(0 0 0 / 0.45), inset 0 -1px 0 rgb(255 255 255 / 0.05);
++    color: rgb(var(--fg));
++  }
++  .surface-parchment {
++    background-color: rgb(var(--parch-100));
++    background-image: var(--grain-dark),
++      radial-gradient(ellipse at 50% 40%, rgb(var(--parch-100)) 35%, rgb(var(--parch-200)) 100%);
++    border: 1px solid rgb(var(--bronze-700) / 0.7);
++    border-radius: var(--r-lg);
++    box-shadow: inset 0 0 0 3px rgb(var(--parch-100)), inset 0 0 0 4px rgb(var(--bronze-500) / 0.55), var(--elev-2);
++    color: rgb(var(--ink));
++  }
++  /* chữ "khắc" trên đá (tiêu đề Cinzel) */
++  .text-engrave {
++    text-shadow: 0 1px 0 rgb(0 0 0 / 0.65), 0 -1px 0 rgb(255 255 255 / 0.06);
++    letter-spacing: 0.06em;
++  }
++  /* viền sáng khi tới lượt: animate opacity của pseudo-element (rẻ hơn animate box-shadow) */
++  .turn-glow { position: relative; }
++  .turn-glow::after {
++    content: '';
++    position: absolute;
++    inset: -3px;
++    border-radius: inherit;
++    box-shadow: var(--glow-turn);
++    pointer-events: none;
++    animation: turn-glow-pulse 1.6s ease-in-out infinite;
++  }
++  @keyframes turn-glow-pulse {
++    0%, 100% { opacity: 0.45; }
++    50% { opacity: 1; }
++  }
+ }
+ 
+ @layer components {
+@@ -454,15 +532,6 @@
+     min-height: 300px;
+   }
+ 
+-  /* Z-index utilities matching config */
+-  .z-dropdown { z-index: 50; }
+-  .z-sticky { z-index: 100; }
+-  .z-fixed { z-index: 200; }
+-  .z-modal-backdrop { z-index: 300; }
+-  .z-modal { z-index: 400; }
+-  .z-popover { z-index: 500; }
+-  .z-tooltip { z-index: 600; }
+-
+   /* Animation utilities */
+   .animate-slide-up {
+     animation: slideUp 0.3s ease-out forwards;
+@@ -503,26 +572,3 @@
+     to { opacity: 1; }
+   }
+ }
+-
+-/* Golem game colors - always available */
+-:root {
+-  --golem-yellow: #FFD966;
+-  --golem-green: #6AA84F;
+-  --golem-blue: #3C78D8;
+-  --golem-pink: #E06666;
+-}
+-
+-.bg-golem-yellow { background-color: var(--golem-yellow); }
+-.bg-golem-green { background-color: var(--golem-green); }
+-.bg-golem-blue { background-color: var(--golem-blue); }
+-.bg-golem-pink { background-color: var(--golem-pink); }
+-
+-.text-golem-yellow { color: var(--golem-yellow); }
+-.text-golem-green { color: var(--golem-green); }
+-.text-golem-blue { color: var(--golem-blue); }
+-.text-golem-pink { color: var(--golem-pink); }
+-
+-.border-golem-yellow { border-color: var(--golem-yellow); }
+-.border-golem-green { border-color: var(--golem-green); }
+-.border-golem-blue { border-color: var(--golem-blue); }
+-.border-golem-pink { border-color: var(--golem-pink); }
 --- a/web/react-frontend/src/main.jsx
 +++ b/web/react-frontend/src/main.jsx
-@@ -4,6 +4,7 @@
+@@ -1,15 +1,29 @@
+-import React from 'react'
++import React, { Suspense, lazy } from 'react'
+ import ReactDOM from 'react-dom/client'
+ import { RouterProvider } from 'react-router-dom'
++import { MotionConfig } from 'framer-motion'
  import router from './router'
  import { AuthProvider } from './contexts/AuthContext'
  import './index.css'
 +import './theme-xp.css'
++
++// Dev only (vite dev + ?gallery): every UI primitive on one page for screenshots. The branch is
++// statically false in production builds, so the gallery is not bundled.
++const showGallery = import.meta.env.DEV && new URLSearchParams(window.location.search).has('gallery')
++const UiGallery = showGallery ? lazy(() => import('./dev/UiGallery')) : null
  
  ReactDOM.createRoot(document.getElementById('root')).render(
    <React.StrictMode>
+-    <AuthProvider>
+-      <RouterProvider router={router} />
+-    </AuthProvider>
++    {/* framer-motion follows the OS "reduce motion" setting */}
++    <MotionConfig reducedMotion="user">
++      {UiGallery ? (
++        <Suspense fallback={null}><UiGallery /></Suspense>
++      ) : (
++        <AuthProvider>
++          <RouterProvider router={router} />
++        </AuthProvider>
++      )}
++    </MotionConfig>
+   </React.StrictMode>,
+ )
+ 
 --- a/web/react-frontend/src/SinglePlayerApp.jsx
 +++ b/web/react-frontend/src/SinglePlayerApp.jsx
 @@ -1,4 +1,4 @@
@@ -2819,6 +3890,184 @@
    // Clear acquired card overlay
    clearAcquiredCardOverlay: () => {
      set({ acquiredCardOverlay: null })
+--- a/web/react-frontend/src/styles/fonts.css
++++ b/web/react-frontend/src/styles/fonts.css
+@@ -0,0 +1,107 @@
++/* Font OFL tự phục vụ (assets-src/fonts, sanitize chép vào src/assets/fonts) — không gọi dịch vụ ngoài.
++   Cinzel: chỉ chữ tiếng Anh tĩnh (không có dấu tiếng Việt). Be Vietnam Pro: mọi chữ khác. */
++
++@font-face {
++  font-family: 'Cinzel';
++  font-style: normal;
++  font-display: swap;
++  font-weight: 600;
++  src: url('../assets/fonts/cinzel-latin-ext-600-normal.woff2') format('woff2');
++  unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
++}
++@font-face {
++  font-family: 'Cinzel';
++  font-style: normal;
++  font-display: swap;
++  font-weight: 600;
++  src: url('../assets/fonts/cinzel-latin-600-normal.woff2') format('woff2');
++  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
++}
++@font-face {
++  font-family: 'Cinzel';
++  font-style: normal;
++  font-display: swap;
++  font-weight: 700;
++  src: url('../assets/fonts/cinzel-latin-ext-700-normal.woff2') format('woff2');
++  unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
++}
++@font-face {
++  font-family: 'Cinzel';
++  font-style: normal;
++  font-display: swap;
++  font-weight: 700;
++  src: url('../assets/fonts/cinzel-latin-700-normal.woff2') format('woff2');
++  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
++}
++@font-face {
++  font-family: 'Be Vietnam Pro';
++  font-style: normal;
++  font-display: swap;
++  font-weight: 400;
++  src: url('../assets/fonts/be-vietnam-pro-vietnamese-400-normal.woff2') format('woff2');
++  unicode-range: U+0102-0103,U+0110-0111,U+0128-0129,U+0168-0169,U+01A0-01A1,U+01AF-01B0,U+0300-0301,U+0303-0304,U+0308-0309,U+0323,U+0329,U+1EA0-1EF9,U+20AB;
++}
++@font-face {
++  font-family: 'Be Vietnam Pro';
++  font-style: normal;
++  font-display: swap;
++  font-weight: 400;
++  src: url('../assets/fonts/be-vietnam-pro-latin-ext-400-normal.woff2') format('woff2');
++  unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
++}
++@font-face {
++  font-family: 'Be Vietnam Pro';
++  font-style: normal;
++  font-display: swap;
++  font-weight: 400;
++  src: url('../assets/fonts/be-vietnam-pro-latin-400-normal.woff2') format('woff2');
++  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
++}
++@font-face {
++  font-family: 'Be Vietnam Pro';
++  font-style: normal;
++  font-display: swap;
++  font-weight: 600;
++  src: url('../assets/fonts/be-vietnam-pro-vietnamese-600-normal.woff2') format('woff2');
++  unicode-range: U+0102-0103,U+0110-0111,U+0128-0129,U+0168-0169,U+01A0-01A1,U+01AF-01B0,U+0300-0301,U+0303-0304,U+0308-0309,U+0323,U+0329,U+1EA0-1EF9,U+20AB;
++}
++@font-face {
++  font-family: 'Be Vietnam Pro';
++  font-style: normal;
++  font-display: swap;
++  font-weight: 600;
++  src: url('../assets/fonts/be-vietnam-pro-latin-ext-600-normal.woff2') format('woff2');
++  unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
++}
++@font-face {
++  font-family: 'Be Vietnam Pro';
++  font-style: normal;
++  font-display: swap;
++  font-weight: 600;
++  src: url('../assets/fonts/be-vietnam-pro-latin-600-normal.woff2') format('woff2');
++  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
++}
++@font-face {
++  font-family: 'Be Vietnam Pro';
++  font-style: normal;
++  font-display: swap;
++  font-weight: 700;
++  src: url('../assets/fonts/be-vietnam-pro-vietnamese-700-normal.woff2') format('woff2');
++  unicode-range: U+0102-0103,U+0110-0111,U+0128-0129,U+0168-0169,U+01A0-01A1,U+01AF-01B0,U+0300-0301,U+0303-0304,U+0308-0309,U+0323,U+0329,U+1EA0-1EF9,U+20AB;
++}
++@font-face {
++  font-family: 'Be Vietnam Pro';
++  font-style: normal;
++  font-display: swap;
++  font-weight: 700;
++  src: url('../assets/fonts/be-vietnam-pro-latin-ext-700-normal.woff2') format('woff2');
++  unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
++}
++@font-face {
++  font-family: 'Be Vietnam Pro';
++  font-style: normal;
++  font-display: swap;
++  font-weight: 700;
++  src: url('../assets/fonts/be-vietnam-pro-latin-700-normal.woff2') format('woff2');
++  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
++}
+--- a/web/react-frontend/src/styles/tokens.css
++++ b/web/react-frontend/src/styles/tokens.css
+@@ -0,0 +1,65 @@
++/* Design tokens — "Stone & Crystal" (Đá & Pha lê). Nguồn sự thật duy nhất cho màu/bo góc/bóng/chuyển động.
++   Màu lưu dạng kênh RGB ("r g b") để Tailwind dùng được độ mờ: bg-rock-800/80 (map trong tailwind.config.js).
++   Bảng màu hài hoà với art của bộ bài: đá tối, gỗ ấm, giấy da, lưng bài tím, điểm nhấn xanh mòng két. */
++:root {
++  /* Đá (panel, nền) */
++  --rock-950: 18 19 28;     /* #12131c */
++  --rock-900: 27 29 42;     /* #1b1d2a */
++  --rock-800: 42 47 69;     /* #2a2f45 */
++  --rock-700: 54 60 87;     /* #363c57 */
++  --rock-600: 74 81 112;    /* #4a5170 */
++  --rock-400: 138 143 168;  /* #8a8fa8 */
++  --rock-200: 201 203 216;  /* #c9cbd8 */
++
++  /* Đồng (viền, nút chính, điểm nhấn) — bronze-500 chỉ cho viền/chữ lớn; chữ nhỏ dùng bronze-300 */
++  --bronze-700: 122 85 48;  /* #7a5530 */
++  --bronze-500: 184 134 75; /* #b8864b */
++  --bronze-300: 217 178 111;/* #d9b26f */
++  --bronze-100: 241 223 181;/* #f1dfb5 */
++
++  /* Giấy da (popup) + mực */
++  --parch-100: 243 236 214; /* #f3ecd6 */
++  --parch-200: 228 220 191; /* #e4dcbf */
++  --parch-400: 201 187 146; /* #c9bb92 */
++  --ink: 43 33 24;          /* #2b2118 */
++  --ink-muted: 107 90 66;   /* #6b5a42 */
++
++  /* Chữ trên đá */
++  --fg: 236 230 214;        /* #ece6d6 */
++  --fg-muted: 180 176 196;  /* #b4b0c4 */
++
++  /* Trạng thái */
++  --ember: 201 84 58;       /* #c9543a — nguy hiểm / lỗi */
++  --moss: 104 164 98;       /* #68a462 — thành công */
++  --teal: 92 150 146;       /* #5c9692 — thông tin */
++
++  /* Crystal — base / light (mặt sáng) / dark (mặt tối, viền) */
++  --gem-yellow: 240 204 58;   --gem-yellow-light: 252 236 140; --gem-yellow-dark: 150 112 14;
++  --gem-green: 62 160 96;     --gem-green-light: 132 214 150;  --gem-green-dark: 26 88 52;
++  --gem-blue: 58 140 208;     --gem-blue-light: 140 204 244;   --gem-blue-dark: 26 76 128;
++  --gem-pink: 200 64 150;     --gem-pink-light: 242 140 202;   --gem-pink-dark: 108 22 86;
++
++  /* Đồng xu */
++  --coin-copper: 196 120 64;  --coin-copper-dark: 110 60 26;
++  --coin-silver: 196 202 212; --coin-silver-dark: 104 110 124;
++
++  /* Hình khối */
++  --r-sm: 6px;
++  --r-md: 10px;
++  --r-lg: 14px;
++  --bevel: inset 0 1px 0 rgb(255 255 255 / 0.09), inset 0 -2px 0 rgb(0 0 0 / 0.35);
++  --elev-1: 0 2px 6px rgb(0 0 0 / 0.35);
++  --elev-2: 0 10px 28px rgb(0 0 0 / 0.5);
++  --glow-turn: 0 0 0 2px rgb(var(--bronze-300)), 0 0 18px 2px rgb(var(--bronze-300) / 0.55);
++
++  /* Chuyển động */
++  --t-fast: 150ms;
++  --t-med: 250ms;
++  --t-slow: 400ms;
++
++  /* Vùng an toàn (tai thỏ / thanh home) */
++  --safe-top: env(safe-area-inset-top, 0px);
++  --safe-bottom: env(safe-area-inset-bottom, 0px);
++  --safe-left: env(safe-area-inset-left, 0px);
++  --safe-right: env(safe-area-inset-right, 0px);
++}
 --- a/web/react-frontend/src/theme-xp.css
 +++ b/web/react-frontend/src/theme-xp.css
 @@ -0,0 +1,356 @@
@@ -3256,18 +4505,45 @@
 +})
 --- a/web/react-frontend/src/utils/avatar.js
 +++ b/web/react-frontend/src/utils/avatar.js
-@@ -0,0 +1,29 @@
-+// Player avatars: /assets/images/avatar/<id>.webp, generated from a Super Mario Bros. sprite sheet
-+// (deploy/make-avatars.py): 12 different characters, then at most one variant each. The count must
-+// match `avatarCount` in internal/session/ai_turns.go (the server picks random AI avatars).
-+export const AVATAR_IDS = Array.from({ length: 23 }, (_, i) => String(i + 1))
+@@ -0,0 +1,56 @@
++// Player avatars: /assets/images/avatar/<id>.svg — 24 original golems drawn by deploy/make-golem-avatars.py
++// (12 golems, then one variant of each). Names and count must match `avatarNames` in
++// internal/session/ai_turns.go: the server picks random AI avatars and names the AI after its golem.
++export const AVATAR_NAMES = [
++  'Basalt',
++  'Mossback',
++  'Rime',
++  'Cinder',
++  'Rivet',
++  'Dune',
++  'Quartz',
++  'Terra',
++  'Onyx',
++  'Rootling',
++  'Reef',
++  'Nimbus',
++  'Granite',
++  'Fernhide',
++  'Glacier',
++  'Magma',
++  'Anvil',
++  'Mesa',
++  'Amethyst',
++  'Kiln',
++  'Jet',
++  'Thornbark',
++  'Coralline',
++  'Squall',
++]
++export const AVATAR_IDS = AVATAR_NAMES.map((_, i) => String(i + 1))
++export const avatarName = (id) => AVATAR_NAMES[Number(id) - 1] || ''
 +
 +// Bump AVATAR_VERSION whenever the avatar images change: Cloudflare/browsers cache /assets for 7 days,
 +// and the query string makes them fetch the new files.
-+const AVATAR_VERSION = 'smb2'
++const AVATAR_VERSION = 'golem1'
 +
 +export function avatarSrc(id) {
-+  return `/assets/images/avatar/${id}.webp?v=${AVATAR_VERSION}`
++  return `/assets/images/avatar/${id}.svg?v=${AVATAR_VERSION}`
 +}
 +
 +// Avatar id to show for a player. Humans get the avatar they picked. The server gives AIs their player ID as
@@ -3288,9 +4564,9 @@
 +}
 --- a/web/react-frontend/src/utils/avatar.test.js
 +++ b/web/react-frontend/src/utils/avatar.test.js
-@@ -0,0 +1,46 @@
+@@ -0,0 +1,49 @@
 +import { describe, it, expect } from 'vitest'
-+import { AVATAR_IDS, avatarSrc, resolveAvatarId } from './avatar'
++import { AVATAR_IDS, AVATAR_NAMES, avatarName, avatarSrc, resolveAvatarId } from './avatar'
 +
 +const human = (id, avatar) => ({ id, name: `H${id}`, avatar, isAI: false })
 +const ai = (id) => ({ id, name: `AI ${id}`, avatar: String(id), isAI: true })
@@ -3301,7 +4577,7 @@
 +  })
 +
 +  it('gives AIs avatars no human picked, without duplicates, in seat order', () => {
-+    // Human picks Bowser (4); server would give AI seat 4 avatar "4" too.
++    // Human picks Cinder (4); server would give AI seat 4 avatar "4" too.
 +    const players = [human(0, '4'), ai(1), ai(2), ai(3), ai(4)]
 +    const shown = players.map((p) => resolveAvatarId(p, players))
 +    expect(shown).toEqual(['4', '1', '2', '3', '5'])
@@ -3327,12 +4603,15 @@
 +    expect(resolveAvatarId({ ...ai(1), avatar: '999', aiAvatar: true }, [human(0, '1'), ai(1)])).toBe('2')
 +  })
 +
-+  it('offers 23 avatars', () => {
-+    expect(AVATAR_IDS).toHaveLength(23)
++  it('offers 24 golem avatars, each with a unique name', () => {
++    expect(AVATAR_IDS).toHaveLength(24)
++    expect(new Set(AVATAR_NAMES).size).toBe(24)
++    expect(avatarName('1')).toBe('Basalt')
++    expect(avatarName('24')).toBe('Squall')
 +  })
 +
 +  it('builds versioned URLs', () => {
-+    expect(avatarSrc('3')).toMatch(/^\/assets\/images\/avatar\/3\.webp\?v=/)
++    expect(avatarSrc('3')).toMatch(/^\/assets\/images\/avatar\/3\.svg\?v=/)
 +  })
 +})
 --- a/web/react-frontend/src/utils/rest.js
@@ -3454,3 +4733,99 @@
 +    expect(out.actionHistory).toBe(history)
 +  })
 +})
+--- a/web/react-frontend/index.html
++++ b/web/react-frontend/index.html
+@@ -3,7 +3,9 @@
+   <head>
+     <meta charset="UTF-8" />
+     <link rel="icon" type="image/png" href="/assets/images/favicon.png" />
+-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
++    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
++    <meta name="theme-color" content="#12131c" />
++    <meta name="color-scheme" content="dark" />
+     <title>Century: Golem Edition</title>
+   </head>
+   <body>
+--- a/web/react-frontend/tailwind.config.js
++++ b/web/react-frontend/tailwind.config.js
+@@ -1,3 +1,7 @@
++// Màu lấy từ CSS variable dạng "r g b" (src/styles/tokens.css) để dùng được độ mờ kiểu bg-rock-800/80.
++const token = (name) => `rgb(var(--${name}) / <alpha-value>)`
++const tokenScale = (name, steps) => Object.fromEntries(steps.map((n) => [n, token(`${name}-${n}`)]))
++
+ /** @type {import('tailwindcss').Config} */
+ export default {
+   content: [
+@@ -58,31 +62,52 @@
+         '18': '4.5rem',
+         '22': '5.5rem',
+       },
+-      // Z-index scale for layered UI
++      // Z-index: MỘT thang duy nhất cho cả app (không dùng z-[9999] tuỳ tiện)
+       zIndex: {
+-        'dropdown': '50',
+-        'sticky': '100',
+-        'fixed': '200',
+-        'modal-backdrop': '300',
+-        'modal': '400',
+-        'popover': '500',
+-        'tooltip': '600',
+-      },
+-      // Custom font sizes for responsive text
+-      fontSize: {
+-        'xxs': ['0.625rem', { lineHeight: '0.875rem' }],
+-        'card-title': ['0.75rem', { lineHeight: '1rem', fontWeight: '700' }],
+-        'card-body': ['0.625rem', { lineHeight: '0.875rem' }],
++        'board': '10',
++        'hud': '20',
++        'drawer': '30',
++        'banner': '40',
++        'overlay': '50',
++        'popover': '60',
++        'modal': '70',
++        'toast': '80',
++        'system': '90',
++      },
++      // Font OFL tự phục vụ (src/styles/fonts.css). display = Cinzel: CHỈ chữ tiếng Anh tĩnh (không có dấu tiếng Việt).
++      // Cỡ chữ dùng thang mặc định của Tailwind (xs 12 · sm 14 · base 16 · lg 18 · xl 20 · 2xl 24 · 3xl 30) — không dưới 12px.
++      fontFamily: {
++        display: ['Cinzel', 'Georgia', '"Times New Roman"', 'serif'],
++        sans: ['"Be Vietnam Pro"', 'system-ui', '-apple-system', '"Segoe UI"', 'Roboto', '"Noto Sans"', 'sans-serif'],
+       },
+-      // Game-specific colors
++      // Màu "Stone & Crystal" — giá trị ở src/styles/tokens.css (kênh RGB để dùng được /alpha)
+       colors: {
+-        'golem': {
+-          'yellow': '#FFD966',
+-          'green': '#6AA84F',
+-          'blue': '#3C78D8',
+-          'pink': '#E06666',
++        rock: tokenScale('rock', [950, 900, 800, 700, 600, 400, 200]),
++        bronze: tokenScale('bronze', [700, 500, 300, 100]),
++        parch: tokenScale('parch', [100, 200, 400]),
++        ink: { DEFAULT: token('ink'), muted: token('ink-muted') },
++        fg: { DEFAULT: token('fg'), muted: token('fg-muted') },
++        ember: token('ember'),
++        moss: token('moss'),
++        teal: { DEFAULT: token('teal') },
++        gem: {
++          yellow: token('gem-yellow'), 'yellow-light': token('gem-yellow-light'), 'yellow-dark': token('gem-yellow-dark'),
++          green: token('gem-green'), 'green-light': token('gem-green-light'), 'green-dark': token('gem-green-dark'),
++          blue: token('gem-blue'), 'blue-light': token('gem-blue-light'), 'blue-dark': token('gem-blue-dark'),
++          pink: token('gem-pink'), 'pink-light': token('gem-pink-light'), 'pink-dark': token('gem-pink-dark'),
+         },
+       },
++      borderRadius: {
++        'stone-sm': 'var(--r-sm)',
++        'stone': 'var(--r-md)',
++        'stone-lg': 'var(--r-lg)',
++      },
++      boxShadow: {
++        'bevel': 'var(--bevel)',
++        'elev-1': 'var(--elev-1)',
++        'elev-2': 'var(--elev-2)',
++        'turn': 'var(--glow-turn)',
++      },
+       // Animation durations
+       transitionDuration: {
+         '250': '250ms',

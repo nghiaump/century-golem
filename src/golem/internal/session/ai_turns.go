@@ -105,7 +105,7 @@ func (gs *GameSession) newAgent(l ai.Level) ai.Agent {
 
 // assignSeats seats the waiting humans and creates the AI seats. Caller holds gs.mu.
 // Single-player: humans get random seats (official rule: random start player), AIs the rest,
-// each wearing a random avatar and named after its character (Goomba, Koopa Troopa, …). Multiplayer: humans fill seats 1..n in random order.
+// each wearing a random avatar and named after its golem (Basalt, Mossback, …). Multiplayer: humans fill seats 1..n in random order.
 func (gs *GameSession) assignSeats(rng *rand.Rand) {
 	n := len(gs.GameState.Players)
 	clientIDs := gs.getShuffledClientIDs(gs.connectedPlayers)
@@ -532,14 +532,12 @@ func intentMessage(aiName string, it ai.Intent) string {
 	return aiName + " made a move"
 }
 
-// avatarNames[i] is the character on avatar i+1; an AI is named after the avatar it wears.
-// Keep in sync with AVATAR_IDS in web/react-frontend/src/utils/avatar.js and SPRITES in
-// deploy/make-avatars.py (12 characters, then at most one variant each).
+// avatarNames[i] is the golem on avatar i+1; an AI is named after the avatar it wears.
+// Keep in sync with AVATAR_IDS/AVATAR_NAMES in web/react-frontend/src/utils/avatar.js and
+// deploy/make-golem-avatars.py (assets-src/avatars/avatars.json): 12 golems, then one variant of each.
 var avatarNames = []string{
-	"Goomba", "Koopa Troopa", "Lakitu", "Bowser", "Hammer Bro", "Piranha Plant", "Buzzy Beetle",
-	"Blooper", "Bullet Bill", "Cheep Cheep", "Spiny", "Podoboo",
-	"Red Paratroopa", "Blue Goomba", "Red Piranha", "Green Cheep", "White Blooper", "Grey Bowser",
-	"Cave Hammer Bro", "Grey Bullet Bill", "Blue Buzzy", "Spiny Egg", "Cave Lakitu",
+	"Basalt", "Mossback", "Rime", "Cinder", "Rivet", "Dune", "Quartz", "Terra", "Onyx", "Rootling", "Reef", "Nimbus",
+	"Granite", "Fernhide", "Glacier", "Magma", "Anvil", "Mesa", "Amethyst", "Kiln", "Jet", "Thornbark", "Coralline", "Squall",
 }
 
 // avatarCount is the number of player avatars (1..avatarCount).
@@ -577,7 +575,7 @@ func (gs *GameSession) aiAvatarsLocked(n int) []string {
 			out = append(out, a)
 		}
 	}
-	for i := 0; len(out) < n; i++ { // more AIs than free avatars (cannot happen with 23): reuse
+	for i := 0; len(out) < n; i++ { // more AIs than free avatars (cannot happen with 24): reuse
 		out = append(out, gs.avatarOrder[i%len(gs.avatarOrder)])
 	}
 	return out

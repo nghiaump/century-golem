@@ -1,3 +1,7 @@
+// Màu lấy từ CSS variable dạng "r g b" (src/styles/tokens.css) để dùng được độ mờ kiểu bg-rock-800/80.
+const token = (name) => `rgb(var(--${name}) / <alpha-value>)`
+const tokenScale = (name, steps) => Object.fromEntries(steps.map((n) => [n, token(`${name}-${n}`)]))
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
@@ -58,30 +62,51 @@ export default {
         '18': '4.5rem',
         '22': '5.5rem',
       },
-      // Z-index scale for layered UI
+      // Z-index: MỘT thang duy nhất cho cả app (không dùng z-[9999] tuỳ tiện)
       zIndex: {
-        'dropdown': '50',
-        'sticky': '100',
-        'fixed': '200',
-        'modal-backdrop': '300',
-        'modal': '400',
-        'popover': '500',
-        'tooltip': '600',
+        'board': '10',
+        'hud': '20',
+        'drawer': '30',
+        'banner': '40',
+        'overlay': '50',
+        'popover': '60',
+        'modal': '70',
+        'toast': '80',
+        'system': '90',
       },
-      // Custom font sizes for responsive text
-      fontSize: {
-        'xxs': ['0.625rem', { lineHeight: '0.875rem' }],
-        'card-title': ['0.75rem', { lineHeight: '1rem', fontWeight: '700' }],
-        'card-body': ['0.625rem', { lineHeight: '0.875rem' }],
+      // Font OFL tự phục vụ (src/styles/fonts.css). display = Cinzel: CHỈ chữ tiếng Anh tĩnh (không có dấu tiếng Việt).
+      // Cỡ chữ dùng thang mặc định của Tailwind (xs 12 · sm 14 · base 16 · lg 18 · xl 20 · 2xl 24 · 3xl 30) — không dưới 12px.
+      fontFamily: {
+        display: ['Cinzel', 'Georgia', '"Times New Roman"', 'serif'],
+        sans: ['"Be Vietnam Pro"', 'system-ui', '-apple-system', '"Segoe UI"', 'Roboto', '"Noto Sans"', 'sans-serif'],
       },
-      // Game-specific colors
+      // Màu "Stone & Crystal" — giá trị ở src/styles/tokens.css (kênh RGB để dùng được /alpha)
       colors: {
-        'golem': {
-          'yellow': '#FFD966',
-          'green': '#6AA84F',
-          'blue': '#3C78D8',
-          'pink': '#E06666',
+        rock: tokenScale('rock', [950, 900, 800, 700, 600, 400, 200]),
+        bronze: tokenScale('bronze', [700, 500, 300, 100]),
+        parch: tokenScale('parch', [100, 200, 400]),
+        ink: { DEFAULT: token('ink'), muted: token('ink-muted') },
+        fg: { DEFAULT: token('fg'), muted: token('fg-muted') },
+        ember: token('ember'),
+        moss: token('moss'),
+        teal: { DEFAULT: token('teal') },
+        gem: {
+          yellow: token('gem-yellow'), 'yellow-light': token('gem-yellow-light'), 'yellow-dark': token('gem-yellow-dark'),
+          green: token('gem-green'), 'green-light': token('gem-green-light'), 'green-dark': token('gem-green-dark'),
+          blue: token('gem-blue'), 'blue-light': token('gem-blue-light'), 'blue-dark': token('gem-blue-dark'),
+          pink: token('gem-pink'), 'pink-light': token('gem-pink-light'), 'pink-dark': token('gem-pink-dark'),
         },
+      },
+      borderRadius: {
+        'stone-sm': 'var(--r-sm)',
+        'stone': 'var(--r-md)',
+        'stone-lg': 'var(--r-lg)',
+      },
+      boxShadow: {
+        'bevel': 'var(--bevel)',
+        'elev-1': 'var(--elev-1)',
+        'elev-2': 'var(--elev-2)',
+        'turn': 'var(--glow-turn)',
       },
       // Animation durations
       transitionDuration: {

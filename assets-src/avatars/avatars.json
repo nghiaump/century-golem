@@ -1,0 +1,146 @@
+[
+ {
+  "id": 1,
+  "slug": "basalt",
+  "name": "Basalt",
+  "core": "yellow"
+ },
+ {
+  "id": 2,
+  "slug": "mossback",
+  "name": "Mossback",
+  "core": "green"
+ },
+ {
+  "id": 3,
+  "slug": "rime",
+  "name": "Rime",
+  "core": "blue"
+ },
+ {
+  "id": 4,
+  "slug": "cinder",
+  "name": "Cinder",
+  "core": "yellow"
+ },
+ {
+  "id": 5,
+  "slug": "rivet",
+  "name": "Rivet",
+  "core": "blue"
+ },
+ {
+  "id": 6,
+  "slug": "dune",
+  "name": "Dune",
+  "core": "yellow"
+ },
+ {
+  "id": 7,
+  "slug": "quartz",
+  "name": "Quartz",
+  "core": "blue"
+ },
+ {
+  "id": 8,
+  "slug": "terra",
+  "name": "Terra",
+  "core": "green"
+ },
+ {
+  "id": 9,
+  "slug": "onyx",
+  "name": "Onyx",
+  "core": "pink"
+ },
+ {
+  "id": 10,
+  "slug": "rootling",
+  "name": "Rootling",
+  "core": "green"
+ },
+ {
+  "id": 11,
+  "slug": "reef",
+  "name": "Reef",
+  "core": "pink"
+ },
+ {
+  "id": 12,
+  "slug": "nimbus",
+  "name": "Nimbus",
+  "core": "green"
+ },
+ {
+  "id": 13,
+  "slug": "granite",
+  "name": "Granite",
+  "core": "blue"
+ },
+ {
+  "id": 14,
+  "slug": "fernhide",
+  "name": "Fernhide",
+  "core": "yellow"
+ },
+ {
+  "id": 15,
+  "slug": "glacier",
+  "name": "Glacier",
+  "core": "pink"
+ },
+ {
+  "id": 16,
+  "slug": "magma",
+  "name": "Magma",
+  "core": "pink"
+ },
+ {
+  "id": 17,
+  "slug": "anvil",
+  "name": "Anvil",
+  "core": "green"
+ },
+ {
+  "id": 18,
+  "slug": "mesa",
+  "name": "Mesa",
+  "core": "pink"
+ },
+ {
+  "id": 19,
+  "slug": "amethyst",
+  "name": "Amethyst",
+  "core": "pink"
+ },
+ {
+  "id": 20,
+  "slug": "kiln",
+  "name": "Kiln",
+  "core": "yellow"
+ },
+ {
+  "id": 21,
+  "slug": "jet",
+  "name": "Jet",
+  "core": "green"
+ },
+ {
+  "id": 22,
+  "slug": "thornbark",
+  "name": "Thornbark",
+  "core": "blue"
+ },
+ {
+  "id": 23,
+  "slug": "coralline",
+  "name": "Coralline",
+  "core": "yellow"
+ },
+ {
+  "id": 24,
+  "slug": "squall",
+  "name": "Squall",
+  "core": "blue"
+ }
+]

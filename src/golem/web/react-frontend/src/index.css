@@ -1,3 +1,7 @@
+/* Font + token phải nạp trước @tailwind (@import luôn đứng đầu file) */
+@import './styles/fonts.css';
+@import './styles/tokens.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -8,19 +12,18 @@
     height: 100%;
     height: -webkit-fill-available;
   }
-  
+
+  /* Nền đêm (núi vẽ bằng <NightBackdrop/>); font lấy từ theme (Be Vietnam Pro) qua preflight của Tailwind */
   body {
     min-height: 100%;
     min-height: 100dvh;
     min-height: -webkit-fill-available;
-    background-image: url('/assets/images/background.jpg');
-    background-size: cover;
-    background-position: center center;
-    background-repeat: no-repeat;
+    background-color: rgb(var(--rock-950));
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgb(var(--rock-700) / 0.55), transparent 70%),
+      linear-gradient(180deg, #0f1222 0%, #161a2e 55%, rgb(var(--rock-900)) 100%);
     background-attachment: fixed;
-    background-color: #667eea; /* Fallback color */
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-      'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+    color: rgb(var(--fg));
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -28,6 +31,81 @@
   /* Prevent pull-to-refresh on mobile */
   body {
     overscroll-behavior-y: contain;
+  }
+
+  /* Vòng focus thống nhất cho mọi thứ bấm được (bàn phím) */
+  :focus-visible {
+    outline: 2px solid rgb(var(--bronze-300));
+    outline-offset: 2px;
+  }
+
+  /* Số đếm / đồng hồ không nhảy chiều rộng */
+  .tabular-nums { font-variant-numeric: tabular-nums; }
+}
+
+/* Người dùng bật "giảm chuyển động": gần như tắt mọi animation/transition */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---- Bề mặt "Stone & Crystal" (dùng qua components/ui, hạn chế dùng trực tiếp) ---- */
+:root {
+  /* hạt đá: nhiễu trắng rất mờ / nhiễu nâu cho giấy da (SVG nội tuyến, không tải gì) */
+  --grain-light: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  .11 0 0 0 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  --grain-dark: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.7' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .35  0 0 0 0 .25  0 0 0 0 .12  .16 0 0 0 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+
+@layer components {
+  .surface-stone {
+    background-color: rgb(var(--rock-800));
+    background-image: var(--grain-light),
+      linear-gradient(180deg, rgb(var(--rock-700)) 0%, rgb(var(--rock-800)) 55%, rgb(var(--rock-900)) 100%);
+    border: 1px solid rgb(var(--bronze-500) / 0.45);
+    border-radius: var(--r-md);
+    box-shadow: var(--bevel), var(--elev-1);
+    color: rgb(var(--fg));
+  }
+  .surface-inset {
+    background-color: rgb(var(--rock-900) / 0.9);
+    background-image: var(--grain-light);
+    border: 1px solid rgb(0 0 0 / 0.45);
+    border-radius: var(--r-sm);
+    box-shadow: inset 0 2px 6px rgb(0 0 0 / 0.45), inset 0 -1px 0 rgb(255 255 255 / 0.05);
+    color: rgb(var(--fg));
+  }
+  .surface-parchment {
+    background-color: rgb(var(--parch-100));
+    background-image: var(--grain-dark),
+      radial-gradient(ellipse at 50% 40%, rgb(var(--parch-100)) 35%, rgb(var(--parch-200)) 100%);
+    border: 1px solid rgb(var(--bronze-700) / 0.7);
+    border-radius: var(--r-lg);
+    box-shadow: inset 0 0 0 3px rgb(var(--parch-100)), inset 0 0 0 4px rgb(var(--bronze-500) / 0.55), var(--elev-2);
+    color: rgb(var(--ink));
+  }
+  /* chữ "khắc" trên đá (tiêu đề Cinzel) */
+  .text-engrave {
+    text-shadow: 0 1px 0 rgb(0 0 0 / 0.65), 0 -1px 0 rgb(255 255 255 / 0.06);
+    letter-spacing: 0.06em;
+  }
+  /* viền sáng khi tới lượt: animate opacity của pseudo-element (rẻ hơn animate box-shadow) */
+  .turn-glow { position: relative; }
+  .turn-glow::after {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: inherit;
+    box-shadow: var(--glow-turn);
+    pointer-events: none;
+    animation: turn-glow-pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes turn-glow-pulse {
+    0%, 100% { opacity: 0.45; }
+    50% { opacity: 1; }
   }
 }
 
@@ -454,15 +532,6 @@
     min-height: 300px;
   }
 
-  /* Z-index utilities matching config */
-  .z-dropdown { z-index: 50; }
-  .z-sticky { z-index: 100; }
-  .z-fixed { z-index: 200; }
-  .z-modal-backdrop { z-index: 300; }
-  .z-modal { z-index: 400; }
-  .z-popover { z-index: 500; }
-  .z-tooltip { z-index: 600; }
-
   /* Animation utilities */
   .animate-slide-up {
     animation: slideUp 0.3s ease-out forwards;
@@ -503,26 +572,3 @@
     to { opacity: 1; }
   }
 }
-
-/* Golem game colors - always available */
-:root {
-  --golem-yellow: #FFD966;
-  --golem-green: #6AA84F;
-  --golem-blue: #3C78D8;
-  --golem-pink: #E06666;
-}
-
-.bg-golem-yellow { background-color: var(--golem-yellow); }
-.bg-golem-green { background-color: var(--golem-green); }
-.bg-golem-blue { background-color: var(--golem-blue); }
-.bg-golem-pink { background-color: var(--golem-pink); }
-
-.text-golem-yellow { color: var(--golem-yellow); }
-.text-golem-green { color: var(--golem-green); }
-.text-golem-blue { color: var(--golem-blue); }
-.text-golem-pink { color: var(--golem-pink); }
-
-.border-golem-yellow { border-color: var(--golem-yellow); }
-.border-golem-green { border-color: var(--golem-green); }
-.border-golem-blue { border-color: var(--golem-blue); }
-.border-golem-pink { border-color: var(--golem-pink); }

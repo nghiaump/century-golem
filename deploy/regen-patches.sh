@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Sinh lại deploy/patches/*.patch từ src/golem so với upstream golem.zip, rồi kiểm tái lập.
 #   ./regen-patches.sh      # chạy sau MỌI lần sửa code trong ../src/golem
-# 0001 = AuthContext (sửa tay, giữ nguyên) · 0002 = toàn bộ frontend còn lại · 0003 = backend Go (internal/, gồm AI).
+# 0001 = AuthContext (sửa tay, giữ nguyên) · 0002 = toàn bộ frontend còn lại (src/ + index.html + tailwind.config.js)
+# · 0003 = backend Go (internal/, gồm AI). File nhị phân (font, avatar) không đi qua patch: sanitize chép từ assets-src/.
 # Tên patch theo PHẠM VI (không theo tính năng) để khỏi lỗi thời; ⛔ không thêm patch thứ 2 cho cùng thư mục.
 # Tái lập: sanitize-src.sh trên bản giải nén mới của golem.zip phải cho ra đúng src/golem (trừ .git).
 set -euo pipefail
@@ -19,7 +20,11 @@ diff_tree() { # out-file path-in-repo [extra diff args...]
     | sed -e "s|^--- $BASE/|--- a/|" -e "s|^+++ $SRC/|+++ b/|" -e "s|^diff -ruN .*||" \
     | sed -e 's|^\(--- a/[^\t]*\)\t.*|\1|' -e 's|^\(+++ b/[^\t]*\)\t.*|\1|' | sed '/^$/d' > "$out"
 }
-diff_tree "$HERE/patches/0002-frontend.patch" web/react-frontend/src
+diff_tree "$HERE/patches/0002-frontend.patch" web/react-frontend/src -x fonts   # font: nhị phân, sanitize chép từ assets-src
+# 0002 gồm cả 2 file cấu hình frontend nằm ngoài src/ (viewport/theme-color; token Tailwind)
+for f in web/react-frontend/index.html web/react-frontend/tailwind.config.js; do
+  diff_tree "$TMP/extra.patch" "$f"; cat "$TMP/extra.patch" >> "$HERE/patches/0002-frontend.patch"
+done
 diff_tree "$HERE/patches/0003-backend.patch" internal
 for p in "$HERE"/patches/*.patch; do printf '  %-48s %4d dòng, %2d file\n' "$(basename "$p")" "$(wc -l < "$p")" "$(grep -c '^+++ ' "$p")"; done
 

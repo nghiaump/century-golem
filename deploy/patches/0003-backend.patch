@@ -6435,7 +6435,7 @@
 +}
 --- a/internal/session/ai_turns.go
 +++ b/internal/session/ai_turns.go
-@@ -0,0 +1,633 @@
+@@ -0,0 +1,631 @@
 +package session
 +
 +import (
@@ -6543,7 +6543,7 @@
 +
 +// assignSeats seats the waiting humans and creates the AI seats. Caller holds gs.mu.
 +// Single-player: humans get random seats (official rule: random start player), AIs the rest,
-+// each wearing a random avatar and named after its character (Goomba, Koopa Troopa, …). Multiplayer: humans fill seats 1..n in random order.
++// each wearing a random avatar and named after its golem (Basalt, Mossback, …). Multiplayer: humans fill seats 1..n in random order.
 +func (gs *GameSession) assignSeats(rng *rand.Rand) {
 +	n := len(gs.GameState.Players)
 +	clientIDs := gs.getShuffledClientIDs(gs.connectedPlayers)
@@ -6970,14 +6970,12 @@
 +	return aiName + " made a move"
 +}
 +
-+// avatarNames[i] is the character on avatar i+1; an AI is named after the avatar it wears.
-+// Keep in sync with AVATAR_IDS in web/react-frontend/src/utils/avatar.js and SPRITES in
-+// deploy/make-avatars.py (12 characters, then at most one variant each).
++// avatarNames[i] is the golem on avatar i+1; an AI is named after the avatar it wears.
++// Keep in sync with AVATAR_IDS/AVATAR_NAMES in web/react-frontend/src/utils/avatar.js and
++// deploy/make-golem-avatars.py (assets-src/avatars/avatars.json): 12 golems, then one variant of each.
 +var avatarNames = []string{
-+	"Goomba", "Koopa Troopa", "Lakitu", "Bowser", "Hammer Bro", "Piranha Plant", "Buzzy Beetle",
-+	"Blooper", "Bullet Bill", "Cheep Cheep", "Spiny", "Podoboo",
-+	"Red Paratroopa", "Blue Goomba", "Red Piranha", "Green Cheep", "White Blooper", "Grey Bowser",
-+	"Cave Hammer Bro", "Grey Bullet Bill", "Blue Buzzy", "Spiny Egg", "Cave Lakitu",
++	"Basalt", "Mossback", "Rime", "Cinder", "Rivet", "Dune", "Quartz", "Terra", "Onyx", "Rootling", "Reef", "Nimbus",
++	"Granite", "Fernhide", "Glacier", "Magma", "Anvil", "Mesa", "Amethyst", "Kiln", "Jet", "Thornbark", "Coralline", "Squall",
 +}
 +
 +// avatarCount is the number of player avatars (1..avatarCount).
@@ -7015,7 +7013,7 @@
 +			out = append(out, a)
 +		}
 +	}
-+	for i := 0; len(out) < n; i++ { // more AIs than free avatars (cannot happen with 23): reuse
++	for i := 0; len(out) < n; i++ { // more AIs than free avatars (cannot happen with 24): reuse
 +		out = append(out, gs.avatarOrder[i%len(gs.avatarOrder)])
 +	}
 +	return out
@@ -7068,6 +7066,55 @@
 +		return "single"
 +	}
 +	return "multi"
++}
+--- a/internal/session/avatar_names_test.go
++++ b/internal/session/avatar_names_test.go
+@@ -0,0 +1,46 @@
++package session
++
++import (
++	"os"
++	"regexp"
++	"testing"
++)
++
++// AIs are named after the golem on their avatar: the list must be complete, unique, and identical to
++// the frontend's AVATAR_NAMES (web/react-frontend/src/utils/avatar.js), which labels the same pictures.
++func TestAvatarNames_MatchFrontendAndAreUnique(t *testing.T) {
++	if len(avatarNames) != 24 || avatarCount != 24 {
++		t.Fatalf("want 24 golem avatars, got %d", len(avatarNames))
++	}
++	seen := map[string]bool{}
++	for _, n := range avatarNames {
++		if n == "" || seen[n] {
++			t.Fatalf("avatar names must be unique and non-empty: %q", n)
++		}
++		seen[n] = true
++	}
++	if aiName("1", 1) != "Basalt" || aiName("24", 1) != "Squall" || aiName("0", 3) != "AI 3" || aiName("x", 2) != "AI 2" {
++		t.Fatal("aiName must map avatar ids 1..24 to golem names and fall back to \"AI k\"")
++	}
++
++	js, err := os.ReadFile("../../web/react-frontend/src/utils/avatar.js")
++	if err != nil {
++		t.Skipf("frontend source not available: %v", err)
++	}
++	block := regexp.MustCompile(`(?s)AVATAR_NAMES = \[(.*?)\]`).FindSubmatch(js)
++	if block == nil {
++		t.Fatal("AVATAR_NAMES not found in avatar.js")
++	}
++	var front []string
++	for _, m := range regexp.MustCompile(`'([^']+)'`).FindAllSubmatch(block[1], -1) {
++		front = append(front, string(m[1]))
++	}
++	if len(front) != len(avatarNames) {
++		t.Fatalf("frontend has %d avatar names, server %d", len(front), len(avatarNames))
++	}
++	for i := range front {
++		if front[i] != avatarNames[i] {
++			t.Fatalf("avatar %d: frontend %q, server %q", i+1, front[i], avatarNames[i])
++		}
++	}
 +}
 --- a/internal/session/session.go
 +++ b/internal/session/session.go

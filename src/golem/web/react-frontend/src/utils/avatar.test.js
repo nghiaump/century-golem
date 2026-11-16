@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { AVATAR_IDS, avatarSrc, resolveAvatarId } from './avatar'
+import { AVATAR_IDS, AVATAR_NAMES, avatarName, avatarSrc, resolveAvatarId } from './avatar'
 
 const human = (id, avatar) => ({ id, name: `H${id}`, avatar, isAI: false })
 const ai = (id) => ({ id, name: `AI ${id}`, avatar: String(id), isAI: true })
@@ -10,7 +10,7 @@ describe('resolveAvatarId', () => {
   })
 
   it('gives AIs avatars no human picked, without duplicates, in seat order', () => {
-    // Human picks Bowser (4); server would give AI seat 4 avatar "4" too.
+    // Human picks Cinder (4); server would give AI seat 4 avatar "4" too.
     const players = [human(0, '4'), ai(1), ai(2), ai(3), ai(4)]
     const shown = players.map((p) => resolveAvatarId(p, players))
     expect(shown).toEqual(['4', '1', '2', '3', '5'])
@@ -36,11 +36,14 @@ describe('resolveAvatarId', () => {
     expect(resolveAvatarId({ ...ai(1), avatar: '999', aiAvatar: true }, [human(0, '1'), ai(1)])).toBe('2')
   })
 
-  it('offers 23 avatars', () => {
-    expect(AVATAR_IDS).toHaveLength(23)
+  it('offers 24 golem avatars, each with a unique name', () => {
+    expect(AVATAR_IDS).toHaveLength(24)
+    expect(new Set(AVATAR_NAMES).size).toBe(24)
+    expect(avatarName('1')).toBe('Basalt')
+    expect(avatarName('24')).toBe('Squall')
   })
 
   it('builds versioned URLs', () => {
-    expect(avatarSrc('3')).toMatch(/^\/assets\/images\/avatar\/3\.webp\?v=/)
+    expect(avatarSrc('3')).toMatch(/^\/assets\/images\/avatar\/3\.svg\?v=/)
   })
 })

@@ -1,0 +1,65 @@
+/* Design tokens — "Stone & Crystal" (Đá & Pha lê). Nguồn sự thật duy nhất cho màu/bo góc/bóng/chuyển động.
+   Màu lưu dạng kênh RGB ("r g b") để Tailwind dùng được độ mờ: bg-rock-800/80 (map trong tailwind.config.js).
+   Bảng màu hài hoà với art của bộ bài: đá tối, gỗ ấm, giấy da, lưng bài tím, điểm nhấn xanh mòng két. */
+:root {
+  /* Đá (panel, nền) */
+  --rock-950: 18 19 28;     /* #12131c */
+  --rock-900: 27 29 42;     /* #1b1d2a */
+  --rock-800: 42 47 69;     /* #2a2f45 */
+  --rock-700: 54 60 87;     /* #363c57 */
+  --rock-600: 74 81 112;    /* #4a5170 */
+  --rock-400: 138 143 168;  /* #8a8fa8 */
+  --rock-200: 201 203 216;  /* #c9cbd8 */
+
+  /* Đồng (viền, nút chính, điểm nhấn) — bronze-500 chỉ cho viền/chữ lớn; chữ nhỏ dùng bronze-300 */
+  --bronze-700: 122 85 48;  /* #7a5530 */
+  --bronze-500: 184 134 75; /* #b8864b */
+  --bronze-300: 217 178 111;/* #d9b26f */
+  --bronze-100: 241 223 181;/* #f1dfb5 */
+
+  /* Giấy da (popup) + mực */
+  --parch-100: 243 236 214; /* #f3ecd6 */
+  --parch-200: 228 220 191; /* #e4dcbf */
+  --parch-400: 201 187 146; /* #c9bb92 */
+  --ink: 43 33 24;          /* #2b2118 */
+  --ink-muted: 107 90 66;   /* #6b5a42 */
+
+  /* Chữ trên đá */
+  --fg: 236 230 214;        /* #ece6d6 */
+  --fg-muted: 180 176 196;  /* #b4b0c4 */
+
+  /* Trạng thái */
+  --ember: 201 84 58;       /* #c9543a — nguy hiểm / lỗi */
+  --moss: 104 164 98;       /* #68a462 — thành công */
+  --teal: 92 150 146;       /* #5c9692 — thông tin */
+
+  /* Crystal — base / light (mặt sáng) / dark (mặt tối, viền) */
+  --gem-yellow: 240 204 58;   --gem-yellow-light: 252 236 140; --gem-yellow-dark: 150 112 14;
+  --gem-green: 62 160 96;     --gem-green-light: 132 214 150;  --gem-green-dark: 26 88 52;
+  --gem-blue: 58 140 208;     --gem-blue-light: 140 204 244;   --gem-blue-dark: 26 76 128;
+  --gem-pink: 200 64 150;     --gem-pink-light: 242 140 202;   --gem-pink-dark: 108 22 86;
+
+  /* Đồng xu */
+  --coin-copper: 196 120 64;  --coin-copper-dark: 110 60 26;
+  --coin-silver: 196 202 212; --coin-silver-dark: 104 110 124;
+
+  /* Hình khối */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --bevel: inset 0 1px 0 rgb(255 255 255 / 0.09), inset 0 -2px 0 rgb(0 0 0 / 0.35);
+  --elev-1: 0 2px 6px rgb(0 0 0 / 0.35);
+  --elev-2: 0 10px 28px rgb(0 0 0 / 0.5);
+  --glow-turn: 0 0 0 2px rgb(var(--bronze-300)), 0 0 18px 2px rgb(var(--bronze-300) / 0.55);
+
+  /* Chuyển động */
+  --t-fast: 150ms;
+  --t-med: 250ms;
+  --t-slow: 400ms;
+
+  /* Vùng an toàn (tai thỏ / thanh home) */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}

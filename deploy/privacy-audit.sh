@@ -33,11 +33,12 @@ s=$(python3 -I "$HERE/strip-image-metadata.py" --check "$SRC/web/static/images" 
 m=$("${DC[@]}" exec -T web sh -c 'grep -laE "xmpmeta|Canva|FbId|GPSInfo|Photoshop" -r /usr/share/nginx/html/assets/images /usr/share/nginx/html/assets/sounds' 2>/dev/null)
 [[ -z "$m" ]] && ok "web: asset không có metadata tác giả" || bad "web: asset còn metadata" "$m"
 
-# 4b. Avatar đang phục vụ KHÔNG được trùng ảnh người thật của upstream (bản gốc cất ở removed-foreign-config)
+# 4b. Avatar đang phục vụ KHÔNG được trùng ảnh người thật của upstream (bản gốc cất ở removed-foreign-config);
+#     từ 2026-11-16 avatar là golem tự vẽ dạng SVG — không còn file .webp nào trong thư mục avatar
 old=$(find "$HERE/../removed-foreign-config" -path '*avatar*' -name '*.webp' -exec md5sum {} + 2>/dev/null | awk '{print $1}' | sort -u)
-live=$("${DC[@]}" exec -T web sh -c 'md5sum /usr/share/nginx/html/assets/images/avatar/*.webp' 2>/dev/null)
+live=$("${DC[@]}" exec -T web sh -c 'md5sum /usr/share/nginx/html/assets/images/avatar/*' 2>/dev/null)
 hit=$(grep -F -f <(printf '%s\n' $old) <<<"$live")
-[[ -n "$live" && -z "$hit" ]] && ok "web: avatar là sprite mới, không còn ảnh người thật" || bad "web: avatar cũ (ảnh người thật) vẫn đang phục vụ" "${hit:-không đọc được avatar}"
+[[ -n "$live" && -z "$hit" ]] && ok "web: avatar là golem tự vẽ, không còn ảnh người thật" || bad "web: avatar cũ (ảnh người thật) vẫn đang phục vụ" "${hit:-không đọc được avatar}"
 
 # 5. Backend: Telegram + Firebase tắt (theo log khởi động)
 logs=$("${DC[@]}" logs server 2>&1)

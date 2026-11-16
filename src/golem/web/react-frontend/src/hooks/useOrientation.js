@@ -5,7 +5,9 @@ const logger = createLogger('useOrientation');
 
 /**
  * Custom hook to detect device orientation and screen size
- * Returns: { isPortrait, isLandscape, isMobile, isTablet, isDesktop, width, height }
+ * Returns: { isPortrait, isLandscape, isMobile, isCompact, isTablet, isDesktop, width, height }
+ * isCompact: use the phone layout — narrow screens, and phones held sideways (short landscape screens
+ * are wider than 768px but too low for the desktop board).
  */
 
 // Helper to get initial values (works both SSR and client)
@@ -15,6 +17,7 @@ const getOrientationValues = () => {
       isPortrait: true,
       isLandscape: false,
       isMobile: true,
+      isCompact: true,
       isTablet: false,
       isDesktop: false,
       width: 375,
@@ -29,6 +32,7 @@ const getOrientationValues = () => {
   
   // Device type detection - matches Tailwind breakpoints
   const isMobile = width < 768
+  const isCompact = isMobile || (isLandscape && height < 500)
   const isTablet = width >= 768 && width < 1024
   const isDesktop = width >= 1024
 
@@ -36,6 +40,7 @@ const getOrientationValues = () => {
     isPortrait,
     isLandscape,
     isMobile,
+    isCompact,
     isTablet,
     isDesktop,
     width,

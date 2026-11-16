@@ -22,7 +22,7 @@ check "GET /health"             "200 text/plain*"  "$(code "$BASE/health")"
 check "GET /api/list"           "200 application/json*" "$(code "$BASE/api/list")"
 check "GET image"               "200 image/jpeg"   "$(code "$BASE/assets/images/background.jpg")"
 check "GET sound"               "200 audio/mpeg"   "$(code "$BASE/assets/sounds/my_turn.mp3")"
-check "GET avatar (versioned)"  "200 image/webp"   "$(code "$BASE/assets/images/avatar/1.webp?v=smb1")"
+check "GET avatar (versioned)"  "200 image/svg+xml" "$(code "$BASE/assets/images/avatar/1.svg?v=golem1")"
 # Auth phải TẮT: 404 ⇒ frontend bỏ "Login Required" (xem docs/upstream-changes.md)
 check "GET /auth/profile (off)" "404*"             "$(code "$BASE/auth/profile")"
 
