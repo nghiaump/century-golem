@@ -3310,6 +3310,15 @@
            </div>
          </div>
        )}
+@@ -552,7 +497,7 @@
+                     <div className="flex items-center gap-2">
+                       <h3 className="text-white font-bold text-sm">Your Hand</h3>
+                       {isMyTurn && (
+-                        <span className="text-green-400 text-[10px] bg-green-500/20 px-2 py-0.5 rounded-full">
++                        <span className="rounded-full bg-moss/20 px-2 py-0.5 text-xs text-[rgb(200_235_190)]">
+                           Your Turn
+                         </span>
+                       )}
 --- a/web/react-frontend/src/components/GameOverModal.jsx
 +++ b/web/react-frontend/src/components/GameOverModal.jsx
 @@ -1,384 +1,143 @@
@@ -9809,7 +9818,18 @@
  }
  
  @layer components {
-@@ -236,15 +314,7 @@
+@@ -45,10 +123,6 @@
+     animation: none !important;
+   }
+   
+-  /* Disable grid reflow animations in market */
+-  [class*="grid"] > div {
+-    transition: none !important;
+-  }
+ 
+   .card-base:hover {
+     @apply shadow-lg;
+@@ -236,15 +310,7 @@
      -webkit-touch-callout: none;
    }
    
@@ -9826,7 +9846,7 @@
  
    /* Disable hover states on touch */
    .card-base:hover {
-@@ -454,15 +524,6 @@
+@@ -454,15 +520,6 @@
      min-height: 300px;
    }
  
@@ -9842,7 +9862,7 @@
    /* Animation utilities */
    .animate-slide-up {
      animation: slideUp 0.3s ease-out forwards;
-@@ -503,26 +564,3 @@
+@@ -503,26 +560,3 @@
      to { opacity: 1; }
    }
  }

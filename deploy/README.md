@@ -18,9 +18,10 @@ systemctl --user status century-tunnel                         # tunnel (log: ./
 | `Dockerfile.web`, `nginx.conf` | build frontend + phục vụ/proxy |
 | `Dockerfile.server` | build backend theo kiến trúc máy build (amd64 / arm64) — build tại chỗ, dùng trên rtx |
 | `ship.sh`, `Dockerfile.server.prebuilt`, `Dockerfile.web.prebuilt` | deploy prod: build nặng ở rtx (`build/`, gitignore) → Pixel chỉ COPY artifact + restart (runbook §11) |
-| `patches/`, `regen-patches.sh` | sửa code upstream (0001 auth, 0002-frontend, 0003-backend: dọn phòng + luật + AI); script sinh lại + kiểm tái lập |
-| `sanitize-src.sh` | làm sạch source mới (idempotent) |
-| `make-avatars.py` | sinh avatar 1..23 từ `../assets-src/smb-enemies-sheet.png` (12 nhân vật + tối đa 1 biến thể) |
+| `patches/`, `regen-patches.sh` | sửa code upstream (0001 auth, 0002-frontend: `src/` + `index.html` + `tailwind.config.js`, 0003-backend: dọn phòng + luật + AI); script sinh lại + kiểm tái lập. File nhị phân (font, avatar) đi qua `../assets-src/` + sanitize |
+| `sanitize-src.sh` | làm sạch source mới (idempotent): gỡ config máy khác, áp patch, chép avatar + font từ `../assets-src/`, xoá metadata |
+| `make-golem-avatars.py` | vẽ 24 avatar golem SVG → `../assets-src/avatars/` (12 golem + 1 biến thể; `--preview OUT.html`) |
+| `ui-shots.mjs` | chụp mọi màn ở 6 viewport + kiểm UI tự động (request ngoài, console, tràn, chữ < 12px, nút < 44px) |
 | `strip-image-metadata.py` | xoá metadata ảnh |
 | `smoke-test.sh`, `privacy-audit.sh` | kiểm chức năng (gồm `difficulty` của AI) / riêng tư |
 

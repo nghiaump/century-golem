@@ -11,7 +11,8 @@ Cloudflare edge ── CNAME century → tunnel `century` (acfd8c66-e01f-4990-ae
 127.0.0.1:8400 ── container `web` (nginx 1.27)            networks: edge + backend
   ├─ /                  → index.html (SPA fallback cho /room/:roomId), Cache-Control: no-cache
   ├─ /assets/*.js|css   → bundle Vite (tên có hash), expires 7d
-  ├─ /assets/images/*   → ảnh lá bài, nền, avatar (copy từ src/golem/web/static/images)
+  ├─ /assets/images/*   → ảnh lá bài, avatar golem SVG (copy từ src/golem/web/static/images)
+  ├─ /assets/*.woff2    → font OFL (Vite băm tên, cùng bundle)
   ├─ /assets/sounds/*   → mp3 hiệu ứng
   ├─ /api/* /auth/* /admin/* /health  ─┐
   └─ /ws (Upgrade: websocket, 3600s) ──┴→ server:8080
@@ -56,16 +57,21 @@ Không còn liên tục quá ngưỡng ⇒ xoá khỏi map + `Close()` (dừng v
 - Ước lượng tải: phòng rảnh ~vài KB RAM + 1 goroutine ngủ; ván bị bỏ chạy AI tối đa 10 phút rồi bị dọn.
 
 ## Avatar
-- Người chơi chọn 1 trong 23 avatar (sprite Super Mario Bros.: 12 nhân vật + tối đa 1 biến thể/nhân vật) ở màn
-  create/join room và single player; id gửi qua WS `&avatar=<id>` (server nhận chuỗi tuỳ ý, không kiểm).
+- Người chơi chọn 1 trong 24 avatar golem **tự vẽ** (12 golem + 1 biến thể mỗi con; `deploy/make-golem-avatars.py`) ở lobby đơn và
+  nhiều người; id gửi qua WS `&avatar=<id>` (server nhận chuỗi tuỳ ý, không kiểm).
 - AI: server chọn avatar **ngẫu nhiên** cho từng ghế AI (thứ tự ngẫu nhiên cố định theo phòng, bỏ qua avatar người chơi đã
-  chọn, không trùng nhau) và **đặt tên AI theo nhân vật** (Goomba, Koopa Troopa, …; bảng `avatarNames` trong
-  `session/ai_turns.go`). State gửi `aiAvatar: true` cho các avatar này; phòng chờ và trong ván dùng cùng một avatar.
-- Ảnh: `/assets/images/avatar/<id>.webp?v=<AVATAR_VERSION>` — query version để vượt cache 7 ngày.
+  chọn, không trùng nhau) và **đặt tên AI theo golem** (Basalt, Mossback, …; `avatarNames` trong `session/ai_turns.go`, khớp
+  `AVATAR_NAMES` ở frontend — test Go kiểm). State gửi `aiAvatar: true`; phòng chờ và trong ván dùng cùng một avatar.
+- Ảnh: `/assets/images/avatar/<id>.svg?v=<AVATAR_VERSION>` — query version để vượt cache 7 ngày.
 
-## Giao diện màn khởi tạo
-Màn chính, lobby đơn/nhiều người, hộp thoại kết nối và phòng chờ dùng theme Windows XP × brutalism (`theme-xp.css`,
-`XpWindow`, `XpWaitingRoom`). **Bàn chơi giữ style upstream** (theme XP trong ván đã thử và bị bỏ theo ý người dùng).
+## Giao diện (frontend) — chi tiết: `docs/ui/thiet-ke-giao-dien.md`
+Một hệ thống thiết kế "Đá & Pha lê" cho mọi màn: token `src/styles/tokens.css` (+ Tailwind), font OFL tự phục vụ
+(`src/styles/fonts.css`), primitive `components/ui/*`. Màn khởi tạo `components/start/*` (menu, hộp kết nối, banner mất kết nối);
+lobby `SinglePlayerLobby`/`Lobby`; phòng chờ `WaitingRoom`; HUD `components/board/Hud`; bàn chơi desktop `desktop/WebGameLayout`,
+điện thoại `PlayersInfoBar` + `mobile/CompactGameBoard` + `mobile/CompactPlayerHand` (chạm lá ⇒ `CardSheet`), skin ✨
+`desktop/FantasyGameLayout` (chỉ desktop). Logic hành động chung: `hooks/useBoardActions` + `components/board/BoardModals`.
+Chọn bố cục: `useOrientation().isCompact` = rộng < 768px **hoặc** ngang và cao < 500px ⇒ bố cục điện thoại.
+Mất kết nối giữa ván: bàn chơi giữ nguyên (inert) + `ReconnectBanner`; hộp thoại kết nối chỉ khi chưa có state ván.
 
 ## AI (đối thủ máy) — chi tiết: `docs/ai/thiet-ke.md`, tổng quan EN: `docs/ai/README.md`
 ```

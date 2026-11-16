@@ -10,7 +10,7 @@ Play solo against 1–4 AI opponents or with up to 5 friends, right in the brows
 </p>
 
 <p>
-<a href="https://century.pentium.ink"><img alt="Play now at century.pentium.ink" src="https://img.shields.io/badge/%E2%96%B6%20PLAY%20NOW-century.pentium.ink-8b5cf6?style=for-the-badge&labelColor=4c1d95"/></a>
+<a href="https://century.pentium.ink"><img alt="Play now at century.pentium.ink" src="https://img.shields.io/badge/%E2%96%B6%20PLAY%20NOW-century.pentium.ink-b8864b?style=for-the-badge&labelColor=2a2f45"/></a>
 </p>
 
 <p>
@@ -36,7 +36,7 @@ Play solo against 1–4 AI opponents or with up to 5 friends, right in the brows
 
 <p><a href="#-features">Features</a> • <a href="#-screenshots">Screenshots</a> • <a href="#-how-to-play">How to play</a> • <a href="#-quick-start">Quick start</a> • <a href="#-architecture">Architecture</a> • <a href="#-configuration">Configuration</a> • <a href="#-operations">Operations</a> • <a href="#-credits--disclaimer">Credits</a></p>
 
-<img src="docs/assets/screenshots/board.webp" alt="In-game board: opponents on top, the merchant market, golems for sale and your hand with the turn timer" width="100%"/>
+<img src="docs/assets/screenshots/board.webp" alt="Desktop board in the Stone &amp; Crystal style: player plaques with points, the market and golem rows with the cards you can take glowing, and your hand with the Your turn ribbon" width="100%"/>
 
 </div>
 
@@ -63,9 +63,13 @@ Play solo against 1–4 AI opponents or with up to 5 friends, right in the brows
 #### 🌐 Experience
 - **Real-time** state sync over WebSocket, with ping/pong disconnect detection
 - **Reconnect** to your seat after a dropped connection (30-day client cookie)
-- **Responsive** desktop and mobile layouts
-- **Sound effects** for your turn, plays, purchases, golem claims, the last round and game over
-- **Retro lobby** with a Windows XP × brutalism theme and 23 pixel-art avatars; AI opponents wear random ones and are named after their character
+- **One "Stone & Crystal" look** on every screen: carved-stone panels, parchment popups, bronze buttons, a night-mountain backdrop
+- **Colour-blind friendly crystals**: each colour has its own shape (▲ yellow, ◆ green, ⬟ blue, ⬢ pink)
+- **Helpful board**: cards you can take or claim glow, hovering (or tapping on a phone) shows what a card does, popups pick the cheapest crystals for you and warn before you go over 10
+- **Phone-first mobile layout** (portrait and landscape): big touch targets, tap a card to see it and act, safe areas for notches
+- **24 original golem avatars** drawn for this project; AI opponents wear random ones and are named after them (Basalt, Mossback, Rime…)
+- **Undo** an overflowing card play from the discard popup; **reconnect banner** keeps the board on screen if the connection drops
+- **Sound effects** for your turn, plays, purchases, golem claims, rests, the last round and game over
 
 </td>
 </tr>
@@ -83,7 +87,7 @@ Play solo against 1–4 AI opponents or with up to 5 friends, right in the brows
 <td width="50%" valign="top">
 
 #### 🔒 Privacy by design
-- No analytics, web fonts or CDNs; every asset is served locally
+- No analytics, CDNs or third-party fonts: the two open-source fonts and every asset are served by our own nginx
 - Backend sits on an **internal Docker network with no internet egress**
 - Third-party integrations (Telegram, Firebase, Google OAuth) are removed or disabled
 - `privacy-audit.sh` checks for regressions on every change
@@ -96,9 +100,14 @@ Play solo against 1–4 AI opponents or with up to 5 friends, right in the brows
 
 <table>
 <tr>
-<td align="center" width="51%"><img src="docs/assets/screenshots/menu.webp" alt="Main menu with the Windows XP style window"/><br/><sub><b>Main menu</b>: choose Single Player or Multiplayer</sub></td>
-<td align="center" width="27%"><img src="docs/assets/screenshots/difficulty.webp" alt="Single-player lobby with the AI difficulty picker"/><br/><sub><b>Single player</b>: 1–4 AIs, Easy → Very Hard</sub></td>
-<td align="center" width="22%"><img src="docs/assets/screenshots/mobile.webp" alt="Mobile layout of the game board"/><br/><sub><b>Mobile</b>: the full board on a phone</sub></td>
+<td align="center" width="50%"><img src="docs/assets/screenshots/menu.webp" alt="Main menu: the Century wordmark over night mountains and two stone tiles, Single Player and Multiplayer"/><br/><sub><b>Main menu</b>: Single Player or Multiplayer</sub></td>
+<td align="center" width="25%"><img src="docs/assets/screenshots/difficulty.webp" alt="Single-player lobby on a phone: name, number of AIs, difficulty with level dots and the golem avatar grid"/><br/><sub><b>Lobby</b>: 1–4 AIs, Easy → Very Hard, pick a golem</sub></td>
+<td align="center" width="25%"><img src="docs/assets/screenshots/mobile.webp" alt="Mobile board: player chips, Your turn banner, swipeable golem row, market and the hand at the bottom"/><br/><sub><b>Mobile</b>: the whole board on a phone</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="docs/assets/screenshots/details.webp" alt="Hovering a market card shows a stone popover with the card large, its trade and what it costs to take"/><br/><sub><b>Card details</b> on hover (desktop)</sub></td>
+<td align="center"><img src="docs/assets/screenshots/popup.webp" alt="Place Crystals popup on parchment with the cheapest crystals already chosen"/><br/><sub><b>Buying</b>: cheapest crystals pre-picked</sub></td>
+<td align="center"><img src="docs/assets/screenshots/mobile-sheet.webp" alt="On a phone, tapping a golem opens a sheet with the card, its cost, points and coin, and a Claim button"/><br/><sub><b>Tap a card</b> to see it and act</sub></td>
 </tr>
 </table>
 
@@ -106,7 +115,7 @@ Play solo against 1–4 AI opponents or with up to 5 friends, right in the brows
 
 > **Goal:** have the most **victory points** when the game ends. Points come from golems, coins and leftover crystals.
 
-**Crystals** go up in value: 🟡 **Yellow** → 🟢 **Green** → 🔵 **Blue** → 🟣 **Pink**. You can hold at most **10**, and any excess must be discarded.
+**Crystals** go up in value: ▲ **Yellow** → ◆ **Green** → ⬟ **Blue** → ⬢ **Pink** (in the game each colour also has its own shape). You can hold at most **10**, and any excess must be discarded — the popup picks the cheapest for you, and an overflowing card play can be undone.
 
 **Setup.** Everyone starts with two merchant cards (*produce 2 yellow* and *upgrade ×2*) and crystals based on seat order:
 
@@ -118,7 +127,7 @@ Play solo against 1–4 AI opponents or with up to 5 friends, right in the brows
 
 | Action | What happens |
 |:--|:--|
-| 🃏 **Play** a merchant card | **Produce** crystals, **upgrade** crystals one step at a time (`Lv.2` / `Lv.3` = number of steps) or **trade** one set for another, as many times as you can afford |
+| 🃏 **Play** a merchant card | **Produce** crystals, **upgrade** crystals one level per step (the card shows ⇧2 / ⇧3 steps; tap a crystal to raise it) or **trade** one set for another, as many times as you can afford |
 | 🛒 **Acquire** a merchant card | The leftmost card in the market is free. For any other card, leave 1 crystal on each card to its left, and take any crystals already sitting on the card you pick |
 | 🗿 **Claim** a golem | Pay the crystals shown on it. The 1st slot also pays a **copper coin (+3)** and the 2nd a **silver coin (+1)**, while they last |
 | 💤 **Rest** | Return all your played merchant cards to your hand |
@@ -209,8 +218,10 @@ DOCKER_BUILDKIT=1 docker compose up -d --build --no-deps server    # redeploy ba
 | [`smoke-test.sh`](deploy/smoke-test.sh) `[URL]` | End-to-end check: pages, assets, API, creates an AI game, WebSocket handshake |
 | [`privacy-audit.sh`](deploy/privacy-audit.sh) | Checks for trackers or foreign hosts in the bundle, secrets in the source, and confirms the backend has no internet |
 | [`regen-patches.sh`](deploy/regen-patches.sh) | Regenerates patches `0002`/`0003` from `src/golem` and proves the tree can be rebuilt from the original download |
-| [`sanitize-src.sh`](deploy/sanitize-src.sh) | Cleans a new upstream drop: strips foreign config, applies patches, builds avatars, removes image metadata |
-| [`make-avatars.py`](deploy/make-avatars.py) | Cuts the 23 pixel avatars from the sprite sheet (12 characters + at most one variant each) |
+| [`sanitize-src.sh`](deploy/sanitize-src.sh) | Cleans a new upstream drop: strips foreign config, applies patches, copies the golem avatars and fonts, removes image metadata |
+| [`make-golem-avatars.py`](deploy/make-golem-avatars.py) | Draws the 24 original golem avatars as SVG (12 golems + one variant each); `--preview` writes a contact sheet |
+| [`ui-shots.mjs`](deploy/ui-shots.mjs) `[URL] [DIR]` | Screenshots every screen at desktop, phone and landscape sizes and fails on external requests, console errors, overflow, text < 12 px or touch targets < 44 px |
+| [`ship.sh`](deploy/ship.sh) `web\|server\|all` | Production deploy: builds on a workstation, the phone only packages and restarts |
 | [`strip-image-metadata.py`](deploy/strip-image-metadata.py) | Removes EXIF/XMP metadata from images |
 
 📖 Full operations guide (backup and restore, tunnel, troubleshooting, rollback): [`docs/runbook.md`](docs/runbook.md). The docs are written in Vietnamese.
@@ -224,12 +235,12 @@ DOCKER_BUILDKIT=1 docker compose up -d --build --no-deps server    # redeploy ba
 │   ├── Dockerfile.server      # Go build for the host's architecture (amd64 / arm64)
 │   ├── Dockerfile.web         # Vite build → nginx
 │   ├── nginx.conf             # SPA + /api, /ws reverse proxy, asset caching
-│   └── patches/               # 0001 auth-off · 0002 frontend theme + avatars · 0003 idle-room cleanup
+│   └── patches/               # 0001 auth-off · 0002 frontend (UI, index.html, Tailwind) · 0003 backend (rules, AI, rooms)
 ├── src/golem/                 # upstream game, sanitized + patched
 │   ├── cmd/server/            # Go entry point
 │   ├── internal/              # game engine & AI, session, server, event store
-│   └── web/                   # React frontend + static images & sounds
-├── assets-src/                # source sprite sheet for the avatars
+│   └── web/react-frontend/src # React UI: components/ui (design system), board/, start/, mobile/, desktop/
+├── assets-src/                # binary sources copied in by sanitize: avatars/ (golem SVGs), fonts/ (OFL woff2)
 └── docs/                      # architecture, runbook, privacy, upstream changes, README assets
 ```
 
@@ -259,13 +270,17 @@ DOCKER_BUILDKIT=1 docker compose up -d --build --no-deps server    # redeploy ba
 - The `session` package has data races reported by `go test -race`.
 - History endpoints (`/api/games`, `/api/events`, …) are public and unauthenticated, and client IDs are guessable
   (deck order of games still being played is hidden).
+- The mobile layout is tested in Chrome's phone emulation; iPhone Safari (dynamic viewport, notch safe areas) has not been checked on a device.
 
 ## 🙏 Credits & disclaimer
 
 - ***Century: Golem Edition*** is a board game designed by **Emerson Matsuuchi** and published by **Plan B Games**.
   This repository is an **unofficial, non-commercial fan project** for private play. It is not affiliated with or endorsed by Plan B Games.
   Game names and card artwork belong to their respective owners.
-- The avatar sprites come from ***Super Mario Bros.*** © Nintendo and are used here for fun only.
+- The **user interface, the golem avatars and the backdrop are original** to this project; avatars are drawn by
+  [`make-golem-avatars.py`](deploy/make-golem-avatars.py).
+- Fonts: **Cinzel** (© The Cinzel Project Authors) and **Be Vietnam Pro** (© The Be Vietnam Pro Project Authors), both
+  under the SIL Open Font License 1.1 — licences in [`assets-src/fonts/`](assets-src/fonts/).
 - The game engine is based on a third-party implementation, sanitized and extended for self-hosting.
   Every change is documented in [`docs/upstream-changes.md`](docs/upstream-changes.md).
 - **No license is granted.** This is a private repository.

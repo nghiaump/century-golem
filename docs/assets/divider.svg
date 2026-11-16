@@ -1,17 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="6" viewBox="0 0 1200 6" preserveAspectRatio="none" role="img" aria-label="">
   <defs>
-    <linearGradient id="g" x1="0" x2="1">
-      <stop offset="0" stop-color="#facc15"/>
-      <stop offset="0.33" stop-color="#22c55e"/>
-      <stop offset="0.66" stop-color="#3b82f6"/>
-      <stop offset="1" stop-color="#ec4899"/>
-    </linearGradient>
-    <linearGradient id="s" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="220" y2="0">
-      <stop offset="0" stop-color="#fff" stop-opacity="0"/>
-      <stop offset="0.5" stop-color="#fff" stop-opacity="0.85"/>
-      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
-      <animateTransform attributeName="gradientTransform" type="translate" values="-240 0;1240 0" dur="3.6s" repeatCount="indefinite"/>
-    </linearGradient>
+    <linearGradient id="g" x1="0" x2="1"><stop offset="0" stop-color="#7a5530"/><stop offset=".2" stop-color="#f0cc3a"/><stop offset=".4" stop-color="#3ea060"/><stop offset=".6" stop-color="#3a8cd0"/><stop offset=".8" stop-color="#c84096"/><stop offset="1" stop-color="#7a5530"/></linearGradient>
+    <linearGradient id="s" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="220" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".7"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
+      <animateTransform attributeName="gradientTransform" type="translate" values="-240 0;1240 0" dur="4s" repeatCount="indefinite"/></linearGradient>
   </defs>
   <rect width="1200" height="6" rx="3" fill="url(#g)"/>
   <rect width="1200" height="6" rx="3" fill="url(#s)"/>

@@ -123,10 +123,6 @@
     animation: none !important;
   }
   
-  /* Disable grid reflow animations in market */
-  [class*="grid"] > div {
-    transition: none !important;
-  }
 
   .card-base:hover {
     @apply shadow-lg;

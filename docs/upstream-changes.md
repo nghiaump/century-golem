@@ -8,13 +8,13 @@ Mọi thay đổi được tái lập tự động: `deploy/sanitize-src.sh` tr�
 | Patch | Phạm vi | Nội dung |
 |---|---|---|
 | `0001-auth-disabled-when-backend-404.patch` | `contexts/AuthContext.jsx` | `setAuthAvailable(false)` khi `/auth/profile` 404 — bug upstream: auth tắt mà Lobby vẫn đòi "Sign in with Google" |
-| `0002-frontend.patch` (đổi tên 2026-11-14, trước là `0002-frontend-xp-theme-smb-avatars.patch`) | 27 file `web/react-frontend/src` | (a) avatar SMB, (b) avatar trong màn chơi, (c) theme XP × brutalism màn khởi tạo, (e) sửa link `/room/:id`, (f) UI AI 4 mức — chi tiết bên dưới |
+| `0002-frontend.patch` (đổi tên 2026-11-14, trước là `0002-frontend-xp-theme-smb-avatars.patch`) | `web/react-frontend/src` + `index.html` + `tailwind.config.js` | (b) avatar trong màn chơi, (e) sửa link `/room/:id`, (f) UI AI 4 mức, **(g) giao diện "Đá & Pha lê" (2026-11-16; thay (a) avatar SMB và (c) theme XP)** — chi tiết bên dưới. File nhị phân (font, avatar) không ở trong patch: `sanitize-src.sh` chép từ `assets-src/` |
 | `0003-backend.patch` (đổi tên 2026-11-14, trước là `0003-backend-idle-room-cleanup.patch`) | 47 file `internal/` | dọn phòng ma, đóng phòng an toàn, trần số phòng, ẩn ván chơi đơn; **luật chính thức + engine Validate/Step**; **AI 4 mức** (`internal/ai`); **game loop có khoá** — chi tiết bên dưới |
 
 Tên patch theo **phạm vi thư mục** (không theo tính năng) để không lỗi thời. Đổi tên phải `git mv` và xoá file cũ
 (`sanitize-src.sh` áp mọi `patches/*.patch`).
 
-### 0002 (a) Avatar SMB ở màn khởi tạo
+### 0002 (a) Avatar SMB ở màn khởi tạo — *đã thay bởi (g) ngày 2026-11-16*
 - `utils/avatar.js` (mới): `AVATAR_IDS` (15), `avatarSrc(id)` có `?v=AVATAR_VERSION` (vượt cache 7 ngày).
 - `Lobby.jsx` (create/join room), `SinglePlayerLobby.jsx`: lưới chọn 3×5. `OpponentArea.jsx` (code chết) cũng dùng `avatarSrc`.
 
@@ -26,7 +26,7 @@ Tên patch theo **phạm vi thư mục** (không theo tính năng) để không 
   `desktop/FantasyGameLayout.jsx`, `mobile/CompactPlayerHand.jsx` (2 chỗ), thêm avatar vào `GameOverModal.jsx`.
 - Test: `utils/avatar.test.js` (5 test, vitest).
 
-### 0002 (c) Theme Windows XP × brutalism (chỉ các màn trước khi vào ván)
+### 0002 (c) Theme Windows XP × brutalism (chỉ các màn trước khi vào ván) — *đã bỏ ngày 2026-11-16, xem (g)*
 - `theme-xp.css` (mới, import trong `main.jsx`): token `--xp-*`, cửa sổ XP (title bar Luna, mặt beige, status bar),
   viền đen dày + bóng đổ cứng, nút XP/nút xanh "go", tab, list, listview, badge, progress marquee, nền "Bliss" phẳng.
   Chỉ font hệ thống (Tahoma/Trebuchet/Verdana/DejaVu) — không web font.
@@ -116,14 +116,14 @@ Crystals!" và không quay lại được.
   `hooks/useReopenAfterUndo.js` (desktop, mobile, fantasy).
 - Test: `session/undo_test.go`, `utils/undo.test.js`, `components/__tests__/DiscardModal.test.jsx`.
 
-### Avatar & tên AI (2026-11-14, theo yêu cầu người dùng)
+### Avatar & tên AI (2026-11-14, theo yêu cầu người dùng — *avatar thay bằng 24 golem ngày 2026-11-16, xem (g)*)
 - 23 avatar: 12 nhân vật khác nhau + tối đa 1 biến thể mỗi nhân vật (trước: 15, trong đó 4 biến thể Koopa). `AVATAR_VERSION`
   = `smb2`. Server chọn avatar AI ngẫu nhiên (không trùng nhau/người chơi) và đặt tên AI theo nhân vật; `PlayerAvatar` không
   tra người chơi theo `id 0` nữa (phòng chờ: mọi AI từng hiện avatar của người chơi).
 - Toast ý đồ AI (`aiIntent`) **tắt mặc định** (`AI_INTENT_MESSAGES=0`) — người dùng thấy thông báo quá tường minh.
 
 ### 0002 (f) UI AI 4 mức (2026-11-14)
-- `SinglePlayerLobby.jsx`: chọn độ khó (XP list + badge, nhớ trong localStorage), gửi `difficulty`. Mặc định
+- `SinglePlayerLobby.jsx`: chọn độ khó (nhớ trong localStorage; giao diện xem (g)), gửi `difficulty`. Mặc định
   **3 AI, Very Hard** (2026-11-16, ý người dùng; trước: 1 AI, Medium — API `/api/single` vẫn mặc định `medium`). `XpWaitingRoom.jsx`: dòng AI kèm mức, sửa key trùng.
 - Bàn chơi (style upstream): **một** badge độ khó `DifficultyBadge.jsx` dưới nút ✨ (góc trái; 2026-11-15 thay cho badge
   trong từng ô người chơi — người dùng thấy thừa và che tên); `AiThinkingIndicator.jsx` ở thanh bài (desktop) / thanh người
@@ -153,14 +153,45 @@ Crystals!" và không quay lại được.
     phát `rest` (giống Rest của đối thủ); `useGameSounds.js` chỉ phát âm mua lá khi tay tăng mà số lá đã chơi không đổi
     (Rest/Undo đều lấy lá từ đống đã chơi). `restedCards` không coi Undo (đang chờ discard) là Rest.
 
+### 0002 (g) Giao diện thống nhất "Đá & Pha lê" (2026-11-16, ADR 0009, theo yêu cầu người dùng)
+Chi tiết: [`ui/thiet-ke-giao-dien.md`](ui/thiet-ke-giao-dien.md). Tóm tắt thay đổi:
+- **Nền tảng**: `styles/tokens.css` (màu dạng kênh RGB, bo góc, bevel, glow, safe-area), `styles/fonts.css` (Cinzel + Be Vietnam Pro,
+  OFL, tự phục vụ), `tailwind.config.js` (map token, `fontFamily`, thang z-index `board…system`), `index.css` (nền đêm, lớp
+  `surface-*`, `turn-glow`, focus ring, reduced-motion; bỏ 'Inter' chưa từng nạp, ảnh nền, `--golem-*`, z-index tự chế, rule
+  `!important` tắt transition, rule ép mọi nút 44px), `index.html` (`viewport-fit=cover`, `theme-color`), `main.jsx` (`MotionConfig
+  reducedMotion="user"`, gallery dev `?gallery`).
+- **Primitive** `components/ui/*` (Panel, Button/IconButton, Modal, Pill, Gem, CrystalRow/CrystalCost, Coin, GolemIcon, Avatar,
+  TurnBanner, Field, Segmented, AvatarPicker, Stepper, CardImage, GemLoader, NightBackdrop) + `LevelPill`, `utils/crystals.js`.
+- **Bỏ XP**: xoá `theme-xp.css`, `XpWindow.jsx`, `XpWaitingRoom.jsx` (file do patch 0002 tạo); màn khởi tạo mới `components/start/*`
+  (StartShell, Wordmark, ModeMenu, ConnectionDialog, ReconnectBanner), `WaitingRoom.jsx`; viết lại `SinglePlayerLobby.jsx`,
+  `Lobby.jsx` (giữ `name`/`value` radio cho test), `alert()` → toast. Mất kết nối giữa ván: giữ bàn chơi (inert) + banner.
+- **Popup**: Trade, Upgrade (chạm crystal để nâng 1 cấp), Deposit (chọn sẵn crystal rẻ nhất), Discard (chọn sẵn rẻ nhất, Undo),
+  ConfirmGolem (thêm coin), GameOver (bảng điểm; sửa: người thắng hiện tổng điểm có coin/crystal, confetti hết hạn trước khi ván
+  xong, random lại mỗi render) — đều dựng trên `Modal`; Trade/Deposit cảnh báo trước khi vượt 10 crystal.
+- **Bàn chơi desktop**: `hooks/useBoardActions` + `components/board/{BoardModals,CardTile,CardInspect,CardPile,Hud}`,
+  `useTurnTimer`; viết lại `WebGameLayout`, `PlayerCard` (★ điểm, vòng giờ), `HistorySection`, `GraveyardPanel` (→ "Played"),
+  `MyGolemsPanel`, `CollapsibleInfo` (ngăn đá, xoá có bước xác nhận), `Toast` (giữa-trên, không `alert`), `RestPopup` (bong bóng
+  đá), `AiThinkingIndicator`, `SoundToggleButton`, `ThemeToggleButton`, `DifficultyBadge`, `RoomDisplay`.
+- **Điện thoại**: viết lại `PlayersInfoBar`, `mobile/CompactGameBoard`, `mobile/CompactPlayerHand`; `board/CardSheet` (chạm lá ⇒ xem +
+  hành động); `useOrientation.isCompact` (cầm ngang thấp ⇒ bố cục điện thoại, cột phải); safe-area; `useReopenAfterUndo(open, enabled)`.
+- **Skin ✨**: dock đá, popup chung, lưng bài `golem_bg.JPG`/`merchant_bg.JPG` (trước trỏ `golem_0/card_0` không tồn tại), dải lượt
+  + Rest trên bàn, crystal/coin vẽ bằng SVG; chỉ desktop.
+- **Avatar** 24 golem tự vẽ (`deploy/make-golem-avatars.py` → `assets-src/avatars/`), `utils/avatar.js` (`AVATAR_NAMES`, `.svg`,
+  `AVATAR_VERSION='golem1'`), `internal/session/ai_turns.go` `avatarNames` (+ test `avatar_names_test.go` so khớp frontend).
+- **Hạ tầng**: `regen-patches.sh` nối diff `index.html` + `tailwind.config.js` vào 0002 và loại `fonts/`; `sanitize-src.sh` bước 3 (avatar
+  golem) + bước 5 (font); `ui-shots.mjs`; `smoke-test.sh` kiểm `avatar/1.svg?v=golem1`; `privacy-audit.sh` kiểm mọi file avatar.
+- Phát hiện khi làm: server gửi `deposits` của lá market dạng chuỗi (`ToMap`) ⇒ frontend luôn ép số (`utils/crystals.js`).
+
 ## 2. Asset — sinh bởi script
 | Thứ | Script | Chi tiết |
 |---|---|---|
-| `web/static/images/avatar/1..23.webp` | `deploy/make-avatars.py` | từ `assets-src/smb-enemies-sheet.png` (NES Super Mario Bros. enemies, sheet by SuperJustinBros). 512×512, nền trời SMB, phóng to bội số nguyên, sprite ≤68% để khung tròn không cắt |
+| `web/static/images/avatar/1..24.svg` | `deploy/make-golem-avatars.py` | 24 golem **tự vẽ** (stdlib, tất định) → `assets-src/avatars/`; `sanitize-src.sh` xoá avatar cũ (kể cả ảnh người thật upstream) rồi chép vào |
+| `web/react-frontend/src/assets/fonts/*.woff2` + OFL | (`npm pack @fontsource/…` một lần) | `assets-src/fonts/` (README: version + sha256) → `sanitize-src.sh` bước 5 |
 | metadata mọi PNG/JPEG | `deploy/strip-image-metadata.py` | bỏ chunk/segment metadata, điểm ảnh giữ nguyên (đã so pixel) |
 
-Avatar: 1 Goomba · 2 Koopa Troopa · 3 Lakitu · 4 Bowser · 5 Hammer Bro · 6 Red Koopa · 7 Paratroopa ·
-8 Red Paratroopa · 9 Piranha Plant · 10 Buzzy Beetle · 11 Blooper · 12 Bullet Bill · 13 Cheep Cheep · 14 Spiny · 15 Podoboo.
+Avatar: 1 Basalt · 2 Mossback · 3 Rime · 4 Cinder · 5 Rivet · 6 Dune · 7 Quartz · 8 Terra · 9 Onyx · 10 Rootling · 11 Reef ·
+12 Nimbus · 13 Granite · 14 Fernhide · 15 Glacier · 16 Magma · 17 Anvil · 18 Mesa · 19 Amethyst · 20 Kiln · 21 Jet · 22 Thornbark ·
+23 Coralline · 24 Squall (trước 2026-11-16: 23 sprite Super Mario Bros.).
 
 ## 3. File gỡ khỏi cây (xem privacy.md)
 `.env.example`, `web/react-frontend/.env.local`, `web/react-frontend/.env.production`, `ansible/inventory.ini`.
@@ -174,8 +205,9 @@ Avatar: 1 Goomba · 2 Koopa Troopa · 3 Lakitu · 4 Bowser · 5 Hammer Bro · 6 
 ## Test
 - Frontend (vitest, chạy trong `node:18-alpine` trên bản sao có `node_modules`): cấu hình vitest upstream không bật DOM
   (khoá `vitest.environment` trong package.json không có tác dụng) ⇒ chạy `vitest run --environment jsdom`. Khi đó upstream
-  12 pass / 2 fail (useGameSounds) + 2 file không chạy (cardNames, sounds); bản này **giống hệt phần lỗi**, 42 pass
-  (2026-11-16; thêm test avatar, aiLevel, lobby, rest, RestPopup, undo, DiscardModal, `hooks/__tests__/useGameSounds.rest.test.jsx`).
+  12 pass / 2 fail (useGameSounds) + 2 file không chạy (cardNames, sounds); bản này **giống hệt phần lỗi**, 45 pass
+  (2026-11-16 sau giao diện mới; thêm test avatar, aiLevel, lobby, rest, RestPopup, undo, DiscardModal, crystals,
+  `hooks/__tests__/useGameSounds.rest.test.jsx`). Kiểm giao diện thật: `deploy/ui-shots.mjs` (6 viewport, sạch).
 - Backend (`go test -race ./internal/...` trong `golang:1.24`): `auth`, `eventstore`, `game`, `server`, `telegram` pass.
   `session` **fail sẵn ở upstream** (10 test, 25 data race, panic "send on closed channel" tại `sendToPlayer` khi
   test gỡ người chơi trong lúc broadcast — xem "Lỗi upstream đã biết" trong CLAUDE.md); sau patch 0003: 7 fail, 22 race,

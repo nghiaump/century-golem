@@ -38,27 +38,37 @@ DOCKER_BUILDKIT=1 docker compose up -d --build --no-deps server
 - Chỉ sửa `nginx.conf` (mount ro): `docker compose exec web nginx -t && docker compose exec web nginx -s reload`.
 - Sửa code upstream ⇒ `./regen-patches.sh` (phải in REPRODUCIBLE) + ghi `docs/upstream-changes.md`.
 
-## 4. Đổi avatar
-Avatar = `web/static/images/avatar/<id>.webp`, sinh từ `../assets-src/smb-enemies-sheet.png` bởi `make-avatars.py`.
+## 4. Đổi avatar · font · kiểm giao diện
+Avatar = 24 golem SVG **tự vẽ** bằng `deploy/make-golem-avatars.py` (stdlib) → `../assets-src/avatars/{1..24}.svg` + `avatars.json`;
+`sanitize-src.sh` chép vào `src/golem/web/static/images/avatar/` (frontend: `/assets/images/avatar/<id>.svg?v=<AVATAR_VERSION>`).
 ```bash
-PY=/home/nghia/ai/venvs/mda5-asr/bin/python                     # Python có Pillow+WebP
-# 1. sửa bảng SPRITES trong make-avatars.py (bbox lấy theo lưới 16px của sheet)
-cd .. && $PY -I deploy/make-avatars.py assets-src/smb-enemies-sheet.png src/golem/web/static/images/avatar \
-         --preview /tmp/avatars.png                             # xem trước trước khi deploy
-# 2. đổi số lượng ⇒ sửa AVATAR_IDS; đổi ảnh ⇒ BUMP AVATAR_VERSION trong src/golem/web/react-frontend/src/utils/avatar.js
-#    (Cloudflare + trình duyệt cache /assets 7 ngày; không bump = người chơi vẫn thấy ảnh cũ)
-# 3. cd deploy && ./regen-patches.sh   (phải in REPRODUCIBLE), rồi:
-cd deploy && DOCKER_BUILDKIT=1 docker compose up -d --build --no-deps web && ./smoke-test.sh && ./privacy-audit.sh
+cd /home/nghia/ai/rename-game
+# 1. sửa ARCHETYPES / VARIANTS trong deploy/make-golem-avatars.py (12 golem + đúng 1 biến thể mỗi con, mỗi màu lõi 6 con)
+python3 -I deploy/make-golem-avatars.py --preview /tmp/av/index.html && cp assets-src/avatars/*.svg /tmp/av/   # mở index.html xem trước
+# 2. chép vào src như sanitize (xoá file cũ trước)
+find src/golem/web/static/images/avatar -maxdepth 1 -type f -delete && cp assets-src/avatars/*.svg src/golem/web/static/images/avatar/
+# 3. BUMP AVATAR_VERSION trong src/golem/web/react-frontend/src/utils/avatar.js (Cloudflare + trình duyệt cache /assets 7 ngày);
+#    đổi tên/số lượng ⇒ AVATAR_NAMES (avatar.js) + avatarNames (internal/session/ai_turns.go) — test Go so khớp hai bên
+# 4. cd deploy && ./regen-patches.sh (REPRODUCIBLE) → ./ship.sh all (tên AI nằm ở server)
 ```
-Hiện có 23 avatar: 1..12 là 12 nhân vật khác nhau, 13..23 là **tối đa 1 biến thể** cho mỗi nhân vật. AI được server chọn
-avatar ngẫu nhiên và mang tên nhân vật ⇒ đổi/thêm avatar phải sửa **cả** `SPRITES` (make-avatars.py), `AVATAR_IDS`
-(frontend `utils/avatar.js`, bump `AVATAR_VERSION`) và `avatarNames` (`internal/session/ai_turns.go`).
+**Font**: chỉ Cinzel + Be Vietnam Pro (OFL) trong `../assets-src/fonts/` (README có version + sha256). Đổi font ⇒ `npm pack
+@fontsource/<tên>` trong thư mục nháp (⛔ sửa `package.json`), chép woff2 cần dùng + OFL, sửa `src/styles/fonts.css`, chép vào
+`src/assets/fonts/` (như sanitize), regen-patches. Cinzel chỉ cho chữ tiếng Anh tĩnh (không có dấu tiếng Việt).
+
+**Kiểm giao diện** sau mọi thay đổi UI (stack local trên rtx, tunnel tắt):
+```bash
+cd deploy && DOCKER_BUILDKIT=1 docker compose up -d --build web
+node ui-shots.mjs http://127.0.0.1:8400 /tmp/shots            # exit 1 nếu: request ra ngoài, lỗi console, tràn ngang,
+                                                               # chữ < 12px / nút < 44px trên viewport cảm ứng
+docker compose stop                                            # rtx là máy dự phòng: đừng để stack chạy
+```
+Chi tiết hệ thống thiết kế: [`ui/thiet-ke-giao-dien.md`](ui/thiet-ke-giao-dien.md).
 
 ## 5. Nhận mã nguồn mới từ upstream (zip/clone mới)
 ```bash
 cd /home/nghia/ai/rename-game
 NEW=src-new && mkdir $NEW && unzip -q <file-mới>.zip -d $NEW -x '__MACOSX/*'
-deploy/sanitize-src.sh $NEW/golem      # gỡ .env máy khác, áp patch, sinh avatar, xoá metadata ảnh
+deploy/sanitize-src.sh $NEW/golem      # gỡ .env máy khác, áp patch, chép avatar golem + font, xoá metadata ảnh
 #   → nếu báo "vá ... KHÔNG KHỚP": upstream đổi file đó; sửa tay trên src mới theo upstream-changes.md rồi chạy deploy/regen-patches.sh
 diff -r -x .git src/golem $NEW/golem | less      # đọc kỹ thay đổi upstream (tìm URL/token/telemetry mới!)
 grep -rnE 'https?://' $NEW/golem/internal $NEW/golem/cmd $NEW/golem/web/react-frontend/src | grep -v _test

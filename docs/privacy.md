@@ -9,7 +9,7 @@ của tác giả gốc. Kiểm tự động: `deploy/privacy-audit.sh` (exit 0 =
 | `.env.example`, `web/react-frontend/.env.local`, `.env.production` | Jenkins `157.66.101.66:8080`, repo `vietky/golem`, API `game.anhtran.dev`; Vite đọc `.env.local` ở MỌI mode |
 | `ansible/inventory.ini` | IP server gốc + đường dẫn SSH key của tác giả |
 | `web/static/images/favicon.png` (bản gốc) | XMP/EXIF Canva: doc ID, user ID, tên team, tác giả "Táo", Facebook ad ID |
-| `web/static/images/avatar/1..4.webp` (bản gốc) | ảnh chụp **người thật** (định danh) → thay bằng sprite SMB |
+| `web/static/images/avatar/1..4.webp` (bản gốc) | ảnh chụp **người thật** (định danh) → xoá; từ 2026-11-16 thay bằng 24 golem SVG tự vẽ (`sanitize-src.sh` xoá mọi file trong thư mục avatar rồi chép SVG) |
 
 Ngoài ra đã xoá metadata EXIF/comment của 90 ảnh JPG (chỉ có kích thước/encoder, vô hại — làm để audit có mốc 0).
 `web/react-frontend/public/images` là **symlink** tới `web/static/images` (một bộ ảnh duy nhất).
@@ -26,6 +26,8 @@ Không có token/secret thật nào trong code hay 220 commit lịch sử git (c
 ## Những gì đã kiểm và sạch
 - **Bundle frontend** (JS/CSS/HTML/source map): không host ngoài, không font CDN, không analytics/beacon, không
   `game.anhtran.dev`/IP/tên tác giả. Chỉ còn chuỗi `w3.org` (namespace SVG) và link tài liệu lỗi React — không fetch.
+  Từ 2026-11-16 có **2 font OFL tự phục vụ** (Cinzel, Be Vietnam Pro — file woff2 trong bundle, cùng origin); `deploy/ui-shots.mjs`
+  báo lỗi nếu trình duyệt gửi bất kỳ request nào ra ngoài máy chủ trên mọi màn hình.
 - **API/WS** gọi cùng origin `century.pentium.ink`. Cloudflare không chèn script (Web Analytics không bật cho host này).
 - **Cookie** `clientId` host-only (không `Domain`) ⇒ không chia sẻ với domain khác.
 - **Image `server`**: chỉ binary + `web/static` + CA certs Alpine; không `.git`/`.env`; binary không chứa chuỗi định danh.
@@ -35,7 +37,7 @@ Không có token/secret thật nào trong code hay 220 commit lịch sử git (c
   không gửi dữ liệu ván đi đâu. Backend vẫn nằm trên mạng `internal` (privacy-audit kiểm).
 
 ## Rủi ro còn lại (đã chấp nhận / cần biết)
-- **Asset game giống hệt bản gốc** (ảnh lá bài, âm thanh, giao diện) ⇒ ai so sánh vẫn nhận ra cùng một game.
+- **Ảnh lá bài và âm thanh giống bản gốc** ⇒ ai so sánh vẫn nhận ra cùng một game (giao diện, avatar, nền đã là bản tự làm từ 2026-11-16).
 - **Ảnh avatar cũ có thể còn trong cache Cloudflare** ở URL không version `/assets/images/avatar/1.webp` (tối đa 7
   ngày kể từ 2026-10-07). App không còn trỏ tới URL đó (dùng `?v=`). Muốn xoá ngay: Cloudflare dashboard →
   pentium.ink → Caching → Purge → Custom URL `https://century.pentium.ink/assets/images/avatar/1.webp`.

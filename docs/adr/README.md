@@ -13,3 +13,4 @@ ADR đã chấp nhận; nếu đổi ý, viết ADR mới và đánh dấu ADR c
 | [0006](0006-bo-cuc-patch-va-cong-cu.md) | Bố cục patch, không đổi go.mod/package.json, aibench trong internal/ | Accepted |
 | [0007](0007-random-ghe-va-an-deck-api.md) | Random ghế người chơi; ẩn thứ tự deck trong API công khai | Accepted |
 | [0008](0008-very-hard-doi-thu-canh-tranh.md) | Very Hard = đối thủ cạnh tranh (tự chơi để thắng, coi người mạnh hơn), bỏ liên minh | Accepted |
+| [0009](0009-giao-dien-da-va-pha-le.md) | Giao diện thống nhất "Đá & Pha lê": token + primitive, crystal theo hình, font OFL, avatar golem tự vẽ | Accepted |

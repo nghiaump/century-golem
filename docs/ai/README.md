@@ -38,7 +38,7 @@ browser). The lobby only says Very Hard is the toughest level.
 5. **Opponent model.** For every opponent: which golem they are going for (softmax over discounted value), how close
    they are, coin races. It biases the search towards denial against one seat — the leader when close (Very Hard: the
    human instead on equal threat) — and
-   can produce **intent toasts** ("Bowser took the golem you were going for") — off by default (`AI_INTENT_MESSAGES`).
+   can produce **intent toasts** ("Basalt took the golem you were going for") — off by default (`AI_INTENT_MESSAGES`).
 
 ## Configuration (server, `deploy/docker-compose.yml`)
 

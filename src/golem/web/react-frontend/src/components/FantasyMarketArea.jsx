@@ -497,7 +497,7 @@ const FantasyMarketArea = () => {
                     <div className="flex items-center gap-2">
                       <h3 className="text-white font-bold text-sm">Your Hand</h3>
                       {isMyTurn && (
-                        <span className="text-green-400 text-[10px] bg-green-500/20 px-2 py-0.5 rounded-full">
+                        <span className="rounded-full bg-moss/20 px-2 py-0.5 text-xs text-[rgb(200_235_190)]">
                           Your Turn
                         </span>
                       )}
