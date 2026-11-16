@@ -342,7 +342,7 @@
 +export default CardTile
 --- a/web/react-frontend/src/components/board/Hud.jsx
 +++ b/web/react-frontend/src/components/board/Hud.jsx
-@@ -0,0 +1,38 @@
+@@ -0,0 +1,52 @@
 +import React from 'react'
 +import useGameStore from '../../store/gameStore'
 +import DifficultyBadge from '../DifficultyBadge'
@@ -351,30 +351,44 @@
 +import CollapsibleInfo from '../CollapsibleInfo'
 +import Pill from '../ui/Pill'
 +
-+/**
-+ * Corner controls of the game screen, in one place: top-left plaque (round, AI level, last round),
-+ * top-right cluster (✨ layout switch on desktop, sound, activity & chat).
-+ */
-+const Hud = ({ sessionId, showSkinToggle = false, compact = false, showRound = true }) => {
++/** "Round N · AI level · Last round". */
++export const RoundInfo = ({ compact = false, className = '' }) => {
 +  const round = useGameStore((s) => s.gameState?.round)
 +  const lastRound = useGameStore((s) => s.gameState?.lastRound)
++  return (
++    <span className={`flex items-center gap-2 ${className}`}>
++      <span className="font-display text-sm font-bold text-bronze-100">{compact ? `R${round || 1}` : `Round ${round || 1}`}</span>
++      <DifficultyBadge />
++      {lastRound ? <Pill tone="ember">Last round</Pill> : null}
++    </span>
++  )
++}
++
++/** ✨ layout switch (desktop) · sound · activity & chat. `size="sm"` (36px) inside a desktop panel header. */
++export const HudButtons = ({ sessionId, showSkinToggle = false, size = 'md' }) => (
++  <span className="flex items-center gap-2">
++    {showSkinToggle ? <ThemeToggleButton size={size} /> : null}
++    <SoundToggleButton size={size} />
++    <CollapsibleInfo sessionId={sessionId} size={size} />
++  </span>
++)
++
++/**
++ * Floating corner controls (phones, ✨ table, waiting room): top-left plaque with the round, top-right
++ * buttons. The standard desktop board puts the same pieces in its Market header instead (no empty band on top).
++ */
++const Hud = ({ sessionId, showSkinToggle = false, compact = false, showRound = true }) => {
 +  const started = useGameStore((s) => !!s.gameState?.market && Object.keys(s.gameState.market).length > 0)
 +  const inset = { top: 'max(8px, var(--safe-top))' }
 +  return (
 +    <>
 +      {started && showRound ? (
 +        <div className="fixed z-hud flex items-center gap-2" style={{ ...inset, left: 'max(12px, var(--safe-left))' }}>
-+          <div className="surface-stone flex h-11 items-center gap-2 px-3">
-+            <span className="font-display text-sm font-bold text-bronze-100">{compact ? `R${round || 1}` : `Round ${round || 1}`}</span>
-+            <DifficultyBadge />
-+            {lastRound ? <Pill tone="ember">Last round</Pill> : null}
-+          </div>
++          <div className="surface-stone flex h-11 items-center px-3"><RoundInfo compact={compact} /></div>
 +        </div>
 +      ) : null}
-+      <div className="fixed right-3 z-hud flex items-center gap-2" style={{ ...inset, right: 'max(12px, var(--safe-right))' }}>
-+        {showSkinToggle ? <ThemeToggleButton /> : null}
-+        <SoundToggleButton />
-+        <CollapsibleInfo sessionId={sessionId} />
++      <div className="fixed z-hud" style={{ ...inset, right: 'max(12px, var(--safe-right))' }}>
++        <HudButtons sessionId={sessionId} showSkinToggle={showSkinToggle} />
 +      </div>
 +    </>
 +  )
@@ -435,12 +449,13 @@
    )
  }
  
+-const CollapsibleInfo = ({ sessionId }) => {
 +/**
 + * Activity & chat: a HUD button (with unread count) that opens a stone drawer — the room ID, a
 + * timeline of moves, chat messages and system notes, and a chat box. Desktop: right-hand drawer;
 + * phones: bottom sheet that fits a 320px screen.
 + */
- const CollapsibleInfo = ({ sessionId }) => {
++const CollapsibleInfo = ({ sessionId, size = 'md' }) => {
    const [isExpanded, setIsExpanded] = useState(false)
    const [activityFeed, setActivityFeed] = useState([])
    const [chatMessages, setChatMessages] = useState([])
@@ -687,7 +702,7 @@
 -            )}
 -          </button>
 +      <span className="relative inline-flex">
-+        <IconButton label={unread ? `Activity and chat (${unread} new)` : 'Activity and chat'} onClick={() => (isExpanded ? setIsExpanded(false) : open())} aria-expanded={isExpanded}>
++        <IconButton size={size} label={unread ? `Activity and chat (${unread} new)` : 'Activity and chat'} onClick={() => (isExpanded ? setIsExpanded(false) : open())} aria-expanded={isExpanded}>
 +          <ChatIcon />
 +        </IconButton>
 +        {unread > 0 && (
@@ -2036,7 +2051,7 @@
  
 --- a/web/react-frontend/src/components/desktop/WebGameLayout.jsx
 +++ b/web/react-frontend/src/components/desktop/WebGameLayout.jsx
-@@ -1,655 +1,167 @@
+@@ -1,655 +1,183 @@
 -import React, { useState, useEffect } from 'react'
 -import useGameStore from '../../store/gameStore'
 -import CompactCard from '../CompactCard'
@@ -2056,7 +2071,6 @@
 -import AcquiredCardOverlay from '../AcquiredCardOverlay'
 -import CollapsibleInfo from '../CollapsibleInfo'
 -import { showToast } from '../../utils/toast'
--
 +import CardTile from '../board/CardTile'
 +import BoardModals from '../board/BoardModals'
 +import Panel from '../ui/Panel'
@@ -2065,12 +2079,15 @@
 +import Coin from '../ui/Coin'
 +import CrystalRow from '../ui/CrystalRow'
 +import TurnBanner from '../ui/TurnBanner'
++import Hud, { RoundInfo, HudButtons } from '../board/Hud'
++import useGameStore from '../../store/gameStore'
 +import { MAX_CARAVAN } from '../../utils/crystals'
-+
+ 
 +/**
 + * Desktop board (≥ 768px wide, ≥ 500px tall): players across the top, market and golem rows, then
 + * history · played · my hand · my golems. Cards you can act on now glow; hover shows card details.
-+ * The HUD (round, sound, activity) floats above it — see board/Hud.
++ * Round, AI level and the ✨ / sound / activity buttons sit in the Market header, so the players start at
++ * the top edge (no empty HUD band); the waiting room uses the floating HUD.
 + */
  const WebGameLayout = () => {
 -  const {
@@ -2111,15 +2128,17 @@
 -
 -    return () => clearInterval(timer)
 -  }, [gameState?.currentPlayer])
--
++  const a = useBoardActions({ reopenAfterUndo: true })
++  const timer = useTurnTimer()
++  const storeSessionId = useGameStore((s) => s.sessionId)
++  const { gameState, myPlayer, currentPlayer, isSpectator, isWaiting, isMyTurn } = a
++  const sessionId = gameState?.sessionID || storeSessionId
+ 
 -  // Get player name for chat (before early return)
 -  const chatPlayerName = myPlayer?.name || playerName || 'Player'
 -  // Get maxChatMessages from gameState (from backend config)
 -  const maxChatMessages = gameState?.maxChatMessages || 10
-+  const a = useBoardActions({ reopenAfterUndo: true })
-+  const timer = useTurnTimer()
-+  const { gameState, myPlayer, currentPlayer, isSpectator, isWaiting, isMyTurn } = a
- 
+-
 -  // Get isSpectator state
 -  const isSpectator = useGameStore((state) => state.isSpectator)
 -
@@ -2136,10 +2155,8 @@
 -        <div className="text-white">Loading game...</div>
 -      </div>
 -    )
-+  if (!isWaiting && !isSpectator && !myPlayer) {
-+    return <div className="flex h-full w-full items-center justify-center text-fg-muted">Loading game…</div>
-   }
- 
+-  }
+-
 -  // For spectators, myPlayer will be null - handle this case (but not in waiting mode)
 -  if (!isSpectator && !myPlayer && !isWaiting) {
 -    return (
@@ -2147,8 +2164,10 @@
 -        <div className="text-white">Loading game...</div>
 -      </div>
 -    )
--  }
--
++  if (!isWaiting && !isSpectator && !myPlayer) {
++    return <div className="flex h-full w-full items-center justify-center text-fg-muted">Loading game…</div>
+   }
+ 
 -  // Get ALL other players (not me) - show all in top row
 -  // For spectators, show all players. For players, show all players including yourself
 -  const otherPlayers = gameState.players || []
@@ -2328,12 +2347,12 @@
 -              {/* In waiting mode, don't highlight current player (currentPlayer is 0/null) */}
 +      <div
 +        className="grid h-full w-full gap-2.5 overflow-auto px-3 pb-3 lg:px-4"
-+        style={{ gridTemplateRows: 'auto minmax(0, 1fr) minmax(0, 1fr) minmax(170px, 1.05fr)', paddingTop: 'calc(max(8px, var(--safe-top)) + 52px)' }}
++        style={{ gridTemplateRows: 'auto minmax(0, 1fr) minmax(0, 1fr) minmax(170px, 1.05fr)', paddingTop: isWaiting ? 'calc(max(8px, var(--safe-top)) + 52px)' : 'max(10px, var(--safe-top))' }}
 +      >
 +        {/* Players */}
 +        <div className="flex flex-wrap items-stretch justify-center gap-2.5">
 +          {players.map((player) => (
-+            <div key={player.id || player.name} className="min-w-[12.5rem] max-w-[17rem] flex-1">
++            <div key={player.id || player.name} className="min-w-[12rem] max-w-[21rem] flex-1">
                <PlayerCard player={player} isCurrentPlayer={!isWaiting && currentPlayer?.id === player.id} />
              </div>
            ))}
@@ -2451,11 +2470,6 @@
 -              {coins[0]?.amount > 0 && (
 -                <span className="text-orange-400" title="Copper coins (3pts each)">
 -                  🥉{coins[0].amount}
--                </span>
--              )}
--              {coins[1]?.amount > 0 && (
--                <span className="text-gray-300" title="Silver coins (1pt each)">
--                  🥈{coins[1].amount}
 +        {isWaiting ? (
 +          <div className="row-span-3 flex items-center justify-center p-6">
 +            <WaitingRoom players={players} isSpectator={isSpectator} onStart={a.onStartGame} mode={gameState?.mode} />
@@ -2463,7 +2477,20 @@
 +        ) : (
 +          <>
 +            {/* Market */}
-+            <Panel title="Market" className="min-h-[150px]" bodyClassName="grid grid-cols-6 place-items-center gap-3 pt-2">
++            <Panel
++              title="Market"
++              className="min-h-[150px]"
++              actions={(
++                <span className="flex items-center gap-3">
++                  <RoundInfo />
++                  <HudButtons sessionId={sessionId} showSkinToggle size="sm" />
+                 </span>
+               )}
+-              {coins[1]?.amount > 0 && (
+-                <span className="text-gray-300" title="Silver coins (1pt each)">
+-                  🥈{coins[1].amount}
++              bodyClassName="grid grid-cols-6 place-items-center gap-3 pt-2"
++            >
 +              {a.actionCards.slice(0, 6).map((card, i) => {
 +                const affordable = a.canAfford(i)
 +                return (
@@ -2826,6 +2853,7 @@
 -        <AcquiredCardOverlay />
        </div>
 +      <BoardModals actions={a} />
++      {isWaiting ? <Hud sessionId={sessionId} /> : null}
      </div>
    )
  }
@@ -6142,11 +6170,12 @@
 +export default PlayerAvatar
 --- a/web/react-frontend/src/components/PlayerCard.jsx
 +++ b/web/react-frontend/src/components/PlayerCard.jsx
-@@ -1,87 +1,71 @@
+@@ -1,87 +1,72 @@
  import React from 'react'
 -
 +import useGameStore from '../store/gameStore'
 +import useTurnTimer from '../hooks/useTurnTimer'
++import useOrientation from '../hooks/useOrientation'
 +import Avatar from './ui/Avatar'
 +import CrystalRow from './ui/CrystalRow'
 +import GolemIcon from './ui/GolemIcon'
@@ -6166,6 +6195,8 @@
 +  const golemsToEnd = useGameStore((s) => s.gameState?.golemsToEnd)
 +  const myId = useGameStore((s) => s.myPlayer?.id)
 +  const timer = useTurnTimer()
++  const { width } = useOrientation()
++  const roomy = width >= 1280 // narrower desktops: smaller portrait and crystals so all plaques fit one row
    if (!player) return null
  
 -  const golemsCount = player.pointCards?.length || 0
@@ -6219,21 +6250,27 @@
 -              title={player.online ? 'Online' : 'Offline'}
 -            />
 -          )}
-+    <div className={`surface-stone flex items-center gap-2.5 px-2.5 py-2 ${isCurrentPlayer ? 'turn-glow' : ''}`}>
++    <div className={`surface-stone flex items-center gap-3 px-3 py-2.5 ${isCurrentPlayer ? 'turn-glow' : ''}`}>
 +      <Avatar
 +        player={player}
-+        size={44}
++        size={roomy ? 56 : 46}
 +        turn={isCurrentPlayer}
 +        timer={isCurrentPlayer && !player.isAI ? timer : undefined}
 +        offline={offline}
 +        restAnchor
 +      />
 +      <div className="min-w-0 flex-1">
-+        <div className="flex items-center gap-1.5">
-+          <span className={`truncate text-sm font-bold ${offline ? 'text-fg-muted' : 'text-fg'}`} title={player.name}>
++        <div className="flex items-center gap-2">
++          <span className={`min-w-0 truncate font-bold ${roomy ? 'text-base' : 'text-sm'} ${offline ? 'text-fg-muted' : 'text-fg'}`} title={player.name}>
 +            {player.name || 'Player'}{player.id === myId ? <span className="font-normal text-fg-muted"> (you)</span> : null}
 +          </span>
-+          <span className="ml-auto flex-shrink-0 font-display text-sm font-bold text-bronze-100 tabular-nums" title="Golems + coins so far">★{pointsOf(player)}</span>
++          <span
++            className={`ml-auto inline-flex flex-shrink-0 items-center gap-1 rounded-full px-1.5 text-sm font-bold ${nearEnd ? 'bg-ember/30 text-[rgb(255_210_196)]' : 'text-bronze-300'}`}
++            title={nearEnd ? 'One golem away from ending the game' : 'Golems'}
++          >
++            <GolemIcon size={roomy ? 17 : 15} label="Golems" />{golems}
++          </span>
++          <span className={`flex-shrink-0 font-display font-bold leading-none text-bronze-100 tabular-nums ${roomy ? 'text-lg' : 'text-base'}`} title="Golems + coins so far">★{pointsOf(player)}</span>
          </div>
 -        
 -        {/* Name */}
@@ -6241,28 +6278,20 @@
 -          {player.name || 'Player'}
 -          {player.online === false && (
 -            <span className="text-gray-400 text-xs ml-1">(offline)</span>
-+        <div className="mt-1 flex items-center gap-2">
++        <div className="mt-1.5 flex min-w-0 items-center">
 +          {thinking ? (
-+            <AiThinkingIndicator label="thinking" className="text-xs" />
++            <AiThinkingIndicator label="thinking" className="text-sm" />
 +          ) : (
-+            <CrystalRow resources={player.caravan} size="xs" />
++            <CrystalRow resources={player.caravan} size={roomy ? 'sm' : 'xs'} className={roomy ? '' : '!gap-1.5'} />
            )}
-+          <span
-+            className={`ml-auto inline-flex flex-shrink-0 items-center gap-0.5 rounded-full px-1.5 text-xs font-bold ${nearEnd ? 'bg-ember/30 text-[rgb(255_210_196)]' : 'text-bronze-300'}`}
-+            title={nearEnd ? 'One golem away from ending the game' : 'Golems'}
-+          >
-+            <GolemIcon size={14} label="Golems" />{golems}
-+          </span>
          </div>
 -        
 -        {/* Golems count (top right) */}
 -        <div className={`flex items-center gap-1 bg-purple-600/50 rounded-lg px-2 py-0.5 ${golemsCount >= 4 ? 'animate-bounce ring-2 ring-red-500' : ''}`}>
 -          <span className="text-base">🗿</span>
 -          <span className="text-white font-bold text-sm">{golemsCount}</span>
-+        <div className="mt-0.5 flex items-center gap-2 text-xs text-fg-muted">
-+          <span title="Cards in hand">{player.hand?.length || 0} in hand</span>
-+          <span aria-hidden="true">·</span>
-+          <span title="Cards played since the last rest">{player.playedCards?.length || 0} played</span>
++        <div className={`mt-1 flex items-center gap-2 whitespace-nowrap text-fg-muted ${roomy ? 'text-sm' : 'text-xs'}`}>
++          <span className="truncate" title="Cards in hand · played since the last rest">{player.hand?.length || 0} in hand · {player.playedCards?.length || 0} played</span>
 +          {offline ? <Pill tone="ember" className="ml-auto">Offline</Pill> : null}
          </div>
        </div>
@@ -6853,20 +6882,21 @@
 -import React from 'react';
 -import useGameStore from '../store/gameStore';
 -import soundManager from '../utils/sounds';
-+import React from 'react'
-+import useGameStore from '../store/gameStore'
-+import soundManager from '../utils/sounds'
-+import { IconButton } from './ui/Button'
- 
-+// Mute / unmute game sounds (part of the HUD cluster).
- export default function SoundToggleButton() {
+-
+-export default function SoundToggleButton() {
 -  const { soundsMuted, toggleSoundsMuted } = useGameStore();
 -
 -  const handleToggle = () => {
 -    const newMutedState = toggleSoundsMuted();
 -    soundManager.setMuted(newMutedState);
 -  };
--
++import React from 'react'
++import useGameStore from '../store/gameStore'
++import soundManager from '../utils/sounds'
++import { IconButton } from './ui/Button'
+ 
++// Mute / unmute game sounds (part of the HUD cluster).
++export default function SoundToggleButton({ size = 'md' }) {
 +  const { soundsMuted, toggleSoundsMuted } = useGameStore()
 +  const toggle = () => soundManager.setMuted(toggleSoundsMuted())
    return (
@@ -6917,7 +6947,7 @@
 -      )}
 -    </button>
 -  );
-+    <IconButton label={soundsMuted ? 'Unmute sounds' : 'Mute sounds'} onClick={toggle} aria-pressed={soundsMuted}>
++    <IconButton size={size} label={soundsMuted ? 'Unmute sounds' : 'Mute sounds'} onClick={toggle} aria-pressed={soundsMuted}>
 +      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
 +        <path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5H4z" />
 +        {soundsMuted ? <path d="M16 9.5l5 5M21 9.5l-5 5" /> : <path d="M15.5 9a4 4 0 010 6M18 6.5a7.5 7.5 0 010 11" />}
@@ -7272,7 +7302,7 @@
 +})
 --- a/web/react-frontend/src/components/ThemeToggleButton.jsx
 +++ b/web/react-frontend/src/components/ThemeToggleButton.jsx
-@@ -1,51 +1,23 @@
+@@ -1,51 +1,24 @@
  import React from 'react'
 -import { createLogger } from '../utils/logger'
  import { useTheme, THEMES } from '../contexts/ThemeContext'
@@ -7280,8 +7310,9 @@
  
 -const logger = createLogger('ThemeToggleButton');
 -
+-const ThemeToggleButton = () => {
 +// Switch between the standard board and the ✨ table layout (desktop only; part of the HUD cluster).
- const ThemeToggleButton = () => {
++const ThemeToggleButton = ({ size = 'md' }) => {
    const { theme, toggleTheme } = useTheme()
    const isFantasy = theme === THEMES.FANTASY
 -
@@ -7321,6 +7352,7 @@
 -      }}
 -      title={isFantasy ? 'Switch to Default' : 'Switch to Fantasy'}
 +    <IconButton
++      size={size}
 +      data-skin-toggle
 +      label={isFantasy ? 'Back to the standard board' : 'Switch to the table layout'}
 +      onClick={toggleTheme}
@@ -10010,8 +10042,8 @@
 -      
 -      {/* Sound Toggle Button - Always visible */}
 -      <SoundToggleButton />
-+      {/* Round · difficulty (left), ✨ · sound · activity (right) */}
-+      <Hud sessionId={sessionId} showSkinToggle={useWebLayout} compact={!useWebLayout} />
++      {/* Phones: floating round plaque + sound · activity. The desktop board shows them in its Market header. */}
++      {!useWebLayout ? <Hud sessionId={sessionId} compact /> : null}
 +
 +      {/* "<opponent> rested" popup */}
 +      <RestPopup />

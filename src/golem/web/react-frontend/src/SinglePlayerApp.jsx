@@ -54,8 +54,8 @@ function GameContentWithTheme({ useWebLayout, isMobile, isPortrait, sessionId, o
   // Standard layout
   return (
     <>
-      {/* Round · difficulty (left), ✨ · sound · activity (right) */}
-      <Hud sessionId={sessionId} showSkinToggle={useWebLayout} compact={!useWebLayout} />
+      {/* Phones: floating round plaque + sound · activity. The desktop board shows them in its Market header. */}
+      {!useWebLayout ? <Hud sessionId={sessionId} compact /> : null}
 
       {/* "<opponent> rested" popup */}
       <RestPopup />

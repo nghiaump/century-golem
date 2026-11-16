@@ -60,11 +60,13 @@ Bề mặt (`index.css`, lớp `surface-*`): `surface-stone` (gradient đá + h�
   `ModeMenu`, `ConnectionDialog` (chỉ khi chưa có state ván), `ReconnectBanner` (mất kết nối giữa ván: bàn chơi giữ nguyên, `inert`,
   phủ tối; Retry sau 2 lần thử/lỗi, Back to Menu sau 3). `SinglePlayerLobby` (mặc định 3 AI · Very Hard), `Lobby` (tab Create/Join,
   danh sách phòng, join theo ID), `WaitingRoom`.
-- **HUD** (`board/Hud`): góc trái "Round N · độ khó · Last round" (điện thoại: "R N"), góc phải ✨ (desktop) · âm thanh · Activity
+- **HUD** (`board/Hud`: `RoundInfo` + `HudButtons`): bàn chơi desktop đặt chúng **trên thanh tiêu đề Market** (nút 36px) để hàng
+  người chơi bắt đầu sát mép trên, không chừa dải trống (2026-11-16, ý người dùng); điện thoại, skin ✨ và phòng chờ dùng bản nổi ở
+  góc: trái "Round N · độ khó · Last round" (điện thoại: "R N"), phải ✨ (desktop) · âm thanh · Activity
   (`CollapsibleInfo`: ngăn đá phải 420px / bottom sheet trên điện thoại; chat; xoá có bước xác nhận trong trang). `Toast` giữa-trên
   dưới HUD, tối đa 3, không còn `alert()`.
-- **Desktop** (`desktop/WebGameLayout`, ≥ 768px rộng và ≥ 500px cao khi ngang): hàng người chơi (`PlayerCard`: ★ điểm = golem + coin,
-  vòng giờ người, AI đang nghĩ, offline), panel Market 6 lá + Golems 5 lá (`CardTile`), hàng dưới History · Played · tay bài
+- **Desktop** (`desktop/WebGameLayout`, ≥ 768px rộng và ≥ 500px cao khi ngang): hàng người chơi (`PlayerCard`, rộng tới 21rem, avatar
+  56px — 46px dưới 1280px: tên · golem · ★ điểm = golem + coin, hàng crystal, "n in hand · n played", vòng giờ người, AI đang nghĩ, offline), panel Market 6 lá + Golems 5 lá (`CardTile`), hàng dưới History · Played · tay bài
   (ruy băng lượt + Rest luôn hiện, mờ kèm gợi ý khi chưa chơi lá nào) · My Golems (`CardPile` → popup danh sách).
 - **Điện thoại** (`mobile/*` + `PlayersInfoBar`): dọc = dải người chơi cuộn ngang + dòng lượt · golem 1 hàng vuốt + market 3×2
   (cuộn dọc) · tay bài ở đáy (crystal x/10, Rest · golem · đã chơi, lá vuốt ngang). Ngang (cao < 500px) = bàn trái, cột phải gồm

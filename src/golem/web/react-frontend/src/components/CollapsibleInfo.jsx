@@ -34,7 +34,7 @@ function ChatIcon() {
  * timeline of moves, chat messages and system notes, and a chat box. Desktop: right-hand drawer;
  * phones: bottom sheet that fits a 320px screen.
  */
-const CollapsibleInfo = ({ sessionId }) => {
+const CollapsibleInfo = ({ sessionId, size = 'md' }) => {
   const [isExpanded, setIsExpanded] = useState(false)
   const [activityFeed, setActivityFeed] = useState([])
   const [chatMessages, setChatMessages] = useState([])
@@ -103,7 +103,7 @@ const CollapsibleInfo = ({ sessionId }) => {
   return (
     <>
       <span className="relative inline-flex">
-        <IconButton label={unread ? `Activity and chat (${unread} new)` : 'Activity and chat'} onClick={() => (isExpanded ? setIsExpanded(false) : open())} aria-expanded={isExpanded}>
+        <IconButton size={size} label={unread ? `Activity and chat (${unread} new)` : 'Activity and chat'} onClick={() => (isExpanded ? setIsExpanded(false) : open())} aria-expanded={isExpanded}>
           <ChatIcon />
         </IconButton>
         {unread > 0 && (

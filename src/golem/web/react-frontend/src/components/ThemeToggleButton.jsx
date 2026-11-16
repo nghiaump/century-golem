@@ -3,11 +3,12 @@ import { useTheme, THEMES } from '../contexts/ThemeContext'
 import { IconButton } from './ui/Button'
 
 // Switch between the standard board and the ✨ table layout (desktop only; part of the HUD cluster).
-const ThemeToggleButton = () => {
+const ThemeToggleButton = ({ size = 'md' }) => {
   const { theme, toggleTheme } = useTheme()
   const isFantasy = theme === THEMES.FANTASY
   return (
     <IconButton
+      size={size}
       data-skin-toggle
       label={isFantasy ? 'Back to the standard board' : 'Switch to the table layout'}
       onClick={toggleTheme}

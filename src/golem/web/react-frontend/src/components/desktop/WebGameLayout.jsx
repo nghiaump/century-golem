@@ -15,17 +15,22 @@ import Avatar from '../ui/Avatar'
 import Coin from '../ui/Coin'
 import CrystalRow from '../ui/CrystalRow'
 import TurnBanner from '../ui/TurnBanner'
+import Hud, { RoundInfo, HudButtons } from '../board/Hud'
+import useGameStore from '../../store/gameStore'
 import { MAX_CARAVAN } from '../../utils/crystals'
 
 /**
  * Desktop board (≥ 768px wide, ≥ 500px tall): players across the top, market and golem rows, then
  * history · played · my hand · my golems. Cards you can act on now glow; hover shows card details.
- * The HUD (round, sound, activity) floats above it — see board/Hud.
+ * Round, AI level and the ✨ / sound / activity buttons sit in the Market header, so the players start at
+ * the top edge (no empty HUD band); the waiting room uses the floating HUD.
  */
 const WebGameLayout = () => {
   const a = useBoardActions({ reopenAfterUndo: true })
   const timer = useTurnTimer()
+  const storeSessionId = useGameStore((s) => s.sessionId)
   const { gameState, myPlayer, currentPlayer, isSpectator, isWaiting, isMyTurn } = a
+  const sessionId = gameState?.sessionID || storeSessionId
 
   if (!isWaiting && !isSpectator && !myPlayer) {
     return <div className="flex h-full w-full items-center justify-center text-fg-muted">Loading game…</div>
@@ -38,12 +43,12 @@ const WebGameLayout = () => {
     <div className="relative h-full w-full overflow-hidden">
       <div
         className="grid h-full w-full gap-2.5 overflow-auto px-3 pb-3 lg:px-4"
-        style={{ gridTemplateRows: 'auto minmax(0, 1fr) minmax(0, 1fr) minmax(170px, 1.05fr)', paddingTop: 'calc(max(8px, var(--safe-top)) + 52px)' }}
+        style={{ gridTemplateRows: 'auto minmax(0, 1fr) minmax(0, 1fr) minmax(170px, 1.05fr)', paddingTop: isWaiting ? 'calc(max(8px, var(--safe-top)) + 52px)' : 'max(10px, var(--safe-top))' }}
       >
         {/* Players */}
         <div className="flex flex-wrap items-stretch justify-center gap-2.5">
           {players.map((player) => (
-            <div key={player.id || player.name} className="min-w-[12.5rem] max-w-[17rem] flex-1">
+            <div key={player.id || player.name} className="min-w-[12rem] max-w-[21rem] flex-1">
               <PlayerCard player={player} isCurrentPlayer={!isWaiting && currentPlayer?.id === player.id} />
             </div>
           ))}
@@ -56,7 +61,17 @@ const WebGameLayout = () => {
         ) : (
           <>
             {/* Market */}
-            <Panel title="Market" className="min-h-[150px]" bodyClassName="grid grid-cols-6 place-items-center gap-3 pt-2">
+            <Panel
+              title="Market"
+              className="min-h-[150px]"
+              actions={(
+                <span className="flex items-center gap-3">
+                  <RoundInfo />
+                  <HudButtons sessionId={sessionId} showSkinToggle size="sm" />
+                </span>
+              )}
+              bodyClassName="grid grid-cols-6 place-items-center gap-3 pt-2"
+            >
               {a.actionCards.slice(0, 6).map((card, i) => {
                 const affordable = a.canAfford(i)
                 return (
@@ -162,6 +177,7 @@ const WebGameLayout = () => {
         )}
       </div>
       <BoardModals actions={a} />
+      {isWaiting ? <Hud sessionId={sessionId} /> : null}
     </div>
   )
 }
