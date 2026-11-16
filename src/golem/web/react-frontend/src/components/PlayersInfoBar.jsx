@@ -1,122 +1,70 @@
-import React, { useState, useEffect } from 'react'
+import React from 'react'
 import useGameStore from '../store/gameStore'
-import PlayerAvatar from './PlayerAvatar'
+import useTurnTimer from '../hooks/useTurnTimer'
+import Avatar from './ui/Avatar'
+import CrystalRow from './ui/CrystalRow'
+import GolemIcon from './ui/GolemIcon'
+import TurnBanner from './ui/TurnBanner'
 import AiThinkingIndicator from './AiThinkingIndicator'
 
-// Timer Ring around avatar
-const TimerRing = ({ duration = 60 }) => {
-  const [timeLeft, setTimeLeft] = useState(duration)
-  const { gameState } = useGameStore()
-  
-  useEffect(() => {
-    setTimeLeft(duration)
-  }, [gameState?.currentPlayer, duration])
-  
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeLeft(prev => Math.max(0, prev - 1))
-    }, 1000)
-    return () => clearInterval(timer)
-  }, [gameState?.currentPlayer])
-  
-  const progress = (timeLeft / duration) * 100
-  const color = timeLeft > 30 ? '#22c55e' : timeLeft > 10 ? '#eab308' : '#ef4444'
-  
-  return (
-    <div 
-      className="absolute inset-[-3px] rounded-full"
-      style={{
-        background: `conic-gradient(${color} ${progress}%, transparent ${progress}%)`,
-      }}
-    />
-  )
-}
+const pointsOf = (p) =>
+  (p?.pointCards?.reduce((s, c) => s + (c.points || 0), 0) || 0) + (p?.coins?.reduce((s, c) => s + (c.points || 0), 0) || 0)
 
-const PlayersInfoBar = () => {
+/**
+ * Phones: every player as a chip (one scrolling row; a column when `vertical`), then whose turn it is.
+ * The player to move glows; people get a timer ring. `compact` (phone held sideways): portrait, points
+ * and golems only, no status line (the hand panel glows on your turn).
+ */
+const PlayersInfoBar = ({ vertical = false, compact = false }) => {
   const { gameState, myPlayer, currentPlayer } = useGameStore()
-
-  if (!gameState?.players) return null
-
-  const otherPlayers = gameState.players; //.filter(p => p.id !== myPlayer?.id)
-  if (otherPlayers.length === 0) return null
+  const timer = useTurnTimer()
+  if (!gameState?.players?.length) return null
+  const started = !!gameState.market && Object.keys(gameState.market).length > 0
+  const isMyTurn = started && currentPlayer?.id === myPlayer?.id
+  const thinking = currentPlayer?.isAI && gameState?.aiThinking?.playerID === currentPlayer?.id
 
   return (
-    <div data-players-info-bar className="w-full flex-shrink-0 py-1.5 px-2 bg-black/60">
-      <div className="flex items-center justify-center gap-2 flex-wrap">
-        {otherPlayers.map((player, i) => {
-          const isCurrentTurn = currentPlayer?.id === player.id
-          
+    <div data-players-info-bar className="flex flex-shrink-0 flex-col gap-2 px-3 pb-2">
+      <div className={vertical ? 'flex flex-col gap-1.5' : 'scrollbar-hide -mx-3 flex snap-x scroll-pl-3 gap-2 overflow-x-auto px-3 pb-1 pt-1'}>
+        {gameState.players.map((p) => {
+          const current = started && currentPlayer?.id === p.id
+          const offline = !p.isAI && p.online === false
           return (
             <div
-              // waiting-room rows all have id 0: keying on id alone left ghost rows after the game started
-              key={player.id ? `p${player.id}` : `w${i}-${player.name}`}
-              className={`relative flex items-center gap-2 px-2 py-1 rounded-xl max-w-[13rem] ${isCurrentTurn ? 'bg-yellow-500/20' : 'bg-white/5'}`}
+              key={p.id || p.name}
+              className={`surface-stone flex min-h-[52px] flex-shrink-0 snap-start items-center gap-2 px-2 py-1.5 ${vertical ? 'w-full' : compact ? '' : 'min-w-[156px]'} ${current ? 'turn-glow' : ''}`}
             >
-              {/* AI thinking: overlaid, so the row keeps its size (no layout shift) */}
-              {isCurrentTurn && player.isAI && gameState.aiThinking?.playerID === player.id && (
-                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 z-10 px-1.5 rounded-full bg-purple-800/90 text-[9px] leading-4 whitespace-nowrap pointer-events-none">
-                  <AiThinkingIndicator />
+              <Avatar player={p} size={30} turn={current} timer={current && !p.isAI ? timer : undefined} offline={offline} restAnchor />
+              {compact ? (
+                <div className="flex flex-col items-start leading-tight">
+                  <span className="font-display text-xs font-bold text-bronze-100">★{pointsOf(p)}</span>
+                  <span className="inline-flex items-center gap-0.5 text-xs font-bold text-bronze-300"><GolemIcon size={12} label="Golems" />{p.pointCards?.length || 0}</span>
                 </div>
-              )}
-              {/* Avatar with timer ring for current turn */}
-              <div className="relative">
-                {isCurrentTurn && !player.isAI && <TimerRing duration={gameState.turnTimeout || 60} />}
-                <PlayerAvatar
-                  player={player}
-                  className={`
-                    relative w-7 h-7 rounded-full text-xs
-                    ${isCurrentTurn ? 'bg-yellow-500 text-black' : 'bg-purple-600 text-white'}
-                    ${player.online === false ? 'opacity-50' : ''}
-                  `}
-                />
-                {/* Online/Offline status indicator (humans only) */}
-                {player.online !== undefined && !player.isAI && (
-                  <div 
-                    className={`
-                      absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white shadow
-                      ${player.online ? 'bg-green-500' : 'bg-gray-500'}
-                    `}
-                    title={player.online ? 'Online' : 'Offline'}
-                  />
-                )}
-              </div>
-
-              {/* Info */}
-              <div className="flex flex-col text-[10px]">
-                {/* Row 1: Name + Points */}
+              ) : (
+              <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1">
-                  <span className={`text-white font-medium truncate max-w-[6.5rem] ${player.online === false ? 'opacity-60' : ''}`}>
-                    {player.name}
-                    {!player.isAI && player.online === false && <span className="text-gray-400 ml-1">(offline)</span>}
-                  </span>
-                  <span className="text-yellow-400 font-bold">★{player.points || 0}</span>
+                  <span className="truncate text-xs font-bold text-fg">{p.id === myPlayer?.id ? 'You' : p.name}</span>
+                  <span className="ml-auto flex-shrink-0 font-display text-xs font-bold text-bronze-100">★{pointsOf(p)}</span>
                 </div>
-                
-                {/* Row 2: Crystals + Counts */}
                 <div className="flex items-center gap-1.5">
-                  {/* Crystals */}
-                  {['yellow', 'green', 'blue', 'pink'].map((color) => {
-                    const count = player.caravan?.[color] || 0
-                    const bg = { yellow: 'bg-yellow-400', green: 'bg-green-500', blue: 'bg-blue-500', pink: 'bg-pink-400' }[color]
-                    return (
-                      <div key={color} className="flex items-center gap-0.5">
-                        <div className={`w-2.5 h-2.5 rounded-full ${bg}`}/>
-                        <span className="text-white/80">{count}</span>
-                      </div>
-                    )
-                  })}
-                  
-                  <span className="text-white/30">|</span>
-                  
-                  {/* Counts */}
-                  <span className="text-blue-300">🎭{player.pointCards?.length || 0}</span>
-                  <span className="text-green-300">🃏{player.playedCards?.length || 0}</span>
+                  <CrystalRow resources={p.caravan} size="xs" className="!gap-1" />
+                  <span className="ml-auto inline-flex flex-shrink-0 items-center gap-0.5 text-xs font-bold text-bronze-300"><GolemIcon size={12} label="Golems" />{p.pointCards?.length || 0}</span>
                 </div>
               </div>
+              )}
             </div>
           )
         })}
       </div>
+      {started && !compact ? (
+        isMyTurn ? (
+          <TurnBanner show seconds={timer.remaining} label="Your turn — tap a card" className="w-full justify-center" />
+        ) : (
+          <div className="flex min-h-[36px] items-center justify-center rounded-stone-sm bg-rock-950/60 px-3 text-sm text-fg-muted">
+            {thinking ? <AiThinkingIndicator label={`${currentPlayer.name} is thinking`} /> : `Waiting for ${currentPlayer?.name || 'the next player'}…`}
+          </div>
+        )
+      ) : null}
     </div>
   )
 }

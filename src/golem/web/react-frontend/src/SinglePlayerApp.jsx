@@ -72,43 +72,31 @@ function GameContentWithTheme({ useWebLayout, isMobile, isPortrait, sessionId, o
           <DiscardModal />
         </div>
       ) : (
-        /* Mobile - CompactGameBoard with mobile-specific layout */
-        <div className={`
-          ${isPortrait 
-            ? 'h-screen h-[100dvh] flex flex-col relative z-10 overflow-hidden' 
-            : 'min-h-screen min-h-[100dvh] flex flex-col relative z-10'
-          }
-          ${isPortrait ? 'mobile-portrait' : 'mobile-landscape'}
-        `}>
-          {/* Players Info Bar - Top */}
-          <PlayersInfoBar />
-
-          {/* Central Game Board */}
-          <div 
-            className={`
-            ${isPortrait 
-              ? 'flex-1 overflow-hidden relative z-10 min-h-0 pb-[130px]' 
-              : 'flex-1 overflow-y-auto pb-24 relative z-10 min-h-0'
-            }
-          `}
-          >
-            <CompactGameBoard />
-          </div>
-
-          {/* Player Hand - Bottom (Fixed on mobile, relative on desktop) */}
-          {!isPortrait && (
-            <div className="flex-shrink-0 relative z-30">
-              <CompactPlayerHand />
+        /* Phones (and phones held sideways): compact board */
+        isPortrait ? (
+          <div className="relative z-board flex h-screen h-[100dvh] flex-col overflow-hidden" style={{ paddingTop: 'calc(max(8px, var(--safe-top)) + 52px)' }}>
+            <PlayersInfoBar />
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+              <CompactGameBoard />
             </div>
-          )}
-          
-          {/* Player Hand - Fixed on mobile portrait */}
-          {isPortrait && <CompactPlayerHand />}
-
-          {/* Discard Modal (when crystals exceed max) */}
-          <DiscardModal />
-          
-        </div>
+            <CompactPlayerHand />
+            <DiscardModal />
+          </div>
+        ) : (
+          <div
+            className="relative z-board grid h-screen h-[100dvh] grid-cols-[minmax(0,1fr)_minmax(280px,34%)] gap-2 overflow-hidden"
+            style={{ paddingTop: 'calc(max(8px, var(--safe-top)) + 52px)', paddingLeft: 'var(--safe-left)', paddingRight: 'max(8px, var(--safe-right))' }}
+          >
+            <div className="min-h-0 overflow-y-auto overscroll-contain">
+              <CompactGameBoard landscape />
+            </div>
+            <div className="flex min-h-0 flex-col gap-1 pb-1">
+              <PlayersInfoBar compact />
+              <div className="min-h-0 flex-1"><CompactPlayerHand landscape /></div>
+            </div>
+            <DiscardModal />
+          </div>
+        )
       )}
 
       {/* Game Over Modal */}

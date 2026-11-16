@@ -17,10 +17,10 @@ const Hud = ({ sessionId, showSkinToggle = false, compact = false }) => {
   const inset = { top: 'max(8px, var(--safe-top))' }
   return (
     <>
-      {!compact && started ? (
-        <div className="fixed left-3 z-hud flex items-center gap-2" style={inset}>
+      {started ? (
+        <div className="fixed z-hud flex items-center gap-2" style={{ ...inset, left: 'max(12px, var(--safe-left))' }}>
           <div className="surface-stone flex h-11 items-center gap-2 px-3">
-            <span className="font-display text-sm font-bold text-bronze-100">Round {round || 1}</span>
+            <span className="font-display text-sm font-bold text-bronze-100">{compact ? `R${round || 1}` : `Round ${round || 1}`}</span>
             <DifficultyBadge />
             {lastRound ? <Pill tone="ember">Last round</Pill> : null}
           </div>

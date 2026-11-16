@@ -43,7 +43,7 @@ async function audit(page, vp, step, touch) {
       return s.visibility !== 'hidden' && s.display !== 'none' && b.width > 0 && b.height > 0 && b.bottom > 0 && b.top < innerHeight
     }
     for (const el of document.querySelectorAll('body *')) {
-      if (!visible(el)) continue
+      if (!visible(el) || el.closest('svg')) continue // icon labels inside SVGs scale with the icon
       const own = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())
       if (own && parseFloat(getComputedStyle(el).fontSize) < 12) out.small.push(`${el.tagName.toLowerCase()} "${el.textContent.trim().slice(0, 24)}" ${getComputedStyle(el).fontSize}`)
     }

@@ -1,422 +1,86 @@
-import React, { useState, useEffect, useRef } from 'react'
-import useGameStore from '../../store/gameStore'
-import PlayerAvatar from '../PlayerAvatar'
-import useOrientation from '../../hooks/useOrientation'
-import CompactCard from '../CompactCard'
-import UpgradeModal from '../UpgradeModal'
-import TradeModal from '../TradeModal'
-import useReopenAfterUndo from '../../hooks/useReopenAfterUndo'
-import PlayedCardsView from '../PlayedCardsView'
+import React, { useState } from 'react'
+import useBoardActions from '../../hooks/useBoardActions'
+import CardTile from '../board/CardTile'
+import CardSheet from '../board/CardSheet'
+import BoardModals from '../board/BoardModals'
+import { cardKind } from '../board/cardInfo'
+import Avatar from '../ui/Avatar'
+import Button from '../ui/Button'
+import CrystalRow from '../ui/CrystalRow'
+import Modal from '../ui/Modal'
+import CardImage from '../ui/CardImage'
+import GolemIcon from '../ui/GolemIcon'
+import { MAX_CARAVAN } from '../../utils/crystals'
 
-const CompactPlayerHand = () => {
-  const { myPlayer, currentPlayer, playCard, playCardWithUpgrade, playCardWithTrade, rest } = useGameStore()
-  const { isMobile, isPortrait, height } = useOrientation()
-  const [upgradeModal, setUpgradeModal] = useState({ show: false, card: null, index: null })
-  const [tradeModal, setTradeModal] = useState({ show: false, card: null, index: null })
-  useReopenAfterUndo(({ kind, card, cardIndex }) => {
-    if (kind === 'upgrade') setUpgradeModal({ show: true, card, index: cardIndex })
-    else if (kind === 'trade') setTradeModal({ show: true, card, index: cardIndex })
+function CardsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
+      <rect x="7" y="3" width="11" height="16" rx="2" /><path d="M5 6.5v12a2 2 0 002 2h8" />
+    </svg>
+  )
+}
+
+const CardGrid = ({ cards, dim }) => (
+  <div className="grid grid-cols-3 gap-3">
+    {cards.map((c, i) => <CardImage key={i} name={c.name} alt={c.name} className={`aspect-[0.58] w-full rounded-stone-sm border border-black/50 ${dim ? 'opacity-80 saturate-50' : ''}`} />)}
+  </div>
+)
+
+/**
+ * Phones: my crystals, Rest, my golems / played cards, and my hand (swipe). Tapping a hand card opens
+ * its sheet with Play. Sits at the bottom of the screen, clear of the home indicator.
+ */
+const CompactPlayerHand = ({ landscape = false }) => {
+  const a = useBoardActions({ reopenAfterUndo: true })
+  const [sheet, setSheet] = useState(null)
+  const [list, setList] = useState(null) // 'golems' | 'played'
+  const { myPlayer, isSpectator, isWaiting, isMyTurn } = a
+  if (isWaiting || isSpectator || !myPlayer) return null
+
+  const golems = myPlayer.pointCards || []
+  const openHand = (card, i) => setSheet({
+    card, type: 'action',
+    action: {
+      label: { Trade: 'Trade…', Upgrade: 'Upgrade…', Produce: 'Play' }[cardKind(card)] || 'Play',
+      onClick: () => a.onHandCard(card, i),
+      disabled: !isMyTurn,
+      reason: !isMyTurn ? 'Wait for your turn.' : null,
+    },
   })
-  const [showPlayedCards, setShowPlayedCards] = useState(false)
-  const [showMyGolems, setShowMyGolems] = useState(false)
-  const [rowHeight, setRowHeight] = useState(null)
-  const containerRef = useRef(null)
-
-  // Calculate row height based on viewport height
-  // Formula: (viewport - playersInfoBar) / 5 rows = rowHeight
-  useEffect(() => {
-    if (!isMobile || !isPortrait) {
-      setRowHeight(null)
-      // Remove CSS variable
-      document.documentElement.style.setProperty('--hand-height', '')
-      return
-    }
-
-    const calculateRowHeight = () => {
-      const viewportHeight = window.innerHeight || window.visualViewport?.height || height
-      
-      // Get height of PlayersInfoBar
-      const playersInfoBar = document.querySelector('[data-players-info-bar]')
-      const playersInfoBarHeight = playersInfoBar?.offsetHeight || 0
-      
-      // Available height = viewport - playersInfoBar
-      const availableHeight = viewportHeight - playersInfoBarHeight
-      
-      // Total padding: turn info + market padding + point padding + gaps + hand padding
-      // Approximate: turn info ~30px, market padding ~4px, point padding ~4px, gaps ~4px, hand padding ~4px = ~46px
-      const totalPadding = 46
-      
-      // 5 rows total: 4 market rows + 1 hand row
-      const rowHeight = (availableHeight - totalPadding) / 5
-      const finalRowHeight = Math.max(60, rowHeight) // Minimum 60px
-      
-      setRowHeight(finalRowHeight)
-      // Set CSS variable for game board padding
-      document.documentElement.style.setProperty('--hand-height', `${finalRowHeight}px`)
-    }
-
-    // Initial calculation
-    setTimeout(calculateRowHeight, 100)
-    
-    // Recalculate on resize
-    const handleResize = () => {
-      setTimeout(calculateRowHeight, 100)
-    }
-    
-    window.addEventListener('resize', handleResize)
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', handleResize)
-    }
-    
-    return () => {
-      window.removeEventListener('resize', handleResize)
-      if (window.visualViewport) {
-        window.visualViewport.removeEventListener('resize', handleResize)
-      }
-      document.documentElement.style.setProperty('--hand-height', '')
-    }
-  }, [isMobile, isPortrait, height])
-
-  if (!myPlayer) return null
-
-  const isMyTurn = currentPlayer?.id === myPlayer.id
-  const hand = myPlayer.hand || []
-  const playedCards = myPlayer.playedCards || []
-  const myGolems = myPlayer.pointCards || []
-  const canRest = isMyTurn && playedCards.length > 0
-
-  const handleRest = () => {
-    if (canRest) {
-      rest()
-    }
-  }
-
-  const handleCardClick = (card, index) => {
-    if (!isMyTurn) return
-
-    if (card.actionType === 0) {
-      playCard(index, card)
-    } else if (card.actionType === 1) {
-      setUpgradeModal({ show: true, card, index })
-    } else if (card.actionType === 2) {
-      setTradeModal({ show: true, card, index })
-    }
-  }
 
   return (
-    <div 
-      ref={containerRef}
-      data-hand-container
-      className={`
-        w-full flex-shrink-0 z-30
-        ${isMobile && isPortrait 
-          ? 'fixed bottom-0 left-0 right-0 px-2 py-2 bg-black/70' 
-          : isMobile 
-            ? 'relative py-2 px-2 bg-black/50' 
-            : 'relative py-4 px-4 bg-black/40'
-        }
-      `}
-      style={isMobile && isPortrait ? { height: '130px' } : {}}
+    <div
+      className={`surface-stone flex flex-shrink-0 flex-col gap-2 !rounded-b-none border-b-0 px-3 pt-2 ${isMyTurn ? 'turn-glow' : ''} ${landscape ? 'h-full !rounded-stone' : ''}`}
+      style={{ paddingBottom: 'max(8px, var(--safe-bottom))' }}
     >
-      <div className={`mx-auto flex h-full ${isMobile && isPortrait ? 'gap-2' : 'gap-3'} ${isMobile ? '' : 'max-w-6xl'}`}
-      >
-        {/* Player Info Panel - Left Side (Mobile Portrait) */}
-        {isMobile && isPortrait && (
-          <div className="flex-shrink-0 bg-black/50 rounded-lg p-2 flex flex-col justify-center gap-1.5 min-w-[80px]">
-            {/* Row 1: Avatar + Name + Points */}
-            <div className="flex items-center gap-2">
-              <PlayerAvatar
-                player={myPlayer}
-                className={`
-                  w-8 h-8 rounded-lg text-sm border-2
-                  ${isMyTurn ? 'border-yellow-400 bg-yellow-500 text-black' : 'border-transparent bg-gray-600 text-white'}
-                `}
-              />
-              <div className="flex flex-col">
-                <span className="text-white text-[11px] font-medium">{myPlayer.name || 'Player'}</span>
-                <span className="text-yellow-400 text-[11px] font-bold">★ {myPlayer.points || 0}</span>
-              </div>
-            </div>
-            
-            {/* Row 2: Crystals */}
-            <div className="flex items-center gap-1.5">
-              {['yellow', 'green', 'blue', 'pink'].map((color) => {
-                const count = myPlayer.caravan?.[color] || 0
-                const bgClass = {
-                  yellow: 'bg-yellow-400',
-                  green: 'bg-green-500',
-                  blue: 'bg-blue-500',
-                  pink: 'bg-pink-400'
-                }[color]
-                
-                return (
-                  <div key={color} className="flex items-center gap-0.5">
-                    <div className={`w-3 h-3 rounded-full ${bgClass}`}/>
-                    <span className="text-white text-[10px] font-medium">{count}</span>
-                  </div>
-                )
-              })}
-            </div>
-            
-            {/* Row 3: Badges + Rest */}
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setShowMyGolems(true)}
-                className="flex-1 py-1 rounded bg-amber-700 text-[10px] text-white font-medium"
-              >
-                🎭 {myGolems.length}
-              </button>
-              <button
-                onClick={() => setShowPlayedCards(true)}
-                className="flex-1 py-1 rounded bg-stone-600 text-[10px] text-white font-medium"
-              >
-                🃏 {playedCards.length}
-              </button>
-              {canRest && (
-                <button
-                  onClick={handleRest}
-                  className="flex-1 py-1 rounded text-[10px] font-bold bg-emerald-700 text-white"
-                >
-                  Rest
-                </button>
-              )}
-            </div>
+      <div className="flex items-center gap-2">
+        <Avatar player={myPlayer} size={28} turn={isMyTurn} />
+        <CrystalRow resources={a.caravan} capacity={MAX_CARAVAN} size="sm" className="min-w-0 !gap-1.5" />
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        <Button size="md" onClick={a.onRest} disabled={!a.canRest} variant={a.canRest ? 'primary' : 'secondary'} title="Take your played cards back">Rest</Button>
+        <Button size="md" variant="secondary" onClick={() => setList('golems')} disabled={!golems.length} icon={<GolemIcon size={16} />} aria-label={`My golems (${golems.length})`}>{golems.length}</Button>
+        <Button size="md" variant="secondary" onClick={() => setList('played')} disabled={!a.playedCards.length} icon={<CardsIcon />} aria-label={`Played cards (${a.playedCards.length})`}>{a.playedCards.length}</Button>
+      </div>
+      <div className={`scrollbar-hide -mx-3 flex snap-x scroll-pl-3 gap-2.5 overflow-x-auto px-3 pb-1 ${landscape ? 'min-h-0 flex-1' : 'h-[132px]'}`} role="list" aria-label="Your hand">
+        {a.hand.length ? a.hand.map((card, i) => (
+          <div key={`h${i}-${card.id}`} role="listitem" className="h-full flex-shrink-0 snap-start py-1.5">
+            <CardTile card={card} ready={isMyTurn} onInspect={() => openHand(card, i)} />
           </div>
+        )) : (
+          <span className="flex items-center px-1 text-sm text-fg-muted">No cards in hand — rest to take your played cards back.</span>
         )}
-
-        {/* Player Info Panel - Desktop/Tablet */}
-        {!isMobile || !isPortrait ? (
-          <div className={`
-            flex-shrink-0 bg-black/40 rounded-xl
-            flex items-center gap-3 ${isMobile ? 'p-2' : 'p-2 px-4'}
-          `}>
-            {/* Avatar & Name */}
-            <div className="flex items-center gap-2">
-              <PlayerAvatar
-                player={myPlayer}
-                className={`rounded-lg bg-yellow-500 text-black ${isMobile ? 'w-8 h-8 text-sm' : 'w-9 h-9 text-base'}`}
-              />
-              <div>
-                <div className={`text-white font-medium ${isMobile ? 'text-xs' : 'text-sm'}`}>
-                  {myPlayer.name || 'You'}
-                </div>
-                <span className="text-yellow-400 text-xs font-bold">★{myPlayer.points || 0}</span>
-              </div>
-            </div>
-
-            {/* Crystals */}
-            <div className={`flex items-center ${isMobile ? 'gap-1.5' : 'gap-2'}`}>
-              {['yellow', 'green', 'blue', 'pink'].map((color) => {
-                const count = myPlayer.caravan?.[color] || 0
-                const bgClass = {
-                  yellow: 'bg-yellow-400',
-                  green: 'bg-green-500',
-                  blue: 'bg-blue-500',
-                  pink: 'bg-pink-400'
-                }[color]
-                
-                return (
-                  <div key={color} className="flex items-center gap-0.5">
-                    <div className={`rounded-full ${bgClass} w-3 h-3`}/>
-                    <span className="text-white text-xs font-medium">{count}</span>
-                  </div>
-                )
-              })}
-            </div>
-
-            {/* Badges + Rest */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowMyGolems(true)}
-                className="px-3 py-1.5 rounded-lg bg-amber-700 text-white text-xs font-medium"
-              >
-                🎭 {myGolems.length}
-              </button>
-              <button
-                onClick={() => setShowPlayedCards(true)}
-                className="px-3 py-1.5 rounded-lg bg-stone-600 text-white text-xs font-medium"
-              >
-                🃏 {playedCards.length}
-              </button>
-              {canRest && (
-                <button
-                  onClick={handleRest}
-                  className="px-3 py-1.5 rounded-lg font-bold bg-emerald-700 text-white text-xs"
-                >
-                  Rest
-                </button>
-              )}
-            </div>
-          </div>
-        ) : null}
-
-        {/* Hand Cards Area - Right Side */}
-        <div className={`flex-1 flex flex-col min-w-0 ${isMobile && isPortrait ? 'h-full' : 'mt-2'}`}>
-          {/* Hand Cards - Horizontal Scroll */}
-          <div className={`
-            flex overflow-x-auto items-center h-full
-            ${isMobile && isPortrait 
-              ? 'gap-2 scrollbar-none' 
-              : isMobile 
-                ? 'gap-1.5 scrollbar-none pb-1' 
-                : 'gap-3 justify-center md:justify-start scrollbar-thin scrollbar-thumb-white/30 scrollbar-track-transparent pb-1'
-            }
-          `}
-          >
-          {hand.map((card, index) => {
-            const isPlayable = isMyTurn
-
-            return (
-              <div 
-                key={`hand-${index}`} 
-                className={`relative flex-shrink-0 ${isMobile && isPortrait ? 'h-full' : ''}`}
-                style={isMobile && isPortrait ? { aspectRatio: '2/3' } : {}}
-              >
-                <CompactCard
-                  card={card}
-                  type="action"
-                  index={index}
-                  isPlayable={isPlayable}
-                  onClick={() => handleCardClick(card, index)}
-                  size={isMobile && isPortrait ? 'flexible' : isMobile ? 'sm' : 'normal'}
-                  showDetails={!isMobile}
-                />
-              </div>
-            )
-          })}
-          
-          {/* Empty slot indicator */}
-          {hand.length === 0 && (
-            <div className={`
-              card-base relative overflow-hidden flex-shrink-0
-              ${isMobile ? 'w-[100px] h-[150px]' : 'w-28 h-44'}
-              border-2 border-dashed border-white/30 bg-white/5
-            `}
-              style={{
-                backgroundImage: 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
-                backgroundRepeat: 'no-repeat',
-                backgroundColor: '#222'
-              }}
-            >
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-white/50 text-xs font-semibold">Empty</span>
-              </div>
-            </div>
-          )}
-          </div>
-        </div>
       </div>
 
-      {/* Played Cards View */}
-      {showPlayedCards && (
-        <div 
-          className="fixed inset-0 z-50 flex items-center justify-center px-4"
-          onClick={() => setShowPlayedCards(false)}
-        >
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
-          <div 
-            className="relative bg-slate-900/95 rounded-2xl p-4 max-w-sm w-full border border-white/20 shadow-2xl max-h-[70vh] overflow-y-auto"
-            onClick={e => e.stopPropagation()}
-          >
-            <h3 className="text-white font-bold text-lg mb-3 flex items-center gap-2">
-              🃏 My Played Cards
-            </h3>
-            {playedCards.length > 0 ? (
-              <div className="grid grid-cols-3 gap-2">
-                {playedCards.map((card, idx) => (
-                  <div key={idx} className="aspect-[2/3] rounded-xl overflow-hidden bg-white/10 shadow-lg">
-                    <img 
-                      src={`/assets/images/${card.name}.JPG`} 
-                      alt={card.name}
-                      className="w-full h-full object-cover"
-                      onError={(e) => { e.target.style.display = 'none' }}
-                    />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-white/50 text-center py-8">No cards played yet</p>
-            )}
-            <button 
-              onClick={() => setShowPlayedCards(false)}
-              className="mt-4 w-full py-2.5 bg-white/10 hover:bg-white/20 rounded-xl text-white font-semibold transition-all"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* My Golems View */}
-      {showMyGolems && (
-        <div 
-          className="fixed inset-0 z-50 flex items-center justify-center px-4"
-          onClick={() => setShowMyGolems(false)}
-        >
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
-          <div 
-            className="relative bg-slate-900/95 rounded-2xl p-4 max-w-sm w-full border border-white/20 shadow-2xl max-h-[70vh] overflow-y-auto"
-            onClick={e => e.stopPropagation()}
-          >
-            <h3 className="text-white font-bold text-lg mb-3 flex items-center gap-2">
-              🎭 My Golems
-            </h3>
-            {myGolems.length > 0 ? (
-              <div className="grid grid-cols-3 gap-2">
-                {myGolems.map((card, idx) => (
-                  <div key={idx} className="aspect-[2/3] rounded-xl overflow-hidden bg-white/10 shadow-lg">
-                    <img 
-                      src={`/assets/images/${card.name}.JPG`} 
-                      alt={card.name}
-                      className="w-full h-full object-cover"
-                      onError={(e) => { e.target.style.display = 'none' }}
-                    />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-white/50 text-center py-8">No golems collected yet</p>
-            )}
-            <button 
-              onClick={() => setShowMyGolems(false)}
-              className="mt-4 w-full py-2.5 bg-white/10 hover:bg-white/20 rounded-xl text-white font-semibold transition-all"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Upgrade Modal */}
-      {upgradeModal.show && (
-        <UpgradeModal
-          card={upgradeModal.card}
-          cardIndex={upgradeModal.index}
-          playerResources={myPlayer?.resources}
-          maxTurnUpgrade={upgradeModal.card?.turnUpgrade || 1}
-          onConfirm={(inputResources, outputResources) => {
-            playCardWithUpgrade(upgradeModal.index, inputResources, outputResources, upgradeModal.card)
-            setUpgradeModal({ show: false, card: null, index: null })
-          }}
-          onCancel={() => setUpgradeModal({ show: false, card: null, index: null })}
-        />
-      )}
-
-      {/* Trade Modal */}
-      {tradeModal.show && (
-        <TradeModal
-          card={tradeModal.card}
-          cardIndex={tradeModal.index}
-          playerResources={myPlayer?.resources}
-          onConfirm={(multiplier) => {
-            playCardWithTrade(tradeModal.index, multiplier, tradeModal.card)
-            setTradeModal({ show: false, card: null, index: null })
-          }}
-          onCancel={() => setTradeModal({ show: false, card: null, index: null })}
-        />
-      )}
+      <Modal open={list === 'golems'} onClose={() => setList(null)} title={`My golems (${golems.length})`} variant="stone" size="sm">
+        <CardGrid cards={golems} />
+      </Modal>
+      <Modal open={list === 'played'} onClose={() => setList(null)} title={`Played cards (${a.playedCards.length})`} variant="stone" size="sm">
+        <p className="mb-3 text-sm text-fg-muted">Rest to take them all back to your hand.</p>
+        <CardGrid cards={a.playedCards} dim />
+      </Modal>
+      <CardSheet sheet={sheet} onClose={() => setSheet(null)} />
+      <BoardModals actions={a} />
     </div>
   )
 }

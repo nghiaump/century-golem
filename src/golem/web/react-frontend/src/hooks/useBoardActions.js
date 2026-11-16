@@ -27,10 +27,9 @@ export default function useBoardActions({ reopenAfterUndo = false } = {}) {
   const [confirmGolem, setConfirmGolem] = useState({ show: false, golem: null, index: null, coin: null })
 
   useReopenAfterUndo(({ kind, card, cardIndex }) => {
-    if (!reopenAfterUndo) return
     if (kind === 'upgrade') setUpgradeModal({ show: true, card, index: cardIndex })
     else if (kind === 'trade') setTradeModal({ show: true, card, index: cardIndex })
-  })
+  }, reopenAfterUndo)
 
   // Waiting room: the server sends no market (or an empty one) before the game starts
   const market = gameState?.market

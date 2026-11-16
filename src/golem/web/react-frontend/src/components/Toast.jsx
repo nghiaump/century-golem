@@ -47,7 +47,7 @@ const Toast = () => {
               type="button"
               onClick={() => removeToast(toast.id)}
               aria-label="Dismiss"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-stone-sm text-fg-muted hover:bg-rock-700/60 hover:text-fg"
+              className="inline-flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-stone-sm text-fg-muted hover:bg-rock-700/60 hover:text-fg"
             >
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
             </button>

@@ -1,328 +1,99 @@
-import React, { useState, useRef } from 'react'
-import useGameStore from '../../store/gameStore'
-import useOrientation from '../../hooks/useOrientation'
-import CompactCard from '../CompactCard'
-import DepositModal from '../DepositModal'
-import ConfirmGolemModal from '../ConfirmGolemModal'
-import { showToast } from '../../utils/toast'
+import React, { useState } from 'react'
+import useBoardActions from '../../hooks/useBoardActions'
 import WaitingRoom from '../WaitingRoom'
-import { totalCrystals } from '../../utils/aiLevel'
+import CardTile from '../board/CardTile'
+import CardSheet from '../board/CardSheet'
+import BoardModals from '../board/BoardModals'
+import Coin from '../ui/Coin'
 
-const CompactGameBoard = () => {
-  const { gameState, myPlayer, currentPlayer, acquireCard, claimPointCard, startGame, isSpectator } = useGameStore()
-  const { isMobile, isPortrait } = useOrientation()
-  const [depositModal, setDepositModal] = useState({ show: false, card: null, index: null })
-  const [confirmGolem, setConfirmGolem] = useState({ show: false, golem: null, index: null })
-  const containerRef = useRef(null)
+const Section = ({ title, actions, children }) => (
+  <section className="flex flex-col gap-2">
+    <div className="flex items-center justify-between px-1">
+      <h2 className="font-display text-xs font-bold uppercase tracking-wider text-bronze-300 text-engrave">{title}</h2>
+      {actions}
+    </div>
+    {children}
+  </section>
+)
 
-  // Check if game is in waiting status
-  const hasEmptyMarket = !gameState.market || Object.keys(gameState.market).length === 0
-  const isWaiting = gameState.status === 'waiting' || hasEmptyMarket
-  const otherPlayers = gameState.players || []
+/**
+ * Phones: golems (one row, swipe) and the market (3 × 2; one row when held sideways). Tapping a card
+ * opens its sheet with the action (take / claim) — no accidental buys from a mis-tap.
+ */
+const CompactGameBoard = ({ landscape = false }) => {
+  const a = useBoardActions()
+  const [sheet, setSheet] = useState(null)
+  const { gameState, isSpectator, isWaiting, isMyTurn } = a
 
-  // Handle start game button click
-  const handleStartGame = async () => {
-    const result = await startGame()
-    if (!result.success) {
-      showToast(result.error || 'Failed to start game', 'error')
-    }
-  }
-
-  // If waiting mode, show waiting UI with Start Game button
   if (isWaiting) {
     return (
-      <div 
-        ref={containerRef}
-        className={`
-          w-full mx-auto flex items-center justify-center h-full
-          ${isMobile && isPortrait ? 'px-2 py-2' : isMobile ? 'px-2 py-3' : 'px-4 py-4'}
-        `}
-      >
-        <WaitingRoom players={otherPlayers} isSpectator={isSpectator} onStart={handleStartGame} mode={gameState?.mode} />
+      <div className="flex h-full w-full items-center justify-center px-3 py-3">
+        <WaitingRoom players={gameState.players || []} isSpectator={isSpectator} onStart={a.onStartGame} mode={gameState?.mode} />
       </div>
     )
   }
 
-  // Get cards directly from current state
-  const actionCards = gameState.market.actionCards || []
-  const pointCards = gameState.market.pointCards || []
-  const { coins } = gameState.market
-  const isMyTurn = currentPlayer?.id === myPlayer?.id
+  const notNow = isSpectator ? 'You are watching this game.' : !isMyTurn ? 'Wait for your turn.' : null
 
-  const canAfford = (cost) => {
-    if (!cost || !myPlayer?.caravan) return false
-    // Official rule: place one crystal of ANY colour on each card to the left
-    return totalCrystals(myPlayer.caravan) >= totalCrystals(cost)
+  const openMarket = (card, i) => {
+    const cost = a.placeCost(i)
+    const affordable = a.canAfford(i)
+    setSheet({
+      card, type: 'action', slot: i + 1, placeCost: cost,
+      action: {
+        label: cost === 0 ? 'Take card' : `Place ${cost} & take`,
+        onClick: () => a.onMarketCard(i),
+        disabled: !!notNow || !affordable,
+        reason: notNow || (!affordable ? `You need ${cost} crystals to place.` : null),
+      },
+    })
   }
-
-  const canClaimPointCard = (card) => {
-    if (!card?.requirement || !myPlayer?.caravan) return false
-    return (
-      (myPlayer.caravan.yellow || 0) >= (card.requirement.yellow || 0) &&
-      (myPlayer.caravan.green || 0) >= (card.requirement.green || 0) &&
-      (myPlayer.caravan.blue || 0) >= (card.requirement.blue || 0) &&
-      (myPlayer.caravan.pink || 0) >= (card.requirement.pink || 0)
-    )
-  }
-
-  const handleAcquireCard = (index, event) => {
-    if (!isMyTurn) {
-      showToast("Not your turn!", 'error')
-      return
-    }
-    const card = actionCards[index]
-    
-    // Card at index 0 (position 1) is always FREE - no deposits needed
-    if (index === 0) {
-      acquireCard(index, {}, card)
-      return
-    }
-    
-    // Check if player has any crystals to deposit
-    const totalCrystals = (myPlayer?.caravan?.yellow || 0) + 
-                          (myPlayer?.caravan?.green || 0) + 
-                          (myPlayer?.caravan?.blue || 0) + 
-                          (myPlayer?.caravan?.pink || 0)
-    
-    if (totalCrystals < index) {
-      showToast(`Need ${index} crystals to deposit for position ${index + 1}`, 'error')
-      return
-    }
-    
-    // Show deposit modal
-    setDepositModal({ show: true, card, index })
-  }
-
-  const handleClaimPointCard = (index) => {
-    if (!isMyTurn) {
-      showToast("Not your turn!", 'error')
-      return
-    }
-    
-    const card = pointCards[index]
-    if (!canClaimPointCard(card)) {
-      // Show what's missing
-      const req = card?.requirement || {}
-      const have = myPlayer?.caravan || {}
-      const missing = []
-      
-      if ((req.yellow || 0) > (have.yellow || 0)) 
-        missing.push(`${(req.yellow || 0) - (have.yellow || 0)} Yellow`)
-      if ((req.green || 0) > (have.green || 0)) 
-        missing.push(`${(req.green || 0) - (have.green || 0)} Green`)
-      if ((req.blue || 0) > (have.blue || 0)) 
-        missing.push(`${(req.blue || 0) - (have.blue || 0)} Blue`)
-      if ((req.pink || 0) > (have.pink || 0)) 
-        missing.push(`${(req.pink || 0) - (have.pink || 0)} Pink`)
-      
-      showToast(`Missing: ${missing.join(', ')}`, 'error')
-      return
-    }
-    
-    // Show confirmation modal
-    setConfirmGolem({ show: true, golem: card, index })
-  }
-
-  const handleConfirmClaim = () => {
-    if (confirmGolem.index !== null && confirmGolem.golem) {
-      claimPointCard(confirmGolem.index, confirmGolem.golem)
-    }
-    setConfirmGolem({ show: false, golem: null, index: null })
+  const openGolem = (card, i) => {
+    const claimable = a.canClaim(card)
+    setSheet({
+      card, type: 'point', slot: i + 1, coin: a.coinFor(i),
+      action: { label: 'Claim golem', onClick: () => a.onGolem(i), disabled: !!notNow || !claimable, reason: notNow || (!claimable ? 'You don’t have the crystals it costs yet.' : null) },
+    })
   }
 
   return (
-    <div 
-      ref={containerRef}
-      className={`
-        w-full mx-auto flex flex-col h-full
-        ${isMobile && isPortrait 
-          ? 'px-2 py-2 gap-2' 
-          : isMobile 
-            ? 'flex-1 px-2 py-3 gap-3' 
-            : 'flex-1 px-4 py-4 gap-4 max-w-6xl'
-        }
-      `}
-    >
-      {/* Action Cards Market */}
-      <div className={`
-        bg-black/40 rounded-xl flex flex-col flex-1 min-h-0 overflow-hidden
-        ${isMobile && isPortrait ? 'p-2' : isMobile ? 'p-3' : 'p-4'}
-      `}>
-        <div className={`flex items-center justify-between ${isMobile && isPortrait ? 'mb-1' : 'mb-2'}`}>
-          <h3 className={`text-white/60 font-medium ${isMobile && isPortrait ? 'text-[10px]' : isMobile ? 'text-xs' : 'text-sm'}`}>
-            Market
-          </h3>
-          <span className={`text-white/40 ${isMobile && isPortrait ? 'text-[9px]' : 'text-[10px]'}`}>
-            {gameState.market.actionDeck || 0} left
+    <div className="flex flex-col gap-4 px-3 pb-4 pt-1">
+      <Section
+        title="Golems"
+        actions={(
+          <span className="flex items-center gap-2 text-xs text-fg-muted">
+            <span className="inline-flex items-center gap-1"><Coin kind="copper" size={16} />{a.coins[0]?.amount ?? 0}</span>
+            <span className="inline-flex items-center gap-1"><Coin kind="silver" size={16} />{a.coins[1]?.amount ?? 0}</span>
           </span>
-        </div>
-        
-        <div className={`
-          grid flex-1 min-h-0
-          ${isMobile && isPortrait 
-            ? 'grid-cols-3 grid-rows-2 gap-1' 
-            : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2'
-          }
-        `}>
-          {actionCards.map((cardData, index) => {
-            const cost = cardData.cost || {}
-            const isAffordable = isMyTurn && canAfford(cost)
-            const deposits = cardData.deposits || {}
-            const depositCount = Object.values(deposits).reduce((a, b) => 
-              parseInt(a || 0) + parseInt(b || 0), 0
-            )
-
-            // Build crystal badges array
-            const crystalBadges = []
-            const crystalImages = {
-              yellow: '/assets/images/stone_yellow.JPG',
-              green: '/assets/images/stone_green.JPG',
-              blue: '/assets/images/stone_blue.JPG',
-              pink: '/assets/images/stone_pink.JPG'
-            }
-            Object.entries(deposits).forEach(([type, count]) => {
-              for (let i = 0; i < parseInt(count || 0); i++) {
-                crystalBadges.push({ type, src: crystalImages[type] || crystalImages.yellow })
-              }
-            })
-
+        )}
+      >
+        <div className="scrollbar-hide -mx-3 flex snap-x scroll-pl-3 gap-3 overflow-x-auto px-3 pb-1 pt-2" role="list">
+          {a.pointCards.slice(0, 5).map((card, i) => {
+            const claimable = a.canClaim(card)
             return (
-              <CompactCard
-                key={`action-${index}`}
-                card={cardData}
-                type="action"
-                index={index}
-                cost={cost}
-                isAffordable={isAffordable}
-                onClick={(e) => handleAcquireCard(index, e)}
-                size="flexible"
-                showDetails={!isMobile}
-                position={index + 1}
-                badge={crystalBadges.length > 0 ? (
-                  <div className="flex flex-wrap gap-0.5 max-w-[60px] justify-end">
-                    {crystalBadges.map((crystal, i) => (
-                      <img
-                        key={i}
-                        src={crystal.src}
-                        alt={crystal.type}
-                        className="w-4 h-4 rounded-full object-cover border border-white/50 shadow"
-                        onError={(e) => { e.target.src = '/assets/images/stone_yellow.JPG' }}
-                      />
-                    ))}
-                  </div>
-                ) : null}
-              />
+              <div key={card.id || `g${i}`} role="listitem" className="h-[150px] flex-shrink-0 snap-start">
+                <CardTile card={card} type="point" slot={i + 1} coin={a.coinFor(i)} ready={isMyTurn && claimable} dim={isMyTurn && !claimable} onInspect={() => openGolem(card, i)} />
+              </div>
             )
           })}
         </div>
-      </div>
+      </Section>
 
-      {/* Point Cards Market */}
-      <div className={`
-        bg-black/40 rounded-xl flex flex-col flex-1 min-h-0 overflow-hidden
-        ${isMobile && isPortrait ? 'p-2' : isMobile ? 'p-3' : 'p-4'}
-      `}>
-        <div className={`flex items-center justify-between ${isMobile && isPortrait ? 'mb-1' : 'mb-2'}`}>
-          <h3 className={`text-white/60 font-medium ${isMobile && isPortrait ? 'text-[10px]' : isMobile ? 'text-xs' : 'text-sm'}`}>
-            Golems
-          </h3>
-          <div className={`flex items-center gap-2 ${isMobile && isPortrait ? 'text-[9px]' : 'text-[10px]'}`}>
-            {/* Coins remaining info */}
-            {coins && coins[0]?.amount > 0 && (
-              <span className="text-orange-400" title="Copper coins (3pts each)">
-                🥉{coins[0].amount}
-              </span>
-            )}
-            {coins && coins[1]?.amount > 0 && (
-              <span className="text-gray-300" title="Silver coins (1pt each)">
-                🥈{coins[1].amount}
-              </span>
-            )}
-            <span className="text-white/40">
-              {gameState.market.pointDeck || 0} left
-            </span>
-          </div>
-        </div>
-        
-        <div className={`
-          grid flex-1 min-h-0
-          ${isMobile && isPortrait 
-            ? 'grid-cols-3 grid-rows-2 gap-1' 
-            : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2'
-          }
-        `}>
-          {pointCards.map((cardData, index) => {
-            const canClaim = isMyTurn && canClaimPointCard(cardData)
-            
-            // Helper function to get coin for position based on new rules
-            // Position 0: First available coin (copper if available, silver if copper is gone)
-            // Position 1: Silver coin only if copper is still available
-            const getCoinForPosition = (pos) => {
-              if (pos === 0) {
-                // Position 0: First available coin
-                if (coins && coins[0] && coins[0].amount > 0) {
-                  return { coin: coins[0], isCopper: coins[0].points === 3 }
-                } else if (coins && coins[1] && coins[1].amount > 0) {
-                  return { coin: coins[1], isCopper: false }
-                }
-              } else if (pos === 1) {
-                // Position 1: Silver coin only if copper is still available
-                if (coins && coins[0] && coins[0].amount > 0 && coins[1] && coins[1].amount > 0) {
-                  return { coin: coins[1], isCopper: false }
-                }
-              }
-              return null
-            }
-
-            const coinInfo = getCoinForPosition(index)
-            const coinBonus = coinInfo !== null
-            const coinAmount = coinInfo ? coinInfo.coin.amount : 0
-            const isCopperCoin = coinInfo ? coinInfo.isCopper : false
-            const coinEmoji = isCopperCoin ? '🥉' : '🥈'
-            const coinLabel = isCopperCoin ? 'Copper (3pts)' : 'Silver (1pt)'
-
+      <Section title="Market">
+        <div className={`grid gap-3 pt-2 ${landscape ? 'grid-cols-6' : 'grid-cols-3'}`}>
+          {a.actionCards.slice(0, 6).map((card, i) => {
+            const affordable = a.canAfford(i)
             return (
-              <CompactCard
-                key={`point-${index}`}
-                card={cardData}
-                type="point"
-                index={index}
-                isAffordable={canClaim}
-                onClick={() => handleClaimPointCard(index)}
-                size="flexible"
-                showDetails={!isMobile}
-                position={index + 1}
-                badge={coinBonus ? (
-                  <div 
-                    className="flex items-center gap-0.5 bg-black/60 backdrop-blur-sm rounded-full px-1.5 py-0.5 border border-white/20"
-                    title={`${coinLabel} - ${coinAmount} remaining`}
-                  >
-                    <span className="text-sm">{coinEmoji}</span>
-                    <span className="text-[10px] text-white font-bold">{coinAmount}</span>
-                  </div>
-                ) : null}
-              />
+              <div key={card.id || `m${i}`} className="flex justify-center">
+                <CardTile card={card} slot={i + 1} placeCost={a.placeCost(i)} ready={isMyTurn && affordable} dim={isMyTurn && !affordable} onInspect={() => openMarket(card, i)} className="!h-auto w-full" />
+              </div>
             )
           })}
         </div>
-      </div>
+      </Section>
 
-      {/* Deposit Modal */}
-      {depositModal.show && (
-        <DepositModal
-          card={depositModal.card}
-          cardIndex={depositModal.index}
-          onClose={() => setDepositModal({ show: false, card: null, index: null })}
-        />
-      )}
-
-      {/* Confirm Golem Modal */}
-      <ConfirmGolemModal
-        isOpen={confirmGolem.show}
-        golem={confirmGolem.golem}
-        onConfirm={handleConfirmClaim}
-        onCancel={() => setConfirmGolem({ show: false, golem: null, index: null })}
-      />
+      <CardSheet sheet={sheet} onClose={() => setSheet(null)} />
+      <BoardModals actions={a} />
     </div>
   )
 }

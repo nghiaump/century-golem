@@ -205,6 +205,44 @@
 +)
 +
 +export default CardPile
+--- a/web/react-frontend/src/components/board/CardSheet.jsx
++++ b/web/react-frontend/src/components/board/CardSheet.jsx
+@@ -0,0 +1,35 @@
++import React from 'react'
++import Modal from '../ui/Modal'
++import Button from '../ui/Button'
++import { CardDetails } from './CardInspect'
++
++/**
++ * Phones: tapping a card opens this sheet — the card large, what it does, and the one action you
++ * can take with it (or why not). `action` = { label, onClick, disabled, reason }.
++ */
++const CardSheet = ({ sheet, onClose }) => {
++  if (!sheet) return null
++  const { card, type, slot, placeCost, coin, action } = sheet
++  return (
++    <Modal
++      open
++      onClose={onClose}
++      title={type === 'point' ? 'Golem' : slot ? `Market · card ${slot}` : 'Your card'}
++      variant="stone"
++      size="sm"
++      footer={(
++        <>
++          <Button variant="secondary" onClick={onClose}>Close</Button>
++          {action ? (
++            <Button disabled={action.disabled} onClick={() => { onClose(); action.onClick() }}>{action.label}</Button>
++          ) : null}
++        </>
++      )}
++    >
++      <CardDetails card={card} type={type} slot={slot} placeCost={placeCost} coin={coin} />
++      {action?.disabled && action.reason ? <p className="mt-3 text-sm text-fg-muted">{action.reason}</p> : null}
++    </Modal>
++  )
++}
++
++export default CardSheet
 --- a/web/react-frontend/src/components/board/CardTile.jsx
 +++ b/web/react-frontend/src/components/board/CardTile.jsx
 @@ -0,0 +1,94 @@
@@ -324,10 +362,10 @@
 +  const inset = { top: 'max(8px, var(--safe-top))' }
 +  return (
 +    <>
-+      {!compact && started ? (
-+        <div className="fixed left-3 z-hud flex items-center gap-2" style={inset}>
++      {started ? (
++        <div className="fixed z-hud flex items-center gap-2" style={{ ...inset, left: 'max(12px, var(--safe-left))' }}>
 +          <div className="surface-stone flex h-11 items-center gap-2 px-3">
-+            <span className="font-display text-sm font-bold text-bronze-100">Round {round || 1}</span>
++            <span className="font-display text-sm font-bold text-bronze-100">{compact ? `R${round || 1}` : `Round ${round || 1}`}</span>
 +            <DifficultyBadge />
 +            {lastRound ? <Pill tone="ember">Last round</Pill> : null}
 +          </div>
@@ -4267,19 +4305,71 @@
  
 --- a/web/react-frontend/src/components/mobile/CompactGameBoard.jsx
 +++ b/web/react-frontend/src/components/mobile/CompactGameBoard.jsx
-@@ -5,6 +5,8 @@
- import DepositModal from '../DepositModal'
- import ConfirmGolemModal from '../ConfirmGolemModal'
- import { showToast } from '../../utils/toast'
+@@ -1,354 +1,99 @@
+-import React, { useState, useRef } from 'react'
+-import useGameStore from '../../store/gameStore'
+-import useOrientation from '../../hooks/useOrientation'
+-import CompactCard from '../CompactCard'
+-import DepositModal from '../DepositModal'
+-import ConfirmGolemModal from '../ConfirmGolemModal'
+-import { showToast } from '../../utils/toast'
+-
+-const CompactGameBoard = () => {
+-  const { gameState, myPlayer, currentPlayer, acquireCard, claimPointCard, startGame, isSpectator } = useGameStore()
+-  const { isMobile, isPortrait } = useOrientation()
+-  const [depositModal, setDepositModal] = useState({ show: false, card: null, index: null })
+-  const [confirmGolem, setConfirmGolem] = useState({ show: false, golem: null, index: null })
+-  const containerRef = useRef(null)
+-
+-  // Check if game is in waiting status
+-  const hasEmptyMarket = !gameState.market || Object.keys(gameState.market).length === 0
+-  const isWaiting = gameState.status === 'waiting' || hasEmptyMarket
+-  const otherPlayers = gameState.players || []
+-
+-  // Handle start game button click
+-  const handleStartGame = async () => {
+-    const result = await startGame()
+-    if (!result.success) {
+-      showToast(result.error || 'Failed to start game', 'error')
+-    }
+-  }
++import React, { useState } from 'react'
++import useBoardActions from '../../hooks/useBoardActions'
 +import WaitingRoom from '../WaitingRoom'
-+import { totalCrystals } from '../../utils/aiLevel'
++import CardTile from '../board/CardTile'
++import CardSheet from '../board/CardSheet'
++import BoardModals from '../board/BoardModals'
++import Coin from '../ui/Coin'
++
++const Section = ({ title, actions, children }) => (
++  <section className="flex flex-col gap-2">
++    <div className="flex items-center justify-between px-1">
++      <h2 className="font-display text-xs font-bold uppercase tracking-wider text-bronze-300 text-engrave">{title}</h2>
++      {actions}
++    </div>
++    {children}
++  </section>
++)
++
++/**
++ * Phones: golems (one row, swipe) and the market (3 × 2; one row when held sideways). Tapping a card
++ * opens its sheet with the action (take / claim) — no accidental buys from a mis-tap.
++ */
++const CompactGameBoard = ({ landscape = false }) => {
++  const a = useBoardActions()
++  const [sheet, setSheet] = useState(null)
++  const { gameState, isSpectator, isWaiting, isMyTurn } = a
  
- const CompactGameBoard = () => {
-   const { gameState, myPlayer, currentPlayer, acquireCard, claimPointCard, startGame, isSpectator } = useGameStore()
-@@ -36,31 +38,7 @@
-           ${isMobile && isPortrait ? 'px-2 py-2' : isMobile ? 'px-2 py-3' : 'px-4 py-4'}
-         `}
-       >
+-  // If waiting mode, show waiting UI with Start Game button
+   if (isWaiting) {
+     return (
+-      <div 
+-        ref={containerRef}
+-        className={`
+-          w-full mx-auto flex items-center justify-center h-full
+-          ${isMobile && isPortrait ? 'px-2 py-2' : isMobile ? 'px-2 py-3' : 'px-4 py-4'}
+-        `}
+-      >
 -        <div className="flex flex-col items-center justify-center gap-4 bg-gradient-to-b from-purple-900/40 to-blue-900/40 backdrop-blur-md rounded-xl border-2 border-purple-400/50 p-6 w-full max-w-md shadow-2xl min-h-[300px]">
 -          {/* Waiting message */}
 -          <div className="text-white text-base sm:text-xl font-bold text-center px-4 py-3 bg-black/50 rounded-lg border border-white/30 shadow-xl">
@@ -4305,84 +4395,836 @@
 -            </button>
 -          )}
 -        </div>
-+        <WaitingRoom players={otherPlayers} isSpectator={isSpectator} onStart={handleStartGame} mode={gameState?.mode} />
++      <div className="flex h-full w-full items-center justify-center px-3 py-3">
++        <WaitingRoom players={gameState.players || []} isSpectator={isSpectator} onStart={a.onStartGame} mode={gameState?.mode} />
        </div>
      )
    }
-@@ -73,12 +51,8 @@
  
-   const canAfford = (cost) => {
-     if (!cost || !myPlayer?.caravan) return false
+-  // Get cards directly from current state
+-  const actionCards = gameState.market.actionCards || []
+-  const pointCards = gameState.market.pointCards || []
+-  const { coins } = gameState.market
+-  const isMyTurn = currentPlayer?.id === myPlayer?.id
+-
+-  const canAfford = (cost) => {
+-    if (!cost || !myPlayer?.caravan) return false
 -    return (
 -      (myPlayer.caravan.yellow || 0) >= (cost.yellow || 0) &&
 -      (myPlayer.caravan.green || 0) >= (cost.green || 0) &&
 -      (myPlayer.caravan.blue || 0) >= (cost.blue || 0) &&
 -      (myPlayer.caravan.pink || 0) >= (cost.pink || 0)
 -    )
-+    // Official rule: place one crystal of ANY colour on each card to the left
-+    return totalCrystals(myPlayer.caravan) >= totalCrystals(cost)
+-  }
+-
+-  const canClaimPointCard = (card) => {
+-    if (!card?.requirement || !myPlayer?.caravan) return false
+-    return (
+-      (myPlayer.caravan.yellow || 0) >= (card.requirement.yellow || 0) &&
+-      (myPlayer.caravan.green || 0) >= (card.requirement.green || 0) &&
+-      (myPlayer.caravan.blue || 0) >= (card.requirement.blue || 0) &&
+-      (myPlayer.caravan.pink || 0) >= (card.requirement.pink || 0)
+-    )
+-  }
+-
+-  const handleAcquireCard = (index, event) => {
+-    if (!isMyTurn) {
+-      showToast("Not your turn!", 'error')
+-      return
+-    }
+-    const card = actionCards[index]
+-    
+-    // Card at index 0 (position 1) is always FREE - no deposits needed
+-    if (index === 0) {
+-      acquireCard(index, {}, card)
+-      return
+-    }
+-    
+-    // Check if player has any crystals to deposit
+-    const totalCrystals = (myPlayer?.caravan?.yellow || 0) + 
+-                          (myPlayer?.caravan?.green || 0) + 
+-                          (myPlayer?.caravan?.blue || 0) + 
+-                          (myPlayer?.caravan?.pink || 0)
+-    
+-    if (totalCrystals < index) {
+-      showToast(`Need ${index} crystals to deposit for position ${index + 1}`, 'error')
+-      return
+-    }
+-    
+-    // Show deposit modal
+-    setDepositModal({ show: true, card, index })
+-  }
+-
+-  const handleClaimPointCard = (index) => {
+-    if (!isMyTurn) {
+-      showToast("Not your turn!", 'error')
+-      return
+-    }
+-    
+-    const card = pointCards[index]
+-    if (!canClaimPointCard(card)) {
+-      // Show what's missing
+-      const req = card?.requirement || {}
+-      const have = myPlayer?.caravan || {}
+-      const missing = []
+-      
+-      if ((req.yellow || 0) > (have.yellow || 0)) 
+-        missing.push(`${(req.yellow || 0) - (have.yellow || 0)} Yellow`)
+-      if ((req.green || 0) > (have.green || 0)) 
+-        missing.push(`${(req.green || 0) - (have.green || 0)} Green`)
+-      if ((req.blue || 0) > (have.blue || 0)) 
+-        missing.push(`${(req.blue || 0) - (have.blue || 0)} Blue`)
+-      if ((req.pink || 0) > (have.pink || 0)) 
+-        missing.push(`${(req.pink || 0) - (have.pink || 0)} Pink`)
+-      
+-      showToast(`Missing: ${missing.join(', ')}`, 'error')
+-      return
+-    }
+-    
+-    // Show confirmation modal
+-    setConfirmGolem({ show: true, golem: card, index })
+-  }
++  const notNow = isSpectator ? 'You are watching this game.' : !isMyTurn ? 'Wait for your turn.' : null
+ 
+-  const handleConfirmClaim = () => {
+-    if (confirmGolem.index !== null && confirmGolem.golem) {
+-      claimPointCard(confirmGolem.index, confirmGolem.golem)
+-    }
+-    setConfirmGolem({ show: false, golem: null, index: null })
++  const openMarket = (card, i) => {
++    const cost = a.placeCost(i)
++    const affordable = a.canAfford(i)
++    setSheet({
++      card, type: 'action', slot: i + 1, placeCost: cost,
++      action: {
++        label: cost === 0 ? 'Take card' : `Place ${cost} & take`,
++        onClick: () => a.onMarketCard(i),
++        disabled: !!notNow || !affordable,
++        reason: notNow || (!affordable ? `You need ${cost} crystals to place.` : null),
++      },
++    })
++  }
++  const openGolem = (card, i) => {
++    const claimable = a.canClaim(card)
++    setSheet({
++      card, type: 'point', slot: i + 1, coin: a.coinFor(i),
++      action: { label: 'Claim golem', onClick: () => a.onGolem(i), disabled: !!notNow || !claimable, reason: notNow || (!claimable ? 'You don’t have the crystals it costs yet.' : null) },
++    })
    }
  
-   const canClaimPointCard = (card) => {
+   return (
+-    <div 
+-      ref={containerRef}
+-      className={`
+-        w-full mx-auto flex flex-col h-full
+-        ${isMobile && isPortrait 
+-          ? 'px-2 py-2 gap-2' 
+-          : isMobile 
+-            ? 'flex-1 px-2 py-3 gap-3' 
+-            : 'flex-1 px-4 py-4 gap-4 max-w-6xl'
+-        }
+-      `}
+-    >
+-      {/* Action Cards Market */}
+-      <div className={`
+-        bg-black/40 rounded-xl flex flex-col flex-1 min-h-0 overflow-hidden
+-        ${isMobile && isPortrait ? 'p-2' : isMobile ? 'p-3' : 'p-4'}
+-      `}>
+-        <div className={`flex items-center justify-between ${isMobile && isPortrait ? 'mb-1' : 'mb-2'}`}>
+-          <h3 className={`text-white/60 font-medium ${isMobile && isPortrait ? 'text-[10px]' : isMobile ? 'text-xs' : 'text-sm'}`}>
+-            Market
+-          </h3>
+-          <span className={`text-white/40 ${isMobile && isPortrait ? 'text-[9px]' : 'text-[10px]'}`}>
+-            {gameState.market.actionDeck || 0} left
++    <div className="flex flex-col gap-4 px-3 pb-4 pt-1">
++      <Section
++        title="Golems"
++        actions={(
++          <span className="flex items-center gap-2 text-xs text-fg-muted">
++            <span className="inline-flex items-center gap-1"><Coin kind="copper" size={16} />{a.coins[0]?.amount ?? 0}</span>
++            <span className="inline-flex items-center gap-1"><Coin kind="silver" size={16} />{a.coins[1]?.amount ?? 0}</span>
+           </span>
+-        </div>
+-        
+-        <div className={`
+-          grid flex-1 min-h-0
+-          ${isMobile && isPortrait 
+-            ? 'grid-cols-3 grid-rows-2 gap-1' 
+-            : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2'
+-          }
+-        `}>
+-          {actionCards.map((cardData, index) => {
+-            const cost = cardData.cost || {}
+-            const isAffordable = isMyTurn && canAfford(cost)
+-            const deposits = cardData.deposits || {}
+-            const depositCount = Object.values(deposits).reduce((a, b) => 
+-              parseInt(a || 0) + parseInt(b || 0), 0
+-            )
+-
+-            // Build crystal badges array
+-            const crystalBadges = []
+-            const crystalImages = {
+-              yellow: '/assets/images/stone_yellow.JPG',
+-              green: '/assets/images/stone_green.JPG',
+-              blue: '/assets/images/stone_blue.JPG',
+-              pink: '/assets/images/stone_pink.JPG'
+-            }
+-            Object.entries(deposits).forEach(([type, count]) => {
+-              for (let i = 0; i < parseInt(count || 0); i++) {
+-                crystalBadges.push({ type, src: crystalImages[type] || crystalImages.yellow })
+-              }
+-            })
+-
++        )}
++      >
++        <div className="scrollbar-hide -mx-3 flex snap-x scroll-pl-3 gap-3 overflow-x-auto px-3 pb-1 pt-2" role="list">
++          {a.pointCards.slice(0, 5).map((card, i) => {
++            const claimable = a.canClaim(card)
+             return (
+-              <CompactCard
+-                key={`action-${index}`}
+-                card={cardData}
+-                type="action"
+-                index={index}
+-                cost={cost}
+-                isAffordable={isAffordable}
+-                onClick={(e) => handleAcquireCard(index, e)}
+-                size="flexible"
+-                showDetails={!isMobile}
+-                position={index + 1}
+-                badge={crystalBadges.length > 0 ? (
+-                  <div className="flex flex-wrap gap-0.5 max-w-[60px] justify-end">
+-                    {crystalBadges.map((crystal, i) => (
+-                      <img
+-                        key={i}
+-                        src={crystal.src}
+-                        alt={crystal.type}
+-                        className="w-4 h-4 rounded-full object-cover border border-white/50 shadow"
+-                        onError={(e) => { e.target.src = '/assets/images/stone_yellow.JPG' }}
+-                      />
+-                    ))}
+-                  </div>
+-                ) : null}
+-              />
++              <div key={card.id || `g${i}`} role="listitem" className="h-[150px] flex-shrink-0 snap-start">
++                <CardTile card={card} type="point" slot={i + 1} coin={a.coinFor(i)} ready={isMyTurn && claimable} dim={isMyTurn && !claimable} onInspect={() => openGolem(card, i)} />
++              </div>
+             )
+           })}
+         </div>
+-      </div>
+-
+-      {/* Point Cards Market */}
+-      <div className={`
+-        bg-black/40 rounded-xl flex flex-col flex-1 min-h-0 overflow-hidden
+-        ${isMobile && isPortrait ? 'p-2' : isMobile ? 'p-3' : 'p-4'}
+-      `}>
+-        <div className={`flex items-center justify-between ${isMobile && isPortrait ? 'mb-1' : 'mb-2'}`}>
+-          <h3 className={`text-white/60 font-medium ${isMobile && isPortrait ? 'text-[10px]' : isMobile ? 'text-xs' : 'text-sm'}`}>
+-            Golems
+-          </h3>
+-          <div className={`flex items-center gap-2 ${isMobile && isPortrait ? 'text-[9px]' : 'text-[10px]'}`}>
+-            {/* Coins remaining info */}
+-            {coins && coins[0]?.amount > 0 && (
+-              <span className="text-orange-400" title="Copper coins (3pts each)">
+-                🥉{coins[0].amount}
+-              </span>
+-            )}
+-            {coins && coins[1]?.amount > 0 && (
+-              <span className="text-gray-300" title="Silver coins (1pt each)">
+-                🥈{coins[1].amount}
+-              </span>
+-            )}
+-            <span className="text-white/40">
+-              {gameState.market.pointDeck || 0} left
+-            </span>
+-          </div>
+-        </div>
+-        
+-        <div className={`
+-          grid flex-1 min-h-0
+-          ${isMobile && isPortrait 
+-            ? 'grid-cols-3 grid-rows-2 gap-1' 
+-            : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2'
+-          }
+-        `}>
+-          {pointCards.map((cardData, index) => {
+-            const canClaim = isMyTurn && canClaimPointCard(cardData)
+-            
+-            // Helper function to get coin for position based on new rules
+-            // Position 0: First available coin (copper if available, silver if copper is gone)
+-            // Position 1: Silver coin only if copper is still available
+-            const getCoinForPosition = (pos) => {
+-              if (pos === 0) {
+-                // Position 0: First available coin
+-                if (coins && coins[0] && coins[0].amount > 0) {
+-                  return { coin: coins[0], isCopper: coins[0].points === 3 }
+-                } else if (coins && coins[1] && coins[1].amount > 0) {
+-                  return { coin: coins[1], isCopper: false }
+-                }
+-              } else if (pos === 1) {
+-                // Position 1: Silver coin only if copper is still available
+-                if (coins && coins[0] && coins[0].amount > 0 && coins[1] && coins[1].amount > 0) {
+-                  return { coin: coins[1], isCopper: false }
+-                }
+-              }
+-              return null
+-            }
+-
+-            const coinInfo = getCoinForPosition(index)
+-            const coinBonus = coinInfo !== null
+-            const coinAmount = coinInfo ? coinInfo.coin.amount : 0
+-            const isCopperCoin = coinInfo ? coinInfo.isCopper : false
+-            const coinEmoji = isCopperCoin ? '🥉' : '🥈'
+-            const coinLabel = isCopperCoin ? 'Copper (3pts)' : 'Silver (1pt)'
++      </Section>
+ 
++      <Section title="Market">
++        <div className={`grid gap-3 pt-2 ${landscape ? 'grid-cols-6' : 'grid-cols-3'}`}>
++          {a.actionCards.slice(0, 6).map((card, i) => {
++            const affordable = a.canAfford(i)
+             return (
+-              <CompactCard
+-                key={`point-${index}`}
+-                card={cardData}
+-                type="point"
+-                index={index}
+-                isAffordable={canClaim}
+-                onClick={() => handleClaimPointCard(index)}
+-                size="flexible"
+-                showDetails={!isMobile}
+-                position={index + 1}
+-                badge={coinBonus ? (
+-                  <div 
+-                    className="flex items-center gap-0.5 bg-black/60 backdrop-blur-sm rounded-full px-1.5 py-0.5 border border-white/20"
+-                    title={`${coinLabel} - ${coinAmount} remaining`}
+-                  >
+-                    <span className="text-sm">{coinEmoji}</span>
+-                    <span className="text-[10px] text-white font-bold">{coinAmount}</span>
+-                  </div>
+-                ) : null}
+-              />
++              <div key={card.id || `m${i}`} className="flex justify-center">
++                <CardTile card={card} slot={i + 1} placeCost={a.placeCost(i)} ready={isMyTurn && affordable} dim={isMyTurn && !affordable} onInspect={() => openMarket(card, i)} className="!h-auto w-full" />
++              </div>
+             )
+           })}
+         </div>
+-      </div>
+-
+-      {/* Deposit Modal */}
+-      {depositModal.show && (
+-        <DepositModal
+-          card={depositModal.card}
+-          cardIndex={depositModal.index}
+-          onClose={() => setDepositModal({ show: false, card: null, index: null })}
+-        />
+-      )}
++      </Section>
+ 
+-      {/* Confirm Golem Modal */}
+-      <ConfirmGolemModal
+-        isOpen={confirmGolem.show}
+-        golem={confirmGolem.golem}
+-        onConfirm={handleConfirmClaim}
+-        onCancel={() => setConfirmGolem({ show: false, golem: null, index: null })}
+-      />
++      <CardSheet sheet={sheet} onClose={() => setSheet(null)} />
++      <BoardModals actions={a} />
+     </div>
+   )
+ }
 --- a/web/react-frontend/src/components/mobile/CompactPlayerHand.jsx
 +++ b/web/react-frontend/src/components/mobile/CompactPlayerHand.jsx
-@@ -1,9 +1,11 @@
- import React, { useState, useEffect, useRef } from 'react'
- import useGameStore from '../../store/gameStore'
-+import PlayerAvatar from '../PlayerAvatar'
- import useOrientation from '../../hooks/useOrientation'
- import CompactCard from '../CompactCard'
- import UpgradeModal from '../UpgradeModal'
- import TradeModal from '../TradeModal'
-+import useReopenAfterUndo from '../../hooks/useReopenAfterUndo'
- import PlayedCardsView from '../PlayedCardsView'
+@@ -1,414 +1,86 @@
+-import React, { useState, useEffect, useRef } from 'react'
+-import useGameStore from '../../store/gameStore'
+-import useOrientation from '../../hooks/useOrientation'
+-import CompactCard from '../CompactCard'
+-import UpgradeModal from '../UpgradeModal'
+-import TradeModal from '../TradeModal'
+-import PlayedCardsView from '../PlayedCardsView'
++import React, { useState } from 'react'
++import useBoardActions from '../../hooks/useBoardActions'
++import CardTile from '../board/CardTile'
++import CardSheet from '../board/CardSheet'
++import BoardModals from '../board/BoardModals'
++import { cardKind } from '../board/cardInfo'
++import Avatar from '../ui/Avatar'
++import Button from '../ui/Button'
++import CrystalRow from '../ui/CrystalRow'
++import Modal from '../ui/Modal'
++import CardImage from '../ui/CardImage'
++import GolemIcon from '../ui/GolemIcon'
++import { MAX_CARAVAN } from '../../utils/crystals'
  
- const CompactPlayerHand = () => {
-@@ -11,6 +13,10 @@
-   const { isMobile, isPortrait, height } = useOrientation()
-   const [upgradeModal, setUpgradeModal] = useState({ show: false, card: null, index: null })
-   const [tradeModal, setTradeModal] = useState({ show: false, card: null, index: null })
-+  useReopenAfterUndo(({ kind, card, cardIndex }) => {
-+    if (kind === 'upgrade') setUpgradeModal({ show: true, card, index: cardIndex })
-+    else if (kind === 'trade') setTradeModal({ show: true, card, index: cardIndex })
+-const CompactPlayerHand = () => {
+-  const { myPlayer, currentPlayer, playCard, playCardWithUpgrade, playCardWithTrade, rest } = useGameStore()
+-  const { isMobile, isPortrait, height } = useOrientation()
+-  const [upgradeModal, setUpgradeModal] = useState({ show: false, card: null, index: null })
+-  const [tradeModal, setTradeModal] = useState({ show: false, card: null, index: null })
+-  const [showPlayedCards, setShowPlayedCards] = useState(false)
+-  const [showMyGolems, setShowMyGolems] = useState(false)
+-  const [rowHeight, setRowHeight] = useState(null)
+-  const containerRef = useRef(null)
+-
+-  // Calculate row height based on viewport height
+-  // Formula: (viewport - playersInfoBar) / 5 rows = rowHeight
+-  useEffect(() => {
+-    if (!isMobile || !isPortrait) {
+-      setRowHeight(null)
+-      // Remove CSS variable
+-      document.documentElement.style.setProperty('--hand-height', '')
+-      return
+-    }
+-
+-    const calculateRowHeight = () => {
+-      const viewportHeight = window.innerHeight || window.visualViewport?.height || height
+-      
+-      // Get height of PlayersInfoBar
+-      const playersInfoBar = document.querySelector('[data-players-info-bar]')
+-      const playersInfoBarHeight = playersInfoBar?.offsetHeight || 0
+-      
+-      // Available height = viewport - playersInfoBar
+-      const availableHeight = viewportHeight - playersInfoBarHeight
+-      
+-      // Total padding: turn info + market padding + point padding + gaps + hand padding
+-      // Approximate: turn info ~30px, market padding ~4px, point padding ~4px, gaps ~4px, hand padding ~4px = ~46px
+-      const totalPadding = 46
+-      
+-      // 5 rows total: 4 market rows + 1 hand row
+-      const rowHeight = (availableHeight - totalPadding) / 5
+-      const finalRowHeight = Math.max(60, rowHeight) // Minimum 60px
+-      
+-      setRowHeight(finalRowHeight)
+-      // Set CSS variable for game board padding
+-      document.documentElement.style.setProperty('--hand-height', `${finalRowHeight}px`)
+-    }
+-
+-    // Initial calculation
+-    setTimeout(calculateRowHeight, 100)
+-    
+-    // Recalculate on resize
+-    const handleResize = () => {
+-      setTimeout(calculateRowHeight, 100)
+-    }
+-    
+-    window.addEventListener('resize', handleResize)
+-    if (window.visualViewport) {
+-      window.visualViewport.addEventListener('resize', handleResize)
+-    }
+-    
+-    return () => {
+-      window.removeEventListener('resize', handleResize)
+-      if (window.visualViewport) {
+-        window.visualViewport.removeEventListener('resize', handleResize)
+-      }
+-      document.documentElement.style.setProperty('--hand-height', '')
+-    }
+-  }, [isMobile, isPortrait, height])
+-
+-  if (!myPlayer) return null
+-
+-  const isMyTurn = currentPlayer?.id === myPlayer.id
+-  const hand = myPlayer.hand || []
+-  const playedCards = myPlayer.playedCards || []
+-  const myGolems = myPlayer.pointCards || []
+-  const canRest = isMyTurn && playedCards.length > 0
+-
+-  const handleRest = () => {
+-    if (canRest) {
+-      rest()
+-    }
+-  }
+-
+-  const handleCardClick = (card, index) => {
+-    if (!isMyTurn) return
++function CardsIcon() {
++  return (
++    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
++      <rect x="7" y="3" width="11" height="16" rx="2" /><path d="M5 6.5v12a2 2 0 002 2h8" />
++    </svg>
++  )
++}
+ 
+-    if (card.actionType === 0) {
+-      playCard(index, card)
+-    } else if (card.actionType === 1) {
+-      setUpgradeModal({ show: true, card, index })
+-    } else if (card.actionType === 2) {
+-      setTradeModal({ show: true, card, index })
+-    }
+-  }
++const CardGrid = ({ cards, dim }) => (
++  <div className="grid grid-cols-3 gap-3">
++    {cards.map((c, i) => <CardImage key={i} name={c.name} alt={c.name} className={`aspect-[0.58] w-full rounded-stone-sm border border-black/50 ${dim ? 'opacity-80 saturate-50' : ''}`} />)}
++  </div>
++)
++
++/**
++ * Phones: my crystals, Rest, my golems / played cards, and my hand (swipe). Tapping a hand card opens
++ * its sheet with Play. Sits at the bottom of the screen, clear of the home indicator.
++ */
++const CompactPlayerHand = ({ landscape = false }) => {
++  const a = useBoardActions({ reopenAfterUndo: true })
++  const [sheet, setSheet] = useState(null)
++  const [list, setList] = useState(null) // 'golems' | 'played'
++  const { myPlayer, isSpectator, isWaiting, isMyTurn } = a
++  if (isWaiting || isSpectator || !myPlayer) return null
++
++  const golems = myPlayer.pointCards || []
++  const openHand = (card, i) => setSheet({
++    card, type: 'action',
++    action: {
++      label: { Trade: 'Trade…', Upgrade: 'Upgrade…', Produce: 'Play' }[cardKind(card)] || 'Play',
++      onClick: () => a.onHandCard(card, i),
++      disabled: !isMyTurn,
++      reason: !isMyTurn ? 'Wait for your turn.' : null,
++    },
 +  })
-   const [showPlayedCards, setShowPlayedCards] = useState(false)
-   const [showMyGolems, setShowMyGolems] = useState(false)
-   const [rowHeight, setRowHeight] = useState(null)
-@@ -119,12 +125,13 @@
-           <div className="flex-shrink-0 bg-black/50 rounded-lg p-2 flex flex-col justify-center gap-1.5 min-w-[80px]">
-             {/* Row 1: Avatar + Name + Points */}
-             <div className="flex items-center gap-2">
+ 
+   return (
+-    <div 
+-      ref={containerRef}
+-      data-hand-container
+-      className={`
+-        w-full flex-shrink-0 z-30
+-        ${isMobile && isPortrait 
+-          ? 'fixed bottom-0 left-0 right-0 px-2 py-2 bg-black/70' 
+-          : isMobile 
+-            ? 'relative py-2 px-2 bg-black/50' 
+-            : 'relative py-4 px-4 bg-black/40'
+-        }
+-      `}
+-      style={isMobile && isPortrait ? { height: '130px' } : {}}
++    <div
++      className={`surface-stone flex flex-shrink-0 flex-col gap-2 !rounded-b-none border-b-0 px-3 pt-2 ${isMyTurn ? 'turn-glow' : ''} ${landscape ? 'h-full !rounded-stone' : ''}`}
++      style={{ paddingBottom: 'max(8px, var(--safe-bottom))' }}
+     >
+-      <div className={`mx-auto flex h-full ${isMobile && isPortrait ? 'gap-2' : 'gap-3'} ${isMobile ? '' : 'max-w-6xl'}`}
+-      >
+-        {/* Player Info Panel - Left Side (Mobile Portrait) */}
+-        {isMobile && isPortrait && (
+-          <div className="flex-shrink-0 bg-black/50 rounded-lg p-2 flex flex-col justify-center gap-1.5 min-w-[80px]">
+-            {/* Row 1: Avatar + Name + Points */}
+-            <div className="flex items-center gap-2">
 -              <div className={`
 -                w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm
 -                ${isMyTurn ? 'bg-yellow-500 text-black' : 'bg-gray-600 text-white'}
 -              `}>
 -                {myPlayer.name?.charAt(0)?.toUpperCase() || 'P'}
 -              </div>
-+              <PlayerAvatar
-+                player={myPlayer}
-+                className={`
-+                  w-8 h-8 rounded-lg text-sm border-2
-+                  ${isMyTurn ? 'border-yellow-400 bg-yellow-500 text-black' : 'border-transparent bg-gray-600 text-white'}
-+                `}
-+              />
-               <div className="flex flex-col">
-                 <span className="text-white text-[11px] font-medium">{myPlayer.name || 'Player'}</span>
-                 <span className="text-yellow-400 text-[11px] font-bold">★ {myPlayer.points || 0}</span>
-@@ -185,9 +192,10 @@
-           `}>
-             {/* Avatar & Name */}
-             <div className="flex items-center gap-2">
+-              <div className="flex flex-col">
+-                <span className="text-white text-[11px] font-medium">{myPlayer.name || 'Player'}</span>
+-                <span className="text-yellow-400 text-[11px] font-bold">★ {myPlayer.points || 0}</span>
+-              </div>
+-            </div>
+-            
+-            {/* Row 2: Crystals */}
+-            <div className="flex items-center gap-1.5">
+-              {['yellow', 'green', 'blue', 'pink'].map((color) => {
+-                const count = myPlayer.caravan?.[color] || 0
+-                const bgClass = {
+-                  yellow: 'bg-yellow-400',
+-                  green: 'bg-green-500',
+-                  blue: 'bg-blue-500',
+-                  pink: 'bg-pink-400'
+-                }[color]
+-                
+-                return (
+-                  <div key={color} className="flex items-center gap-0.5">
+-                    <div className={`w-3 h-3 rounded-full ${bgClass}`}/>
+-                    <span className="text-white text-[10px] font-medium">{count}</span>
+-                  </div>
+-                )
+-              })}
+-            </div>
+-            
+-            {/* Row 3: Badges + Rest */}
+-            <div className="flex items-center gap-1">
+-              <button
+-                onClick={() => setShowMyGolems(true)}
+-                className="flex-1 py-1 rounded bg-amber-700 text-[10px] text-white font-medium"
+-              >
+-                🎭 {myGolems.length}
+-              </button>
+-              <button
+-                onClick={() => setShowPlayedCards(true)}
+-                className="flex-1 py-1 rounded bg-stone-600 text-[10px] text-white font-medium"
+-              >
+-                🃏 {playedCards.length}
+-              </button>
+-              {canRest && (
+-                <button
+-                  onClick={handleRest}
+-                  className="flex-1 py-1 rounded text-[10px] font-bold bg-emerald-700 text-white"
+-                >
+-                  Rest
+-                </button>
+-              )}
+-            </div>
++      <div className="flex items-center gap-2">
++        <Avatar player={myPlayer} size={28} turn={isMyTurn} />
++        <CrystalRow resources={a.caravan} capacity={MAX_CARAVAN} size="sm" className="min-w-0 !gap-1.5" />
++      </div>
++      <div className="grid grid-cols-3 gap-2">
++        <Button size="md" onClick={a.onRest} disabled={!a.canRest} variant={a.canRest ? 'primary' : 'secondary'} title="Take your played cards back">Rest</Button>
++        <Button size="md" variant="secondary" onClick={() => setList('golems')} disabled={!golems.length} icon={<GolemIcon size={16} />} aria-label={`My golems (${golems.length})`}>{golems.length}</Button>
++        <Button size="md" variant="secondary" onClick={() => setList('played')} disabled={!a.playedCards.length} icon={<CardsIcon />} aria-label={`Played cards (${a.playedCards.length})`}>{a.playedCards.length}</Button>
++      </div>
++      <div className={`scrollbar-hide -mx-3 flex snap-x scroll-pl-3 gap-2.5 overflow-x-auto px-3 pb-1 ${landscape ? 'min-h-0 flex-1' : 'h-[132px]'}`} role="list" aria-label="Your hand">
++        {a.hand.length ? a.hand.map((card, i) => (
++          <div key={`h${i}-${card.id}`} role="listitem" className="h-full flex-shrink-0 snap-start py-1.5">
++            <CardTile card={card} ready={isMyTurn} onInspect={() => openHand(card, i)} />
+           </div>
++        )) : (
++          <span className="flex items-center px-1 text-sm text-fg-muted">No cards in hand — rest to take your played cards back.</span>
+         )}
+-
+-        {/* Player Info Panel - Desktop/Tablet */}
+-        {!isMobile || !isPortrait ? (
+-          <div className={`
+-            flex-shrink-0 bg-black/40 rounded-xl
+-            flex items-center gap-3 ${isMobile ? 'p-2' : 'p-2 px-4'}
+-          `}>
+-            {/* Avatar & Name */}
+-            <div className="flex items-center gap-2">
 -              <div className={`rounded-lg bg-yellow-500 text-black flex items-center justify-center font-bold ${isMobile ? 'w-8 h-8 text-sm' : 'w-9 h-9 text-base'}`}>
 -                {myPlayer.name?.charAt(0)?.toUpperCase() || '?'}
 -              </div>
-+              <PlayerAvatar
-+                player={myPlayer}
-+                className={`rounded-lg bg-yellow-500 text-black ${isMobile ? 'w-8 h-8 text-sm' : 'w-9 h-9 text-base'}`}
-+              />
-               <div>
-                 <div className={`text-white font-medium ${isMobile ? 'text-xs' : 'text-sm'}`}>
-                   {myPlayer.name || 'You'}
+-              <div>
+-                <div className={`text-white font-medium ${isMobile ? 'text-xs' : 'text-sm'}`}>
+-                  {myPlayer.name || 'You'}
+-                </div>
+-                <span className="text-yellow-400 text-xs font-bold">★{myPlayer.points || 0}</span>
+-              </div>
+-            </div>
+-
+-            {/* Crystals */}
+-            <div className={`flex items-center ${isMobile ? 'gap-1.5' : 'gap-2'}`}>
+-              {['yellow', 'green', 'blue', 'pink'].map((color) => {
+-                const count = myPlayer.caravan?.[color] || 0
+-                const bgClass = {
+-                  yellow: 'bg-yellow-400',
+-                  green: 'bg-green-500',
+-                  blue: 'bg-blue-500',
+-                  pink: 'bg-pink-400'
+-                }[color]
+-                
+-                return (
+-                  <div key={color} className="flex items-center gap-0.5">
+-                    <div className={`rounded-full ${bgClass} w-3 h-3`}/>
+-                    <span className="text-white text-xs font-medium">{count}</span>
+-                  </div>
+-                )
+-              })}
+-            </div>
+-
+-            {/* Badges + Rest */}
+-            <div className="flex items-center gap-2">
+-              <button
+-                onClick={() => setShowMyGolems(true)}
+-                className="px-3 py-1.5 rounded-lg bg-amber-700 text-white text-xs font-medium"
+-              >
+-                🎭 {myGolems.length}
+-              </button>
+-              <button
+-                onClick={() => setShowPlayedCards(true)}
+-                className="px-3 py-1.5 rounded-lg bg-stone-600 text-white text-xs font-medium"
+-              >
+-                🃏 {playedCards.length}
+-              </button>
+-              {canRest && (
+-                <button
+-                  onClick={handleRest}
+-                  className="px-3 py-1.5 rounded-lg font-bold bg-emerald-700 text-white text-xs"
+-                >
+-                  Rest
+-                </button>
+-              )}
+-            </div>
+-          </div>
+-        ) : null}
+-
+-        {/* Hand Cards Area - Right Side */}
+-        <div className={`flex-1 flex flex-col min-w-0 ${isMobile && isPortrait ? 'h-full' : 'mt-2'}`}>
+-          {/* Hand Cards - Horizontal Scroll */}
+-          <div className={`
+-            flex overflow-x-auto items-center h-full
+-            ${isMobile && isPortrait 
+-              ? 'gap-2 scrollbar-none' 
+-              : isMobile 
+-                ? 'gap-1.5 scrollbar-none pb-1' 
+-                : 'gap-3 justify-center md:justify-start scrollbar-thin scrollbar-thumb-white/30 scrollbar-track-transparent pb-1'
+-            }
+-          `}
+-          >
+-          {hand.map((card, index) => {
+-            const isPlayable = isMyTurn
+-
+-            return (
+-              <div 
+-                key={`hand-${index}`} 
+-                className={`relative flex-shrink-0 ${isMobile && isPortrait ? 'h-full' : ''}`}
+-                style={isMobile && isPortrait ? { aspectRatio: '2/3' } : {}}
+-              >
+-                <CompactCard
+-                  card={card}
+-                  type="action"
+-                  index={index}
+-                  isPlayable={isPlayable}
+-                  onClick={() => handleCardClick(card, index)}
+-                  size={isMobile && isPortrait ? 'flexible' : isMobile ? 'sm' : 'normal'}
+-                  showDetails={!isMobile}
+-                />
+-              </div>
+-            )
+-          })}
+-          
+-          {/* Empty slot indicator */}
+-          {hand.length === 0 && (
+-            <div className={`
+-              card-base relative overflow-hidden flex-shrink-0
+-              ${isMobile ? 'w-[100px] h-[150px]' : 'w-28 h-44'}
+-              border-2 border-dashed border-white/30 bg-white/5
+-            `}
+-              style={{
+-                backgroundImage: 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
+-                backgroundSize: 'cover',
+-                backgroundPosition: 'center',
+-                backgroundRepeat: 'no-repeat',
+-                backgroundColor: '#222'
+-              }}
+-            >
+-              <div className="absolute inset-0 flex items-center justify-center">
+-                <span className="text-white/50 text-xs font-semibold">Empty</span>
+-              </div>
+-            </div>
+-          )}
+-          </div>
+-        </div>
+       </div>
+ 
+-      {/* Played Cards View */}
+-      {showPlayedCards && (
+-        <div 
+-          className="fixed inset-0 z-50 flex items-center justify-center px-4"
+-          onClick={() => setShowPlayedCards(false)}
+-        >
+-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+-          <div 
+-            className="relative bg-slate-900/95 rounded-2xl p-4 max-w-sm w-full border border-white/20 shadow-2xl max-h-[70vh] overflow-y-auto"
+-            onClick={e => e.stopPropagation()}
+-          >
+-            <h3 className="text-white font-bold text-lg mb-3 flex items-center gap-2">
+-              🃏 My Played Cards
+-            </h3>
+-            {playedCards.length > 0 ? (
+-              <div className="grid grid-cols-3 gap-2">
+-                {playedCards.map((card, idx) => (
+-                  <div key={idx} className="aspect-[2/3] rounded-xl overflow-hidden bg-white/10 shadow-lg">
+-                    <img 
+-                      src={`/assets/images/${card.name}.JPG`} 
+-                      alt={card.name}
+-                      className="w-full h-full object-cover"
+-                      onError={(e) => { e.target.style.display = 'none' }}
+-                    />
+-                  </div>
+-                ))}
+-              </div>
+-            ) : (
+-              <p className="text-white/50 text-center py-8">No cards played yet</p>
+-            )}
+-            <button 
+-              onClick={() => setShowPlayedCards(false)}
+-              className="mt-4 w-full py-2.5 bg-white/10 hover:bg-white/20 rounded-xl text-white font-semibold transition-all"
+-            >
+-              Close
+-            </button>
+-          </div>
+-        </div>
+-      )}
+-
+-      {/* My Golems View */}
+-      {showMyGolems && (
+-        <div 
+-          className="fixed inset-0 z-50 flex items-center justify-center px-4"
+-          onClick={() => setShowMyGolems(false)}
+-        >
+-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+-          <div 
+-            className="relative bg-slate-900/95 rounded-2xl p-4 max-w-sm w-full border border-white/20 shadow-2xl max-h-[70vh] overflow-y-auto"
+-            onClick={e => e.stopPropagation()}
+-          >
+-            <h3 className="text-white font-bold text-lg mb-3 flex items-center gap-2">
+-              🎭 My Golems
+-            </h3>
+-            {myGolems.length > 0 ? (
+-              <div className="grid grid-cols-3 gap-2">
+-                {myGolems.map((card, idx) => (
+-                  <div key={idx} className="aspect-[2/3] rounded-xl overflow-hidden bg-white/10 shadow-lg">
+-                    <img 
+-                      src={`/assets/images/${card.name}.JPG`} 
+-                      alt={card.name}
+-                      className="w-full h-full object-cover"
+-                      onError={(e) => { e.target.style.display = 'none' }}
+-                    />
+-                  </div>
+-                ))}
+-              </div>
+-            ) : (
+-              <p className="text-white/50 text-center py-8">No golems collected yet</p>
+-            )}
+-            <button 
+-              onClick={() => setShowMyGolems(false)}
+-              className="mt-4 w-full py-2.5 bg-white/10 hover:bg-white/20 rounded-xl text-white font-semibold transition-all"
+-            >
+-              Close
+-            </button>
+-          </div>
+-        </div>
+-      )}
+-
+-      {/* Upgrade Modal */}
+-      {upgradeModal.show && (
+-        <UpgradeModal
+-          card={upgradeModal.card}
+-          cardIndex={upgradeModal.index}
+-          playerResources={myPlayer?.resources}
+-          maxTurnUpgrade={upgradeModal.card?.turnUpgrade || 1}
+-          onConfirm={(inputResources, outputResources) => {
+-            playCardWithUpgrade(upgradeModal.index, inputResources, outputResources, upgradeModal.card)
+-            setUpgradeModal({ show: false, card: null, index: null })
+-          }}
+-          onCancel={() => setUpgradeModal({ show: false, card: null, index: null })}
+-        />
+-      )}
+-
+-      {/* Trade Modal */}
+-      {tradeModal.show && (
+-        <TradeModal
+-          card={tradeModal.card}
+-          cardIndex={tradeModal.index}
+-          playerResources={myPlayer?.resources}
+-          onConfirm={(multiplier) => {
+-            playCardWithTrade(tradeModal.index, multiplier, tradeModal.card)
+-            setTradeModal({ show: false, card: null, index: null })
+-          }}
+-          onCancel={() => setTradeModal({ show: false, card: null, index: null })}
+-        />
+-      )}
++      <Modal open={list === 'golems'} onClose={() => setList(null)} title={`My golems (${golems.length})`} variant="stone" size="sm">
++        <CardGrid cards={golems} />
++      </Modal>
++      <Modal open={list === 'played'} onClose={() => setList(null)} title={`Played cards (${a.playedCards.length})`} variant="stone" size="sm">
++        <p className="mb-3 text-sm text-fg-muted">Rest to take them all back to your hand.</p>
++        <CardGrid cards={a.playedCards} dim />
++      </Modal>
++      <CardSheet sheet={sheet} onClose={() => setSheet(null)} />
++      <BoardModals actions={a} />
+     </div>
+   )
+ }
 --- a/web/react-frontend/src/components/MyGolemsPanel.jsx
 +++ b/web/react-frontend/src/components/MyGolemsPanel.jsx
 @@ -1,153 +1,38 @@
@@ -4782,38 +5624,89 @@
 -
 --- a/web/react-frontend/src/components/PlayersInfoBar.jsx
 +++ b/web/react-frontend/src/components/PlayersInfoBar.jsx
-@@ -1,5 +1,7 @@
- import React, { useState, useEffect } from 'react'
+@@ -1,112 +1,70 @@
+-import React, { useState, useEffect } from 'react'
++import React from 'react'
  import useGameStore from '../store/gameStore'
-+import PlayerAvatar from './PlayerAvatar'
+-
+-// Timer Ring around avatar
+-const TimerRing = ({ duration = 60 }) => {
+-  const [timeLeft, setTimeLeft] = useState(duration)
+-  const { gameState } = useGameStore()
+-  
+-  useEffect(() => {
+-    setTimeLeft(duration)
+-  }, [gameState?.currentPlayer, duration])
+-  
+-  useEffect(() => {
+-    const timer = setInterval(() => {
+-      setTimeLeft(prev => Math.max(0, prev - 1))
+-    }, 1000)
+-    return () => clearInterval(timer)
+-  }, [gameState?.currentPlayer])
+-  
+-  const progress = (timeLeft / duration) * 100
+-  const color = timeLeft > 30 ? '#22c55e' : timeLeft > 10 ? '#eab308' : '#ef4444'
+-  
+-  return (
+-    <div 
+-      className="absolute inset-[-3px] rounded-full"
+-      style={{
+-        background: `conic-gradient(${color} ${progress}%, transparent ${progress}%)`,
+-      }}
+-    />
+-  )
+-}
+-
+-const PlayersInfoBar = () => {
++import useTurnTimer from '../hooks/useTurnTimer'
++import Avatar from './ui/Avatar'
++import CrystalRow from './ui/CrystalRow'
++import GolemIcon from './ui/GolemIcon'
++import TurnBanner from './ui/TurnBanner'
 +import AiThinkingIndicator from './AiThinkingIndicator'
++
++const pointsOf = (p) =>
++  (p?.pointCards?.reduce((s, c) => s + (c.points || 0), 0) || 0) + (p?.coins?.reduce((s, c) => s + (c.points || 0), 0) || 0)
++
++/**
++ * Phones: every player as a chip (one scrolling row; a column when `vertical`), then whose turn it is.
++ * The player to move glows; people get a timer ring. `compact` (phone held sideways): portrait, points
++ * and golems only, no status line (the hand panel glows on your turn).
++ */
++const PlayersInfoBar = ({ vertical = false, compact = false }) => {
+   const { gameState, myPlayer, currentPlayer } = useGameStore()
+-
+-  if (!gameState?.players) return null
+-
+-  const otherPlayers = gameState.players; //.filter(p => p.id !== myPlayer?.id)
+-  if (otherPlayers.length === 0) return null
++  const timer = useTurnTimer()
++  if (!gameState?.players?.length) return null
++  const started = !!gameState.market && Object.keys(gameState.market).length > 0
++  const isMyTurn = started && currentPlayer?.id === myPlayer?.id
++  const thinking = currentPlayer?.isAI && gameState?.aiThinking?.playerID === currentPlayer?.id
  
- // Timer Ring around avatar
- const TimerRing = ({ duration = 60 }) => {
-@@ -41,26 +43,34 @@
    return (
-     <div data-players-info-bar className="w-full flex-shrink-0 py-1.5 px-2 bg-black/60">
-       <div className="flex items-center justify-center gap-2 flex-wrap">
+-    <div data-players-info-bar className="w-full flex-shrink-0 py-1.5 px-2 bg-black/60">
+-      <div className="flex items-center justify-center gap-2 flex-wrap">
 -        {otherPlayers.map((player) => {
-+        {otherPlayers.map((player, i) => {
-           const isCurrentTurn = currentPlayer?.id === player.id
-           
+-          const isCurrentTurn = currentPlayer?.id === player.id
+-          
++    <div data-players-info-bar className="flex flex-shrink-0 flex-col gap-2 px-3 pb-2">
++      <div className={vertical ? 'flex flex-col gap-1.5' : 'scrollbar-hide -mx-3 flex snap-x scroll-pl-3 gap-2 overflow-x-auto px-3 pb-1 pt-1'}>
++        {gameState.players.map((p) => {
++          const current = started && currentPlayer?.id === p.id
++          const offline = !p.isAI && p.online === false
            return (
              <div
 -              key={player.id}
 -              className={`flex items-center gap-2 px-2 py-1 rounded-xl ${isCurrentTurn ? 'bg-yellow-500/20' : 'bg-white/5'}`}
-+              // waiting-room rows all have id 0: keying on id alone left ghost rows after the game started
-+              key={player.id ? `p${player.id}` : `w${i}-${player.name}`}
-+              className={`relative flex items-center gap-2 px-2 py-1 rounded-xl max-w-[13rem] ${isCurrentTurn ? 'bg-yellow-500/20' : 'bg-white/5'}`}
++              key={p.id || p.name}
++              className={`surface-stone flex min-h-[52px] flex-shrink-0 snap-start items-center gap-2 px-2 py-1.5 ${vertical ? 'w-full' : compact ? '' : 'min-w-[156px]'} ${current ? 'turn-glow' : ''}`}
              >
-+              {/* AI thinking: overlaid, so the row keeps its size (no layout shift) */}
-+              {isCurrentTurn && player.isAI && gameState.aiThinking?.playerID === player.id && (
-+                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 z-10 px-1.5 rounded-full bg-purple-800/90 text-[9px] leading-4 whitespace-nowrap pointer-events-none">
-+                  <AiThinkingIndicator />
-+                </div>
-+              )}
-               {/* Avatar with timer ring for current turn */}
-               <div className="relative">
+-              {/* Avatar with timer ring for current turn */}
+-              <div className="relative">
 -                {isCurrentTurn && <TimerRing duration={60} />}
 -                <div className={`
 -                  relative w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold
@@ -4821,35 +5714,79 @@
 -                  ${player.online === false ? 'opacity-50' : ''}
 -                `}>
 -                  {player.isAI ? '🤖' : player.name?.charAt(0)?.toUpperCase() || '?'}
--                </div>
++              <Avatar player={p} size={30} turn={current} timer={current && !p.isAI ? timer : undefined} offline={offline} restAnchor />
++              {compact ? (
++                <div className="flex flex-col items-start leading-tight">
++                  <span className="font-display text-xs font-bold text-bronze-100">★{pointsOf(p)}</span>
++                  <span className="inline-flex items-center gap-0.5 text-xs font-bold text-bronze-300"><GolemIcon size={12} label="Golems" />{p.pointCards?.length || 0}</span>
+                 </div>
 -                {/* Online/Offline status indicator */}
 -                {player.online !== undefined && (
-+                {isCurrentTurn && !player.isAI && <TimerRing duration={gameState.turnTimeout || 60} />}
-+                <PlayerAvatar
-+                  player={player}
-+                  className={`
-+                    relative w-7 h-7 rounded-full text-xs
-+                    ${isCurrentTurn ? 'bg-yellow-500 text-black' : 'bg-purple-600 text-white'}
-+                    ${player.online === false ? 'opacity-50' : ''}
-+                  `}
-+                />
-+                {/* Online/Offline status indicator (humans only) */}
-+                {player.online !== undefined && !player.isAI && (
-                   <div 
-                     className={`
-                       absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white shadow
-@@ -75,9 +85,9 @@
-               <div className="flex flex-col text-[10px]">
-                 {/* Row 1: Name + Points */}
+-                  <div 
+-                    className={`
+-                      absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white shadow
+-                      ${player.online ? 'bg-green-500' : 'bg-gray-500'}
+-                    `}
+-                    title={player.online ? 'Online' : 'Offline'}
+-                  />
+-                )}
+-              </div>
+-
+-              {/* Info */}
+-              <div className="flex flex-col text-[10px]">
+-                {/* Row 1: Name + Points */}
++              ) : (
++              <div className="min-w-0 flex-1">
                  <div className="flex items-center gap-1">
 -                  <span className={`text-white font-medium ${player.online === false ? 'opacity-60' : ''}`}>
-+                  <span className={`text-white font-medium truncate max-w-[6.5rem] ${player.online === false ? 'opacity-60' : ''}`}>
-                     {player.name}
+-                    {player.name}
 -                    {player.online === false && <span className="text-gray-400 ml-1">(offline)</span>}
-+                    {!player.isAI && player.online === false && <span className="text-gray-400 ml-1">(offline)</span>}
-                   </span>
-                   <span className="text-yellow-400 font-bold">★{player.points || 0}</span>
+-                  </span>
+-                  <span className="text-yellow-400 font-bold">★{player.points || 0}</span>
++                  <span className="truncate text-xs font-bold text-fg">{p.id === myPlayer?.id ? 'You' : p.name}</span>
++                  <span className="ml-auto flex-shrink-0 font-display text-xs font-bold text-bronze-100">★{pointsOf(p)}</span>
                  </div>
+-                
+-                {/* Row 2: Crystals + Counts */}
+                 <div className="flex items-center gap-1.5">
+-                  {/* Crystals */}
+-                  {['yellow', 'green', 'blue', 'pink'].map((color) => {
+-                    const count = player.caravan?.[color] || 0
+-                    const bg = { yellow: 'bg-yellow-400', green: 'bg-green-500', blue: 'bg-blue-500', pink: 'bg-pink-400' }[color]
+-                    return (
+-                      <div key={color} className="flex items-center gap-0.5">
+-                        <div className={`w-2.5 h-2.5 rounded-full ${bg}`}/>
+-                        <span className="text-white/80">{count}</span>
+-                      </div>
+-                    )
+-                  })}
+-                  
+-                  <span className="text-white/30">|</span>
+-                  
+-                  {/* Counts */}
+-                  <span className="text-blue-300">🎭{player.pointCards?.length || 0}</span>
+-                  <span className="text-green-300">🃏{player.playedCards?.length || 0}</span>
++                  <CrystalRow resources={p.caravan} size="xs" className="!gap-1" />
++                  <span className="ml-auto inline-flex flex-shrink-0 items-center gap-0.5 text-xs font-bold text-bronze-300"><GolemIcon size={12} label="Golems" />{p.pointCards?.length || 0}</span>
+                 </div>
+               </div>
++              )}
+             </div>
+           )
+         })}
+       </div>
++      {started && !compact ? (
++        isMyTurn ? (
++          <TurnBanner show seconds={timer.remaining} label="Your turn — tap a card" className="w-full justify-center" />
++        ) : (
++          <div className="flex min-h-[36px] items-center justify-center rounded-stone-sm bg-rock-950/60 px-3 text-sm text-fg-muted">
++            {thinking ? <AiThinkingIndicator label={`${currentPlayer.name} is thinking`} /> : `Waiting for ${currentPlayer?.name || 'the next player'}…`}
++          </div>
++        )
++      ) : null}
+     </div>
+   )
+ }
 --- a/web/react-frontend/src/components/RestPopup.jsx
 +++ b/web/react-frontend/src/components/RestPopup.jsx
 @@ -0,0 +1,86 @@
@@ -5835,7 +6772,7 @@
 +              type="button"
 +              onClick={() => removeToast(toast.id)}
 +              aria-label="Dismiss"
-+              className="inline-flex h-9 w-9 items-center justify-center rounded-stone-sm text-fg-muted hover:bg-rock-700/60 hover:text-fg"
++              className="inline-flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-stone-sm text-fg-muted hover:bg-rock-700/60 hover:text-fg"
 +            >
 +              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
 +            </button>
@@ -7843,7 +8780,7 @@
 +})
 --- a/web/react-frontend/src/hooks/useBoardActions.js
 +++ b/web/react-frontend/src/hooks/useBoardActions.js
-@@ -0,0 +1,130 @@
+@@ -0,0 +1,129 @@
 +import { useState } from 'react'
 +import useGameStore from '../store/gameStore'
 +import useReopenAfterUndo from './useReopenAfterUndo'
@@ -7873,10 +8810,9 @@
 +  const [confirmGolem, setConfirmGolem] = useState({ show: false, golem: null, index: null, coin: null })
 +
 +  useReopenAfterUndo(({ kind, card, cardIndex }) => {
-+    if (!reopenAfterUndo) return
 +    if (kind === 'upgrade') setUpgradeModal({ show: true, card, index: cardIndex })
 +    else if (kind === 'trade') setTradeModal({ show: true, card, index: cardIndex })
-+  })
++  }, reopenAfterUndo)
 +
 +  // Waiting room: the server sends no market (or an empty one) before the game starts
 +  const market = gameState?.market
@@ -8061,20 +8997,22 @@
      width,
 --- a/web/react-frontend/src/hooks/useReopenAfterUndo.js
 +++ b/web/react-frontend/src/hooks/useReopenAfterUndo.js
-@@ -0,0 +1,14 @@
+@@ -0,0 +1,16 @@
 +import { useEffect } from 'react'
 +import useGameStore from '../store/gameStore'
 +
 +// After "Undo" in the discard popup the card is back in hand: reopen the picker the player used
 +// (trade multiplier / upgrade choice) so they can choose again. open({ kind, card, cardIndex }).
-+export default function useReopenAfterUndo(open) {
++// Only one component per screen may pass `enabled` (the one that owns the trade/upgrade popups):
++// the first enabled caller consumes the event.
++export default function useReopenAfterUndo(open, enabled = true) {
 +  const reopenPlay = useGameStore((s) => s.reopenPlay)
 +  useEffect(() => {
-+    if (!reopenPlay) return
++    if (!enabled || !reopenPlay) return
 +    useGameStore.getState().consumeReopenPlay()
 +    open(reopenPlay)
 +    // eslint-disable-next-line react-hooks/exhaustive-deps
-+  }, [reopenPlay])
++  }, [reopenPlay, enabled])
 +}
 --- a/web/react-frontend/src/hooks/useTurnTimer.js
 +++ b/web/react-frontend/src/hooks/useTurnTimer.js
@@ -8217,7 +9155,24 @@
  }
  
  @layer components {
-@@ -454,15 +532,6 @@
+@@ -236,15 +314,7 @@
+     -webkit-touch-callout: none;
+   }
+   
+-  /* Larger touch targets */
+-  button, 
+-  [role="button"],
+-  a,
+-  input[type="button"],
+-  input[type="submit"] {
+-    min-height: 44px;
+-    min-width: 44px;
+-  }
++  /* Touch targets: components size themselves (≥ 44px on phones, checked by deploy/ui-shots.mjs) */
+ 
+   /* Disable hover states on touch */
+   .card-base:hover {
+@@ -454,15 +524,6 @@
      min-height: 300px;
    }
  
@@ -8233,7 +9188,7 @@
    /* Animation utilities */
    .animate-slide-up {
      animation: slideUp 0.3s ease-out forwards;
-@@ -503,26 +572,3 @@
+@@ -503,26 +564,3 @@
      to { opacity: 1; }
    }
  }
@@ -8404,19 +9359,79 @@
        {useWebLayout ? (
          /* Desktop/Tablet - WebGameLayout */
          <div className="h-screen h-[100dvh] relative z-10">
-@@ -119,11 +108,6 @@
-           {/* Discard Modal (when crystals exceed max) */}
+@@ -83,48 +72,31 @@
            <DiscardModal />
-           
+         </div>
+       ) : (
+-        /* Mobile - CompactGameBoard with mobile-specific layout */
+-        <div className={`
+-          ${isPortrait 
+-            ? 'h-screen h-[100dvh] flex flex-col relative z-10 overflow-hidden' 
+-            : 'min-h-screen min-h-[100dvh] flex flex-col relative z-10'
+-          }
+-          ${isPortrait ? 'mobile-portrait' : 'mobile-landscape'}
+-        `}>
+-          {/* Players Info Bar - Top */}
+-          <PlayersInfoBar />
+-
+-          {/* Central Game Board */}
+-          <div 
+-            className={`
+-            ${isPortrait 
+-              ? 'flex-1 overflow-hidden relative z-10 min-h-0 pb-[130px]' 
+-              : 'flex-1 overflow-y-auto pb-24 relative z-10 min-h-0'
+-            }
+-          `}
+-          >
+-            <CompactGameBoard />
++        /* Phones (and phones held sideways): compact board */
++        isPortrait ? (
++          <div className="relative z-board flex h-screen h-[100dvh] flex-col overflow-hidden" style={{ paddingTop: 'calc(max(8px, var(--safe-top)) + 52px)' }}>
++            <PlayersInfoBar />
++            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
++              <CompactGameBoard />
++            </div>
++            <CompactPlayerHand />
++            <DiscardModal />
+           </div>
+-
+-          {/* Player Hand - Bottom (Fixed on mobile, relative on desktop) */}
+-          {!isPortrait && (
+-            <div className="flex-shrink-0 relative z-30">
+-              <CompactPlayerHand />
++        ) : (
++          <div
++            className="relative z-board grid h-screen h-[100dvh] grid-cols-[minmax(0,1fr)_minmax(280px,34%)] gap-2 overflow-hidden"
++            style={{ paddingTop: 'calc(max(8px, var(--safe-top)) + 52px)', paddingLeft: 'var(--safe-left)', paddingRight: 'max(8px, var(--safe-right))' }}
++          >
++            <div className="min-h-0 overflow-y-auto overscroll-contain">
++              <CompactGameBoard landscape />
+             </div>
+-          )}
+-          
+-          {/* Player Hand - Fixed on mobile portrait */}
+-          {isPortrait && <CompactPlayerHand />}
+-
+-          {/* Discard Modal (when crystals exceed max) */}
+-          <DiscardModal />
+-          
 -          {/* Overlay when other players acquire or play cards */}
 -          <AcquiredCardOverlay />
 -
 -          {/* Activity Feed (Chat & History) - Works on all screen sizes */}
 -          <CollapsibleInfo sessionId={sessionId} />
-         </div>
+-        </div>
++            <div className="flex min-h-0 flex-col gap-1 pb-1">
++              <PlayersInfoBar compact />
++              <div className="min-h-0 flex-1"><CompactPlayerHand landscape /></div>
++            </div>
++            <DiscardModal />
++          </div>
++        )
        )}
  
-@@ -144,6 +128,7 @@
+       {/* Game Over Modal */}
+@@ -144,6 +116,7 @@
    const navigate = useNavigate()
    const [gameMode, setGameMode] = useState(null) // null, 'single', 'multi'
    const [inGame, setInGame] = useState(false)
@@ -8424,17 +9439,16 @@
    const { 
      connectWebSocket, 
      gameState, 
-@@ -158,13 +143,30 @@
+@@ -158,13 +131,30 @@
      playerAvatar: storedPlayerAvatar,
      isSpectator,
    } = useGameStore()
 -  const { isPortrait, isLandscape, isMobile, isTablet, isDesktop, width } = useOrientation()
 +  const { isPortrait, isCompact } = useOrientation()
- 
--  // Auto-join if roomId is in URL
++
 +  // While disconnected the board is inert (no clicks, no focus). React 18 has no `inert` prop.
 +  const boardRef = useRef(null)
-   useEffect(() => {
++  useEffect(() => {
 +    const el = boardRef.current
 +    if (!el) return
 +    if (!connected) el.setAttribute('inert', '')
@@ -8447,8 +9461,9 @@
 +  // The room we just left on purpose (Back to Menu / Play Again): while the URL still says
 +  // /room/<id> for one more render, it must not be mistaken for an invite link.
 +  const leftRoomRef = useRef(null)
-+
-+  useEffect(() => {
+ 
+-  // Auto-join if roomId is in URL
+   useEffect(() => {
 +    if (roomId && roomId === leftRoomRef.current) return
      if (roomId && !inGame && !isConnecting) {
 +      setPendingRoomId(roomId)
@@ -8458,7 +9473,7 @@
      }
    }, [roomId, inGame, isConnecting])
  
-@@ -183,250 +185,142 @@
+@@ -183,250 +173,142 @@
    }
  
    const handleBackToMenu = () => {
