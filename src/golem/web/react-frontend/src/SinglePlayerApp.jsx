@@ -5,9 +5,7 @@ import Lobby from './components/Lobby'
 import PlayersInfoBar from './components/PlayersInfoBar'
 import CompactGameBoard from './components/mobile/CompactGameBoard'
 import CompactPlayerHand from './components/mobile/CompactPlayerHand'
-import CollapsibleInfo from './components/CollapsibleInfo'
 import DiscardModal from './components/DiscardModal'
-import AcquiredCardOverlay from './components/AcquiredCardOverlay'
 import RestPopup from './components/RestPopup'
 import GameOverModal from './components/GameOverModal'
 import Toast from './components/Toast'
@@ -18,9 +16,7 @@ import NightBackdrop from './components/ui/NightBackdrop'
 import { apiFetch } from './utils/api'
 import { showToast } from './utils/toast'
 import WebGameLayout from './components/desktop/WebGameLayout'
-import ThemeToggleButton from './components/ThemeToggleButton'
-import SoundToggleButton from './components/SoundToggleButton'
-import DifficultyBadge from './components/DifficultyBadge'
+import Hud from './components/board/Hud'
 import FantasyGameLayout from './components/desktop/FantasyGameLayout'
 import useGameStore from './store/gameStore'
 import useOrientation from './hooks/useOrientation'
@@ -40,14 +36,12 @@ function GameContentWithTheme({ useWebLayout, isMobile, isPortrait, sessionId, o
   const handleNewGame = onNewGame
   const handleBackToMenu = onBackToMenu
 
-  // Fantasy Theme Layout
-  if (isFantasy) {
+  // ✨ table layout: desktop only (phones and short landscape screens always get the compact board)
+  if (isFantasy && useWebLayout) {
     return (
       <>
-        <ThemeToggleButton />
-        <DifficultyBadge />
-        <SoundToggleButton />
-        <FantasyGameLayout 
+        <Hud sessionId={sessionId} showSkinToggle />
+        <FantasyGameLayout
           onNewGame={handleNewGame}
           onBackToMenu={handleBackToMenu}
         />
@@ -57,17 +51,11 @@ function GameContentWithTheme({ useWebLayout, isMobile, isPortrait, sessionId, o
     )
   }
 
-  // Default Theme Layout
+  // Standard layout
   return (
     <>
-      {/* Theme Toggle Button - Always visible */}
-      <ThemeToggleButton />
-
-      {/* AI difficulty — one badge for the whole game, under the theme toggle */}
-      <DifficultyBadge />
-      
-      {/* Sound Toggle Button - Always visible */}
-      <SoundToggleButton />
+      {/* Round · difficulty (left), ✨ · sound · activity (right) */}
+      <Hud sessionId={sessionId} showSkinToggle={useWebLayout} compact={!useWebLayout} />
 
       {/* "<opponent> rested" popup */}
       <RestPopup />
@@ -120,11 +108,6 @@ function GameContentWithTheme({ useWebLayout, isMobile, isPortrait, sessionId, o
           {/* Discard Modal (when crystals exceed max) */}
           <DiscardModal />
           
-          {/* Overlay when other players acquire or play cards */}
-          <AcquiredCardOverlay />
-
-          {/* Activity Feed (Chat & History) - Works on all screen sizes */}
-          <CollapsibleInfo sessionId={sessionId} />
         </div>
       )}
 

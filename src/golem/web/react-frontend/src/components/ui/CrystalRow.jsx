@@ -1,7 +1,8 @@
 import React from 'react'
 import Gem, { CRYSTALS } from './Gem'
 
-const totalOf = (res) => CRYSTALS.reduce((n, c) => n + (res?.[c] || 0), 0)
+const count = (res, c) => Number(res?.[c]) || 0 // the server sends some counts as strings
+const totalOf = (res) => CRYSTALS.reduce((n, c) => n + count(res, c), 0)
 
 const TEXT = { xs: 'text-xs', sm: 'text-sm', md: 'text-base', lg: 'text-lg' }
 const GEM = { xs: 14, sm: 16, md: 20, lg: 24 }
@@ -12,12 +13,12 @@ const GEM = { xs: 14, sm: 16, md: 20, lg: 24 }
  */
 const CrystalRow = ({ resources, size = 'sm', capacity, showZero = true, className = '', tone = 'stone' }) => {
   const total = totalOf(resources)
-  const label = CRYSTALS.map((c) => `${resources?.[c] || 0} ${c}`).join(', ') + (capacity ? `, ${total} of ${capacity}` : '')
+  const label = CRYSTALS.map((c) => `${count(resources, c)} ${c}`).join(', ') + (capacity ? `, ${total} of ${capacity}` : '')
   const muted = tone === 'parchment' ? 'text-ink-muted' : 'text-fg-muted'
   return (
     <div className={`inline-flex items-center gap-2 ${TEXT[size]} ${className}`} role="group" aria-label={`Crystals: ${label}`}>
       {CRYSTALS.map((c) => {
-        const n = resources?.[c] || 0
+        const n = count(resources, c)
         if (!showZero && n === 0) return null
         return (
           <span key={c} className={`inline-flex items-center gap-0.5 font-semibold tabular-nums ${n === 0 ? 'opacity-40' : ''}`}>
@@ -40,11 +41,11 @@ const CrystalRow = ({ resources, size = 'sm', capacity, showZero = true, classNa
  * `resources` is a {yellow, green, blue, pink} count map.
  */
 export const CrystalCost = ({ resources, size = 16, className = '', max = 5 }) => {
-  const label = CRYSTALS.filter((c) => resources?.[c]).map((c) => `${resources[c]} ${c}`).join(', ') || 'nothing'
+  const label = CRYSTALS.filter((c) => count(resources, c)).map((c) => `${count(resources, c)} ${c}`).join(', ') || 'nothing'
   return (
     <span className={`inline-flex flex-wrap items-center gap-0.5 ${className}`} role="img" aria-label={label}>
       {CRYSTALS.map((c) => {
-        const n = resources?.[c] || 0
+        const n = count(resources, c)
         if (!n) return null
         if (n > max) {
           return (

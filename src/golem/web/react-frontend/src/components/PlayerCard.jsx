@@ -1,86 +1,67 @@
 import React from 'react'
-import PlayerAvatar from './PlayerAvatar'
+import useGameStore from '../store/gameStore'
+import useTurnTimer from '../hooks/useTurnTimer'
+import Avatar from './ui/Avatar'
+import CrystalRow from './ui/CrystalRow'
+import GolemIcon from './ui/GolemIcon'
+import Pill from './ui/Pill'
+import AiThinkingIndicator from './AiThinkingIndicator'
 
+// Points so far = golems + coins (non-yellow crystals only count at the end).
+const pointsOf = (p) =>
+  (p?.pointCards?.reduce((s, c) => s + (c.points || 0), 0) || 0) + (p?.coins?.reduce((s, c) => s + (c.points || 0), 0) || 0)
+
+/**
+ * A player's plaque on the desktop board: portrait (timer ring on their turn; anchor of the rest
+ * popup), name, points, golems, crystals, cards in hand / played, AI thinking, offline.
+ */
 const PlayerCard = ({ player, isCurrentPlayer }) => {
+  const aiThinking = useGameStore((s) => s.gameState?.aiThinking)
+  const golemsToEnd = useGameStore((s) => s.gameState?.golemsToEnd)
+  const myId = useGameStore((s) => s.myPlayer?.id)
+  const timer = useTurnTimer()
   if (!player) return null
 
-  const golemsCount = player.pointCards?.length || 0
-  
-  // Crystal colors
-  const crystalColors = {
-    yellow: 'bg-yellow-400',
-    green: 'bg-green-500',
-    blue: 'bg-blue-500',
-    pink: 'bg-pink-400'
-  }
+  const golems = player.pointCards?.length || 0
+  const offline = !player.isAI && player.online === false
+  const thinking = player.isAI && isCurrentPlayer && aiThinking?.playerID === player.id
+  const nearEnd = golemsToEnd && golems >= golemsToEnd - 1
 
   return (
-    <div 
-      className={`
-        relative bg-white/10 backdrop-blur-md rounded-xl border p-2
-        ${isCurrentPlayer 
-          ? 'border-yellow-400 ring-2 ring-yellow-400/50 bg-yellow-500/10' 
-          : 'border-white/20'
-        }
-      `}
-    >
-      {/* Current Turn Indicator */}
-      {isCurrentPlayer && (
-        <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-pulse" />
-      )}
-
-      {/* Avatar on the left, as tall as both rows (name row + crystal row) */}
-      <div className="flex items-center gap-2.5">
-        <div className="relative flex-shrink-0">
-          <PlayerAvatar
-            player={player}
-            restAnchor
-            className={`
-              w-12 h-12 rounded-full text-base
-              border-2 ${isCurrentPlayer ? 'border-yellow-400' : 'border-white'} shadow
-              ${isCurrentPlayer ? 'bg-yellow-500 text-black' : 'bg-purple-600 text-white'}
-              ${player.online === false ? 'opacity-50' : ''}
-            `}
-          />
-          {/* Online/Offline status indicator (humans only; AIs are always there) */}
-          {player.online !== undefined && !player.isAI && (
-            <div
-              className={`
-                absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white shadow
-                ${player.online ? 'bg-green-500' : 'bg-gray-500'}
-              `}
-              title={player.online ? 'Online' : 'Offline'}
-            />
-          )}
+    <div className={`surface-stone flex items-center gap-2.5 px-2.5 py-2 ${isCurrentPlayer ? 'turn-glow' : ''}`}>
+      <Avatar
+        player={player}
+        size={44}
+        turn={isCurrentPlayer}
+        timer={isCurrentPlayer && !player.isAI ? timer : undefined}
+        offline={offline}
+        restAnchor
+      />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <span className={`truncate text-sm font-bold ${offline ? 'text-fg-muted' : 'text-fg'}`} title={player.name}>
+            {player.name || 'Player'}{player.id === myId ? <span className="font-normal text-fg-muted"> (you)</span> : null}
+          </span>
+          <span className="ml-auto flex-shrink-0 font-display text-sm font-bold text-bronze-100 tabular-nums" title="Golems + coins so far">★{pointsOf(player)}</span>
         </div>
-
-        <div className="flex-1 min-w-0">
-          {/* Row 1: Name + Golems */}
-          <div className="flex items-center gap-2 mb-1">
-            <div className={`text-white font-bold text-sm flex-1 min-w-0 flex items-center ${player.online === false ? 'opacity-60' : ''}`}>
-              <span className="truncate" title={player.name || 'Player'}>{player.name || 'Player'}</span>
-              {!player.isAI && player.online === false && (
-                <span className="text-gray-400 text-xs ml-1 flex-shrink-0">(offline)</span>
-              )}
-            </div>
-            <div className={`flex-shrink-0 flex items-center gap-1 bg-purple-600/50 rounded-lg px-2 py-0.5 ${golemsCount >= 4 ? 'animate-bounce ring-2 ring-red-500' : ''}`}>
-              <span className="text-base leading-5">🗿</span>
-              <span className="text-white font-bold text-sm">{golemsCount}</span>
-            </div>
-          </div>
-
-          {/* Row 2: Crystals */}
-          <div className="flex items-center gap-1.5">
-            {['yellow', 'green', 'blue', 'pink'].map((color) => {
-              const count = player.caravan?.[color] || 0
-              return (
-                <div key={color} className="flex items-center gap-0.5">
-                  <div className={`w-4 h-4 rounded-full ${crystalColors[color]}`} />
-                  <span className="text-white text-sm font-bold">{count}</span>
-                </div>
-              )
-            })}
-          </div>
+        <div className="mt-1 flex items-center gap-2">
+          {thinking ? (
+            <AiThinkingIndicator label="thinking" className="text-xs" />
+          ) : (
+            <CrystalRow resources={player.caravan} size="xs" />
+          )}
+          <span
+            className={`ml-auto inline-flex flex-shrink-0 items-center gap-0.5 rounded-full px-1.5 text-xs font-bold ${nearEnd ? 'bg-ember/30 text-[rgb(255_210_196)]' : 'text-bronze-300'}`}
+            title={nearEnd ? 'One golem away from ending the game' : 'Golems'}
+          >
+            <GolemIcon size={14} label="Golems" />{golems}
+          </span>
+        </div>
+        <div className="mt-0.5 flex items-center gap-2 text-xs text-fg-muted">
+          <span title="Cards in hand">{player.hand?.length || 0} in hand</span>
+          <span aria-hidden="true">·</span>
+          <span title="Cards played since the last rest">{player.playedCards?.length || 0} played</span>
+          {offline ? <Pill tone="ember" className="ml-auto">Offline</Pill> : null}
         </div>
       </div>
     </div>
@@ -88,4 +69,3 @@ const PlayerCard = ({ player, isCurrentPlayer }) => {
 }
 
 export default PlayerCard
-

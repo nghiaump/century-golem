@@ -1,28 +1,21 @@
 import React, { useState } from 'react'
+import Button from './ui/Button'
 
+// Room ID with a Copy button (activity drawer).
 const RoomDisplay = ({ sessionId }) => {
   const [copied, setCopied] = useState(false)
-
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(sessionId)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
-
   if (!sessionId) return null
-
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(sessionId)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch { /* clipboard refused: the ID stays selectable */ }
+  }
   return (
-    <div className="bg-black/40 backdrop-blur-md rounded-lg px-4 py-2 flex items-center gap-3">
-      <div className="flex flex-col">
-        <span className="text-white/60 text-xs">Room ID</span>
-        <span className="text-white font-mono text-sm">{sessionId}</span>
-      </div>
-      <button
-        onClick={copyToClipboard}
-        className="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm transition-colors"
-      >
-        {copied ? '✓ Copied!' : 'Copy'}
-      </button>
+    <div className="flex items-center gap-2">
+      <span className="min-w-0 flex-1 select-all truncate font-mono text-sm text-fg" title={sessionId}>{sessionId}</span>
+      <Button size="sm" variant="secondary" onClick={copy}>{copied ? 'Copied' : 'Copy'}</Button>
     </div>
   )
 }

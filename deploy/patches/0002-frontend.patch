@@ -1,21 +1,904 @@
 --- a/web/react-frontend/src/components/AiThinkingIndicator.jsx
 +++ b/web/react-frontend/src/components/AiThinkingIndicator.jsx
-@@ -0,0 +1,15 @@
+@@ -0,0 +1,16 @@
 +import React from 'react'
++import Gem from './ui/Gem'
 +
-+// "thinking…" marker shown on the AI whose turn it is (Hard/Very Hard think for 1.4–3 s).
++// "<AI> is thinking…" marker (Hard/Very Hard think for 1.4–3 s): three crystals pulsing in turn.
 +const AiThinkingIndicator = ({ label = 'thinking', className = '' }) => (
-+  <span className={`inline-flex items-center gap-1 text-purple-200 ${className}`} role="status" aria-live="polite">
++  <span className={`inline-flex items-center gap-1.5 text-fg-muted ${className}`} role="status" aria-live="polite">
 +    <span className="flex gap-0.5" aria-hidden="true">
-+      <span className="w-1.5 h-1.5 rounded-full bg-purple-300 animate-bounce" style={{ animationDelay: '0ms' }} />
-+      <span className="w-1.5 h-1.5 rounded-full bg-purple-300 animate-bounce" style={{ animationDelay: '150ms' }} />
-+      <span className="w-1.5 h-1.5 rounded-full bg-purple-300 animate-bounce" style={{ animationDelay: '300ms' }} />
++      {['blue', 'green', 'pink'].map((c, i) => (
++        <span key={c} className="animate-pulse" style={{ animationDelay: `${i * 0.2}s` }}><Gem color={c} size={12} label={false} /></span>
++      ))}
 +    </span>
-+    <span>{label}…</span>
++    <span className="truncate">{label}…</span>
 +  </span>
 +)
 +
 +export default AiThinkingIndicator
+--- a/web/react-frontend/src/components/board/BoardModals.jsx
++++ b/web/react-frontend/src/components/board/BoardModals.jsx
+@@ -0,0 +1,55 @@
++import React from 'react'
++import useGameStore from '../../store/gameStore'
++import DepositModal from '../DepositModal'
++import UpgradeModal from '../UpgradeModal'
++import TradeModal from '../TradeModal'
++import ConfirmGolemModal from '../ConfirmGolemModal'
++
++/** The popups opened by useBoardActions handlers (buy, upgrade, trade, claim). */
++const BoardModals = ({ actions }) => {
++  const { modals, myPlayer } = actions
++  const { depositModal, upgradeModal, tradeModal, confirmGolem } = modals
++  const resources = myPlayer?.resources || myPlayer?.caravan
++  return (
++    <>
++      {depositModal.show && (
++        <DepositModal card={depositModal.card} cardIndex={depositModal.index} onClose={modals.closeDeposit} />
++      )}
++      {upgradeModal.show && (
++        <UpgradeModal
++          card={upgradeModal.card}
++          playerResources={resources}
++          maxTurnUpgrade={upgradeModal.card?.turnUpgrade || 1}
++          onConfirm={(input, output) => {
++            useGameStore.getState().playCardWithUpgrade(upgradeModal.index, input, output, upgradeModal.card)
++            modals.closeUpgrade()
++          }}
++          onCancel={modals.closeUpgrade}
++        />
++      )}
++      {tradeModal.show && (
++        <TradeModal
++          card={tradeModal.card}
++          playerResources={resources}
++          onConfirm={(multiplier) => {
++            useGameStore.getState().playCardWithTrade(tradeModal.index, multiplier, tradeModal.card)
++            modals.closeTrade()
++          }}
++          onCancel={modals.closeTrade}
++        />
++      )}
++      <ConfirmGolemModal
++        isOpen={confirmGolem.show}
++        golem={confirmGolem.golem}
++        coin={confirmGolem.coin}
++        onConfirm={() => {
++          if (confirmGolem.golem) useGameStore.getState().claimPointCard(confirmGolem.index, confirmGolem.golem)
++          modals.closeGolem()
++        }}
++        onCancel={modals.closeGolem}
++      />
++    </>
++  )
++}
++
++export default BoardModals
+--- a/web/react-frontend/src/components/board/cardInfo.js
++++ b/web/react-frontend/src/components/board/cardInfo.js
+@@ -0,0 +1,21 @@
++// Plain-language summary of a card, shared by the hover popover, the mobile sheet and aria-labels.
++import { total } from '../../utils/crystals'
++
++const words = (res) => ['yellow', 'green', 'blue', 'pink'].filter((c) => res?.[c]).map((c) => `${res[c]} ${c}`).join(', ')
++
++export function cardKind(card, type) {
++  if (type === 'point') return 'Golem'
++  if (card?.actionType === 1) return 'Upgrade'
++  if (card?.actionType === 2) return 'Trade'
++  return 'Produce'
++}
++
++export function cardSummary(card, type) {
++  const kind = cardKind(card, type)
++  if (kind === 'Golem') return `Golem worth ${card.points} points, costs ${words(card.requirement) || 'nothing'}`
++  if (kind === 'Upgrade') return `Upgrade up to ${card.turnUpgrade || 1} crystal level${(card.turnUpgrade || 1) > 1 ? 's' : ''}`
++  if (kind === 'Trade') return `Trade ${words(card.input)} for ${words(card.output)}`
++  return `Produce ${words(card.output) || 'crystals'}`
++}
++
++export const hasDeposits = (card) => total(card?.deposits) > 0
+--- a/web/react-frontend/src/components/board/CardInspect.jsx
++++ b/web/react-frontend/src/components/board/CardInspect.jsx
+@@ -0,0 +1,60 @@
++import React from 'react'
++import { createPortal } from 'react-dom'
++import CardImage from '../ui/CardImage'
++import Coin from '../ui/Coin'
++import { CrystalCost } from '../ui/CrystalRow'
++import { cardKind, hasDeposits } from './cardInfo'
++
++/** Card details: big art + what it does (gems, not emoji). Used by the hover popover and the mobile sheet. */
++export const CardDetails = ({ card, type, slot, placeCost, coin }) => {
++  const kind = cardKind(card, type)
++  return (
++    <div className="flex gap-3">
++      <CardImage name={card.name} alt="" className="h-44 w-28 flex-shrink-0 rounded-stone-sm border border-black/40 shadow-elev-1" />
++      <div className="flex min-w-0 flex-col gap-2 text-sm">
++        <div className="font-display text-lg font-bold text-bronze-100">{kind}{slot ? <span className="text-sm text-fg-muted"> · slot {slot}</span> : null}</div>
++        {kind === 'Golem' && (
++          <>
++            <div className="flex items-center gap-2"><span className="w-12 text-fg-muted">Cost</span><CrystalCost resources={card.requirement} size={18} /></div>
++            <div className="flex items-center gap-2"><span className="w-12 text-fg-muted">Points</span><span className="font-display text-xl font-bold">{card.points}</span>
++              {coin ? <span className="inline-flex items-center gap-1 text-fg-muted">+ <Coin kind={coin.kind} size={18} /> ({coin.left} left)</span> : null}
++            </div>
++          </>
++        )}
++        {kind === 'Produce' && <div className="flex items-center gap-2"><span className="text-fg-muted">Gain</span><CrystalCost resources={card.output} size={18} /></div>}
++        {kind === 'Trade' && (
++          <div className="flex flex-wrap items-center gap-2">
++            <CrystalCost resources={card.input} size={18} /><span className="text-fg-muted">→</span><CrystalCost resources={card.output} size={18} />
++            <span className="w-full text-xs text-fg-muted">Can be repeated as often as you can pay.</span>
++          </div>
++        )}
++        {kind === 'Upgrade' && <div>Raise crystals by up to <b>{card.turnUpgrade || 1}</b> level{(card.turnUpgrade || 1) > 1 ? 's' : ''} in total.</div>}
++        {typeof placeCost === 'number' && (
++          <div className="text-fg-muted">{placeCost === 0 ? 'Free to take.' : `To take: place ${placeCost} crystal${placeCost > 1 ? 's' : ''}, one on each card to its left.`}</div>
++        )}
++        {hasDeposits(card) && (
++          <div className="flex flex-wrap items-center gap-2"><span className="text-fg-muted">Crystals on it</span><CrystalCost resources={card.deposits} size={16} /></div>
++        )}
++      </div>
++    </div>
++  )
++}
++
++/** Hover/focus popover next to a card (portal, so it is never clipped by the panel). */
++const CardInspect = ({ anchor, ...details }) => {
++  if (!anchor) return null
++  const r = anchor.getBoundingClientRect()
++  const W = 360
++  const H = 210
++  const above = r.top > H + 16
++  const top = above ? r.top - H - 8 : Math.min(window.innerHeight - H - 8, r.bottom + 8)
++  const left = Math.max(8, Math.min(window.innerWidth - W - 8, r.left + r.width / 2 - W / 2))
++  return createPortal(
++    <div role="tooltip" className="surface-stone pointer-events-none fixed z-popover p-3" style={{ top, left, width: W }}>
++      <CardDetails {...details} />
++    </div>,
++    document.body
++  )
++}
++
++export default CardInspect
+--- a/web/react-frontend/src/components/board/CardPile.jsx
++++ b/web/react-frontend/src/components/board/CardPile.jsx
+@@ -0,0 +1,40 @@
++import React from 'react'
++import CardImage from '../ui/CardImage'
++import Gem from '../ui/Gem'
++
++/**
++ * A small stack of cards (history, played cards, my golems): top card + count, the whole tile is one
++ * button that opens the list. `top` = card to show (null + `restTop` shows a rest marker).
++ */
++const CardPile = ({ title, count, top, restTop = false, empty, onOpen, footer, dim = false }) => (
++  <button
++    type="button"
++    onClick={count ? onOpen : undefined}
++    disabled={!count}
++    aria-label={count ? `${title}: ${count}, show all` : `${title}: ${empty}`}
++    className="surface-inset group flex h-full w-full min-w-0 flex-col items-center gap-1.5 px-2 py-2 text-left enabled:cursor-pointer enabled:hover:border-bronze-500/60 disabled:cursor-default"
++  >
++    <span className="font-display text-xs font-bold uppercase tracking-wider text-bronze-300">{title}</span>
++    <span className="relative flex min-h-0 flex-1 items-center justify-center">
++      {count ? (
++        <span className="relative h-full max-h-36" style={{ aspectRatio: '0.58' }}>
++          {count > 1 && <span className="absolute inset-0 translate-x-1 translate-y-1 rotate-[4deg] rounded-stone-sm border border-black/40 bg-rock-700" />}
++          {top ? (
++            <CardImage name={top.name} className={`relative h-full w-full rounded-stone-sm border border-black/50 shadow-elev-1 transition-transform group-hover:-translate-y-0.5 ${dim ? 'opacity-75 saturate-50' : ''}`} />
++          ) : restTop ? (
++            <span className="relative flex h-full w-full flex-col items-center justify-center gap-1 rounded-stone-sm border border-black/50 bg-rock-800">
++              <span className="flex gap-0.5"><Gem color="blue" size={12} label={false} /><Gem color="pink" size={12} label={false} /></span>
++              <span className="font-display text-xs font-bold text-bronze-100">Rest</span>
++            </span>
++          ) : null}
++          <span className="absolute -right-2 -top-2 flex h-6 min-w-[24px] items-center justify-center rounded-full border border-bronze-700 bg-gradient-to-b from-bronze-300 to-bronze-500 px-1 text-xs font-bold text-ink">{count}</span>
++        </span>
++      ) : (
++        <span className="flex h-full max-h-36 items-center justify-center rounded-stone-sm border-2 border-dashed border-rock-400/40 px-2 text-center text-xs text-fg-muted" style={{ aspectRatio: '0.58' }}>{empty}</span>
++      )}
++    </span>
++    {footer ? <span className="text-xs text-fg-muted">{footer}</span> : null}
++  </button>
++)
++
++export default CardPile
+--- a/web/react-frontend/src/components/board/CardTile.jsx
++++ b/web/react-frontend/src/components/board/CardTile.jsx
+@@ -0,0 +1,94 @@
++import React, { useRef, useState } from 'react'
++import { getCardSpriteStyle, getCardImagePath } from '../../utils/cardNames'
++import Coin from '../ui/Coin'
++import Gem from '../ui/Gem'
++import CardInspect from './CardInspect'
++import { cardSummary } from './cardInfo'
++
++const DEPOSIT_ORDER = ['yellow', 'green', 'blue', 'pink']
++
++/**
++ * One card on the board (market, golem row, hand). The art stays as printed; around it:
++ * slot number, crystals lying on it, the coin a golem slot carries, and the state —
++ * `ready` (you can take/claim/play it now: bronze glow + check) or `dim` (your turn, can't afford).
++ * Hover/focus shows the details (desktop); `onInspect` replaces that (mobile tap → sheet).
++ */
++const CardTile = ({ card, type = 'action', slot, placeCost, coin, ready = false, dim = false, onClick, onInspect, inspect = true, className = '' }) => {
++  const ref = useRef(null)
++  const [hover, setHover] = useState(false)
++  const timer = useRef(null)
++  if (!card) return null
++
++  const sprite = getCardSpriteStyle(card.name)
++  const art = sprite || {
++    backgroundImage: `url(${encodeURI(getCardImagePath(card.name))})`,
++    backgroundSize: 'contain',
++    backgroundPosition: 'center',
++    backgroundRepeat: 'no-repeat',
++  }
++  const deposits = DEPOSIT_ORDER.flatMap((c) => Array(Number(card.deposits?.[c]) || 0).fill(c))
++  const label = [
++    slot ? `${type === 'point' ? 'Golem' : 'Card'} ${slot}` : null,
++    cardSummary(card, type),
++    typeof placeCost === 'number' && type !== 'point' ? (placeCost === 0 ? 'free' : `place ${placeCost}`) : null,
++    deposits.length ? `${deposits.length} crystal${deposits.length > 1 ? 's' : ''} on it` : null,
++    coin ? `${coin.kind} coin` : null,
++    ready ? 'available' : null,
++  ].filter(Boolean).join(', ')
++
++  const show = () => { if (inspect && !onInspect) { clearTimeout(timer.current); timer.current = setTimeout(() => setHover(true), 220) } }
++  const hide = () => { clearTimeout(timer.current); setHover(false) }
++
++  return (
++    <>
++      <button
++        ref={ref}
++        type="button"
++        aria-label={label}
++        onClick={onInspect ? () => onInspect(card) : onClick}
++        onMouseEnter={show}
++        onMouseLeave={hide}
++        onFocus={show}
++        onBlur={hide}
++        className={`group relative block h-full max-h-full max-w-full rounded-stone-sm transition-[transform,filter] duration-150
++          ${ready ? 'hover:-translate-y-0.5' : ''} ${className}`}
++        style={{ aspectRatio: '0.58' }}
++      >
++        <span
++          className={`absolute inset-0 rounded-stone-sm border shadow-elev-1 transition-[filter]
++            ${ready ? 'border-bronze-300 shadow-turn' : 'border-black/50'} ${dim ? 'saturate-50 brightness-75' : ''}`}
++          style={{ ...art, backgroundColor: 'rgb(var(--rock-950))' }}
++        />
++        {slot ? (
++          <span className="absolute -left-1.5 -top-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-full border border-bronze-700 bg-gradient-to-b from-bronze-300 to-bronze-500 font-display text-xs font-bold text-ink shadow-elev-1">
++            {slot}
++          </span>
++        ) : null}
++        {deposits.length ? (
++          <span className="absolute -right-1.5 -top-1.5 z-10 flex max-w-[60%] flex-wrap justify-end gap-0.5 rounded-full bg-rock-950/85 px-1 py-0.5">
++            {deposits.map((c, i) => <Gem key={i} color={c} size={13} label={false} />)}
++          </span>
++        ) : null}
++        {coin ? (
++          <span className="absolute -right-1.5 -top-1.5 z-10 flex items-center gap-0.5 rounded-full bg-rock-950/85 py-0.5 pl-0.5 pr-1.5 text-xs font-bold text-fg" title={`${coin.kind} coin, ${coin.left} left`}>
++            <Coin kind={coin.kind} size={18} label={false} />{coin.left}
++          </span>
++        ) : null}
++        {card.actionType === 1 && type !== 'point' ? (
++          <span className="absolute bottom-1 left-1/2 z-10 -translate-x-1/2 rounded-full bg-rock-950/85 px-2 py-0.5 text-xs font-bold text-bronze-100">
++            ⇧{card.turnUpgrade || 1}
++          </span>
++        ) : null}
++        {typeof placeCost === 'number' && type !== 'point' && dim ? (
++          <span className="absolute bottom-1 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-full bg-rock-950/90 px-2 py-0.5 text-xs font-semibold text-fg">Place {placeCost}</span>
++        ) : null}
++        {ready ? (
++          <span className="absolute -bottom-1.5 -right-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-full border border-bronze-700 bg-moss text-sm font-bold text-white shadow-elev-1" aria-hidden="true">✓</span>
++        ) : null}
++      </button>
++      {hover ? <CardInspect anchor={ref.current} card={card} type={type} slot={slot} placeCost={type !== 'point' ? placeCost : undefined} coin={coin} /> : null}
++    </>
++  )
++}
++
++export default CardTile
+--- a/web/react-frontend/src/components/board/Hud.jsx
++++ b/web/react-frontend/src/components/board/Hud.jsx
+@@ -0,0 +1,38 @@
++import React from 'react'
++import useGameStore from '../../store/gameStore'
++import DifficultyBadge from '../DifficultyBadge'
++import SoundToggleButton from '../SoundToggleButton'
++import ThemeToggleButton from '../ThemeToggleButton'
++import CollapsibleInfo from '../CollapsibleInfo'
++import Pill from '../ui/Pill'
++
++/**
++ * Corner controls of the game screen, in one place: top-left plaque (round, AI level, last round),
++ * top-right cluster (✨ layout switch on desktop, sound, activity & chat).
++ */
++const Hud = ({ sessionId, showSkinToggle = false, compact = false }) => {
++  const round = useGameStore((s) => s.gameState?.round)
++  const lastRound = useGameStore((s) => s.gameState?.lastRound)
++  const started = useGameStore((s) => !!s.gameState?.market && Object.keys(s.gameState.market).length > 0)
++  const inset = { top: 'max(8px, var(--safe-top))' }
++  return (
++    <>
++      {!compact && started ? (
++        <div className="fixed left-3 z-hud flex items-center gap-2" style={inset}>
++          <div className="surface-stone flex h-11 items-center gap-2 px-3">
++            <span className="font-display text-sm font-bold text-bronze-100">Round {round || 1}</span>
++            <DifficultyBadge />
++            {lastRound ? <Pill tone="ember">Last round</Pill> : null}
++          </div>
++        </div>
++      ) : null}
++      <div className="fixed right-3 z-hud flex items-center gap-2" style={{ ...inset, right: 'max(12px, var(--safe-right))' }}>
++        {showSkinToggle ? <ThemeToggleButton /> : null}
++        <SoundToggleButton />
++        <CollapsibleInfo sessionId={sessionId} />
++      </div>
++    </>
++  )
++}
++
++export default Hud
+--- a/web/react-frontend/src/components/CollapsibleInfo.jsx
++++ b/web/react-frontend/src/components/CollapsibleInfo.jsx
+@@ -1,409 +1,195 @@
+ import { useState, useEffect, useRef } from 'react'
+ import { createPortal } from 'react-dom'
+ import RoomDisplay from './RoomDisplay'
+-import useOrientation from '../hooks/useOrientation'
+ import useGameStore from '../store/gameStore'
+-import { getCardSpriteStyle, getCardImagePath } from '../utils/cardNames'
++import { IconButton } from './ui/Button'
++import Button from './ui/Button'
++import CardImage from './ui/CardImage'
++
++const LABEL = { play: 'played', upgrade: 'upgraded with', trade: 'traded with', acquire: 'took', claim: 'claimed', rest: 'rested' }
++const TONE = {
++  play: 'border-l-gem-blue', upgrade: 'border-l-gem-blue', trade: 'border-l-gem-blue',
++  acquire: 'border-l-moss', claim: 'border-l-bronze-300', rest: 'border-l-gem-pink', chat: 'border-l-teal', log: 'border-l-rock-400',
++}
+ 
+-// Helper component to render card image (sprite or fallback)
+-const CardImage = ({ cardName, className, style = {} }) => {
+-  const spriteStyle = getCardSpriteStyle(cardName)
+-  if (spriteStyle) {
+-    return (
+-      <div 
+-        className={className}
+-        style={{ ...spriteStyle, ...style }}
+-      />
+-    )
+-  }
++const formatTime = (timestamp) => {
++  if (!timestamp) return ''
++  const seconds = Math.floor((Date.now() - timestamp) / 1000)
++  if (seconds < 60) return `${Math.max(0, seconds)}s`
++  const minutes = Math.floor(seconds / 60)
++  if (minutes < 60) return `${minutes}m`
++  return `${Math.floor(minutes / 60)}h`
++}
++
++function ChatIcon() {
+   return (
+-    <img
+-      src={getCardImagePath(cardName)}
+-      alt=""
+-      className={className}
+-      style={style}
+-      onError={(e) => { e.target.style.display = 'none' }}
+-    />
++    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
++      <path d="M4 5h16v11H9l-5 4z" /><path d="M8 9.5h8M8 12.5h5" strokeLinecap="round" />
++    </svg>
+   )
+ }
+ 
++/**
++ * Activity & chat: a HUD button (with unread count) that opens a stone drawer — the room ID, a
++ * timeline of moves, chat messages and system notes, and a chat box. Desktop: right-hand drawer;
++ * phones: bottom sheet that fits a 320px screen.
++ */
+ const CollapsibleInfo = ({ sessionId }) => {
+   const [isExpanded, setIsExpanded] = useState(false)
+   const [activityFeed, setActivityFeed] = useState([])
+   const [chatMessages, setChatMessages] = useState([])
+   const [chatInput, setChatInput] = useState('')
+   const [hoveredCard, setHoveredCard] = useState(null)
+-  const [hasUnreadMessages, setHasUnreadMessages] = useState(false)
+-  const { isMobile, isPortrait } = useOrientation()
++  const [unread, setUnread] = useState(0)
++  const [confirmClear, setConfirmClear] = useState(false)
+   const scrollRef = useRef(null)
+-  const previousMessageCountRef = useRef(0)
+-  
+-  // Get action history and stores
+-  const { actionHistory, actionLog, sendChatMessage, setChatMessageCallback, roundNumber } = useGameStore()
++  const seenRef = useRef(0)
++
++  const { actionHistory, actionLog, sendChatMessage, setChatMessageCallback } = useGameStore()
+ 
+-  // Set up chat message listener
+   useEffect(() => {
+-    if (setChatMessageCallback) {
+-      const callback = (newMessage) => {
+-        setChatMessages((prev) => [...prev, newMessage])
+-      }
+-      setChatMessageCallback(callback)
+-      return () => setChatMessageCallback(null)
+-    }
++    if (!setChatMessageCallback) return undefined
++    setChatMessageCallback((msg) => setChatMessages((prev) => [...prev, msg]))
++    return () => setChatMessageCallback(null)
+   }, [setChatMessageCallback])
+ 
+-  // Combine chat messages and actions into unified feed
++  // one feed: chat + moves (with cards) + system notes, oldest first, last 50
+   useEffect(() => {
+     const combined = []
+-    
+-    // Add chat messages
+-    if (chatMessages && Array.isArray(chatMessages)) {
+-      chatMessages.forEach(msg => {
+-        combined.push({
+-          id: `chat-${msg.id}`,
+-          type: 'chat',
+-          player: msg.player,
+-          message: msg.message,
+-          timestamp: msg.timestamp,
+-        })
+-      })
+-    }
+-    
+-    // Check for new messages when collapsed
+-    if (!isExpanded && chatMessages.length > previousMessageCountRef.current) {
+-      setHasUnreadMessages(true)
+-    }
+-    previousMessageCountRef.current = chatMessages.length
+-    
+-    // Add action history (rich actions with card details)
+-    if (actionHistory && Array.isArray(actionHistory)) {
+-      actionHistory.forEach((action, idx) => {
+-        combined.push({
+-          id: `action-${idx}-${action.timestamp}`,
+-          type: 'action',
+-          actionType: action.type,
+-          player: action.playerName,
+-          avatar: action.playerAvatar,
+-          card: action.card,
+-          isOpponent: action.isOpponent,
+-          timestamp: new Date(action.timestamp),
+-        })
+-      })
+-    }
+-    
+-    // Add simple action logs (join/leave, turn changes)
+-    if (actionLog && Array.isArray(actionLog)) {
+-      actionLog.forEach((log, idx) => {
+-        combined.push({
+-          id: `log-${idx}`,
+-          type: 'log',
+-          message: log,
+-          timestamp: new Date(),
+-        })
+-      })
+-    }
+-    
+-    // Sort by timestamp (newest last) and take last 50
++    chatMessages.forEach((msg) => combined.push({ id: `chat-${msg.id}`, type: 'chat', player: msg.player, message: msg.message, timestamp: msg.timestamp }))
++    ;(actionHistory || []).forEach((a, idx) => combined.push({
++      id: `action-${idx}-${a.timestamp}`, type: 'action', actionType: a.type, player: a.playerName, card: a.card, isOpponent: a.isOpponent, timestamp: new Date(a.timestamp),
++    }))
++    ;(actionLog || []).forEach((log, idx) => combined.push({ id: `log-${idx}`, type: 'log', message: log, timestamp: new Date() }))
+     combined.sort((a, b) => a.timestamp - b.timestamp)
+     setActivityFeed(combined.slice(-50))
++    if (isExpanded) seenRef.current = chatMessages.length
++    else setUnread(Math.max(0, chatMessages.length - seenRef.current))
+   }, [chatMessages, actionHistory, actionLog, isExpanded])
+ 
+-  // Auto-scroll to bottom when new messages arrive
+   useEffect(() => {
+-    if (scrollRef.current && isExpanded) {
+-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+-    }
++    if (scrollRef.current && isExpanded) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+   }, [activityFeed, isExpanded])
+ 
+-  // Clear all activity
+-  const handleClear = () => {
+-    if (confirm('Clear all activity history?')) {
+-      setActivityFeed([])
+-      setChatMessages([])
+-      useGameStore.setState({ actionLog: [], actionHistory: [] })
+-    }
++  // Escape closes the drawer
++  useEffect(() => {
++    if (!isExpanded) return undefined
++    const onKey = (e) => { if (e.key === 'Escape') setIsExpanded(false) }
++    document.addEventListener('keydown', onKey)
++    return () => document.removeEventListener('keydown', onKey)
++  }, [isExpanded])
++
++  const open = () => {
++    setIsExpanded(true)
++    setUnread(0)
++    seenRef.current = chatMessages.length
++  }
++
++  const clearAll = () => {
++    setActivityFeed([])
++    setChatMessages([])
++    useGameStore.setState({ actionLog: [], actionHistory: [] })
++    setConfirmClear(false)
+   }
+ 
+-  // Send chat message
+-  const handleSendChat = () => {
++  const send = (e) => {
++    e?.preventDefault()
+     if (chatInput.trim() && sendChatMessage) {
+       sendChatMessage(chatInput.trim())
+       setChatInput('')
+     }
+   }
+ 
+-  // Handle Enter key
+-  const handleKeyPress = (e) => {
+-    if (e.key === 'Enter' && !e.shiftKey) {
+-      e.preventDefault()
+-      handleSendChat()
+-    }
+-  }
+-
+-  // Keep visible on all devices now
+-
+-  // Format timestamp (relative time similar to HistorySection)
+-  const formatTime = (timestamp) => {
+-    if (!timestamp) return ''
+-    const seconds = Math.floor((Date.now() - timestamp) / 1000)
+-    if (seconds < 60) return `${seconds}s ago`
+-    const minutes = Math.floor(seconds / 60)
+-    if (minutes < 60) return `${minutes}m ago`
+-    const hours = Math.floor(minutes / 60)
+-    return `${hours}h ago`
+-  }
+-
+-  // Get action label
+-  const getActionLabel = (type) => {
+-    switch (type) {
+-      case 'play': return 'Played'
+-      case 'upgrade': return 'Upgraded'
+-      case 'trade': return 'Traded'
+-      case 'acquire': return 'Acquired'
+-      case 'claim': return 'Claimed'
+-      case 'rest': return 'Rested'
+-      default: return 'Action'
+-    }
+-  }
+-
+-  // Get action color (matching HistorySection style)
+-  const getActionColor = (type) => {
+-    switch (type) {
+-      case 'play':
+-      case 'upgrade':
+-      case 'trade':
+-        return 'bg-blue-500/20 border-blue-500/30'
+-      case 'acquire':
+-        return 'bg-green-500/20 border-green-500/30'
+-      case 'claim':
+-        return 'bg-yellow-500/20 border-yellow-500/30'
+-      case 'rest':
+-        return 'bg-purple-500/20 border-purple-500/30'
+-      case 'chat':
+-        return 'bg-emerald-500/20 border-emerald-500/30'
+-      case 'log':
+-        return 'bg-gray-500/20 border-gray-500/30'
+-      default:
+-        return 'bg-gray-500/20 border-gray-500/30'
+-    }
+-  }
+-
+   return (
+     <>
+-      <div className={`
+-        fixed z-50
+-        ${isMobile 
+-          ? 'top-2 right-2' 
+-          : 'top-4 right-4'
+-        }
+-      `}>
+-        {/* Collapsed State - Icon Button */}
+-        {!isExpanded && (
+-          <button
+-            onClick={() => {
+-              setIsExpanded(true)
+-              setHasUnreadMessages(false)
+-              previousMessageCountRef.current = chatMessages.length
+-            }}
+-            className={`
+-              bg-purple-600 hover:bg-purple-700 text-white rounded-full 
+-              flex items-center justify-center shadow-lg transition-all hover:scale-110
+-              relative
+-              ${isMobile ? 'w-10 h-10' : 'w-12 h-12'}
+-            `}
+-            title="Show Activity Feed"
+-          >
+-            <svg 
+-              className={isMobile ? 'w-5 h-5' : 'w-6 h-6'}
+-              fill="none" 
+-              stroke="currentColor" 
+-              viewBox="0 0 24 24"
+-            >
+-              <path 
+-                strokeLinecap="round" 
+-                strokeLinejoin="round" 
+-                strokeWidth={2} 
+-                d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" 
+-              />
+-            </svg>
+-            {/* Unread Message Count Badge */}
+-            {hasUnreadMessages && chatMessages.length - previousMessageCountRef.current > 0 && (
+-              <span className="absolute -top-1 -right-1 min-w-[20px] h-5 bg-emerald-500 rounded-full border-2 border-purple-600 animate-bounce flex items-center justify-center px-1">
+-                <span className="text-white text-xs font-bold">
+-                  {chatMessages.length - previousMessageCountRef.current}
+-                </span>
+-              </span>
+-            )}
+-          </button>
++      <span className="relative inline-flex">
++        <IconButton label={unread ? `Activity and chat (${unread} new)` : 'Activity and chat'} onClick={() => (isExpanded ? setIsExpanded(false) : open())} aria-expanded={isExpanded}>
++          <ChatIcon />
++        </IconButton>
++        {unread > 0 && (
++          <span className="pointer-events-none absolute -right-1 -top-1 flex h-5 min-w-[20px] items-center justify-center rounded-full border-2 border-rock-900 bg-moss px-1 text-xs font-bold text-white">
++            {unread}
++          </span>
+         )}
++      </span>
+ 
+-        {/* Expanded State */}
+-        {isExpanded && (
+-          <div className={`
+-            bg-black/90 backdrop-blur-md rounded-lg border border-white/20 shadow-2xl overflow-hidden flex flex-col
+-            ${isMobile 
+-              ? 'min-w-[300px] max-w-[340px] max-h-[80vh]' 
+-              : 'min-w-[420px] max-w-lg max-h-[85vh]'
+-            }
+-          `}>
+-            {/* Header */}
+-            <div className={`
+-              flex items-center justify-between bg-purple-600 flex-shrink-0
+-              ${isMobile ? 'px-3 py-1.5' : 'px-4 py-2'}
+-            `}>
+-              <h3 className={`text-white font-bold ${isMobile ? 'text-xs' : 'text-sm'}`}>
+-                {roundNumber > 0 ? `🎯 Round ${roundNumber} • ` : ''}📊 Activity
+-              </h3>
+-              <div className="flex items-center gap-2">
+-                {activityFeed.length > 0 && (
+-                  <button
+-                    onClick={handleClear}
+-                    className={`text-white/80 hover:text-white hover:bg-white/20 rounded px-2 py-0.5 transition-all ${isMobile ? 'text-[10px]' : 'text-xs'}`}
+-                    title="Clear all"
+-                  >
+-                    Clear
+-                  </button>
+-                )}
+-                <button
+-                  onClick={() => setIsExpanded(false)}
+-                  className={`text-white hover:bg-white/20 rounded-full flex items-center justify-center transition-all ${isMobile ? 'w-5 h-5 text-xs' : 'w-6 h-6'}`}
+-                >
+-                  ✕
+-                </button>
+-              </div>
++      {isExpanded && createPortal(
++        <div
++          role="dialog"
++          aria-label="Activity and chat"
++          className="surface-stone fixed inset-x-2 bottom-2 z-drawer flex max-h-[78dvh] flex-col md:inset-x-auto md:bottom-auto md:right-3 md:top-[68px] md:max-h-[calc(100dvh-84px)] md:w-[420px]"
++          style={{ marginBottom: 'var(--safe-bottom)' }}
++        >
++          <header className="flex items-center gap-2 border-b border-black/40 px-4 py-2">
++            <h2 className="flex-1 font-display text-base font-bold text-bronze-100 text-engrave">Activity</h2>
++            {activityFeed.length > 0 && (confirmClear ? (
++              <>
++                <Button size="sm" variant="danger" onClick={clearAll}>Clear all</Button>
++                <Button size="sm" variant="ghost" onClick={() => setConfirmClear(false)}>Keep</Button>
++              </>
++            ) : (
++              <Button size="sm" variant="ghost" onClick={() => setConfirmClear(true)}>Clear</Button>
++            ))}
++            <IconButton label="Close" variant="ghost" onClick={() => setIsExpanded(false)}>
++              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
++            </IconButton>
++          </header>
++
++          <div className="flex min-h-0 flex-1 flex-col gap-3 p-3">
++            <div className="flex items-center gap-2 text-xs text-fg-muted">
++              <span>Room</span>
++              <div className="min-w-0 flex-1"><RoomDisplay sessionId={sessionId} compact /></div>
+             </div>
+ 
+-            {/* Content */}
+-            <div className={`flex flex-col flex-1 min-h-0 ${isMobile ? 'p-2' : 'p-3'}`}>
+-              {/* Room ID - Compact */}
+-              <div className="mb-2 pb-2 border-b border-white/10 flex-shrink-0">
+-                <div className="flex items-center gap-2">
+-                  <span className={`text-white/50 ${isMobile ? 'text-[9px]' : 'text-[10px]'}`}>Room:</span>
+-                  <div className="flex-1 min-w-0">
+-                    <RoomDisplay sessionId={sessionId} compact={true} />
+-                  </div>
+-                </div>
+-              </div>
+-
+-              {/* Activity Feed */}
+-              <div className="flex-1 flex flex-col min-h-0">
+-                <h4 className={`text-white/70 font-semibold mb-2 flex-shrink-0 ${isMobile ? 'text-[10px]' : 'text-xs'}`}>
+-                  Timeline
+-                </h4>
+-                <div 
+-                  ref={scrollRef}
+-                  className={`bg-black/40 rounded-lg overflow-y-auto flex-1 ${isMobile ? 'p-1.5 max-h-[40vh]' : 'p-2 max-h-[50vh]'}`}
+-                  style={{
+-                    scrollbarWidth: 'thin',
+-                    scrollbarColor: 'rgba(255, 255, 255, 0.3) transparent'
+-                  }}
++            <ol ref={scrollRef} className="surface-inset flex min-h-[120px] flex-1 flex-col gap-1.5 overflow-y-auto p-2" aria-label="Timeline">
++              {activityFeed.length === 0 ? (
++                <li className="py-8 text-center text-sm text-fg-muted">No activity yet</li>
++              ) : activityFeed.map((item) => (
++                <li
++                  key={item.id}
++                  className={`rounded-stone-sm border-l-4 bg-rock-800/70 px-2.5 py-1.5 text-sm ${TONE[item.type === 'action' ? item.actionType : item.type] || TONE.log}`}
++                  onMouseEnter={() => item.card && setHoveredCard(item.card)}
++                  onMouseLeave={() => setHoveredCard(null)}
+                 >
+-                  {activityFeed.length === 0 ? (
+-                    <div className={`text-white/50 text-center py-8 ${isMobile ? 'text-[10px]' : 'text-xs'}`}>
+-                      No activity yet
++                  <div className="flex items-start gap-2">
++                    <div className="min-w-0 flex-1">
++                      {item.type === 'chat' && (<><span className="font-semibold text-[rgb(170_225_220)]">{item.player}</span>: <span className="break-words text-fg">{item.message}</span></>)}
++                      {item.type === 'action' && (
++                        <>
++                          <span className="font-semibold text-fg">{item.player}</span>{' '}
++                          <span className="text-fg-muted">{LABEL[item.actionType] || 'acted'}</span>
++                          {item.card ? <span className="text-fg"> {item.card.name?.replace(/_/g, ' ')}</span> : null}
++                        </>
++                      )}
++                      {item.type === 'log' && <span className="text-fg-muted">{item.message}</span>}
+                     </div>
+-                  ) : (
+-                    <div className="space-y-1.5">
+-                      {activityFeed.map((item) => (
+-                        <div key={item.id}>
+-                          {/* Chat Message */}
+-                          {item.type === 'chat' && (
+-                            <div className={`${getActionColor('chat')} rounded-lg p-2 border ${isMobile ? 'text-[10px]' : 'text-xs'}`}>
+-                              <div className="flex items-center gap-1.5 mb-0.5">
+-                                <span className="text-emerald-400">💬</span>
+-                                <span className="text-emerald-400 font-semibold">{item.player}</span>
+-                                <span className="text-white/40 text-[9px] ml-auto">{formatTime(item.timestamp)}</span>
+-                              </div>
+-                              <p className="text-white/90 leading-relaxed break-words pl-5">{item.message}</p>
+-                            </div>
+-                          )}
+-
+-                          {/* Game Action - Text-based with hover */}
+-                          {item.type === 'action' && (
+-                            <div 
+-                              className={`${getActionColor(item.actionType)} rounded-lg p-2 border cursor-pointer hover:bg-white/5 transition-colors ${isMobile ? 'text-[10px]' : 'text-xs'}`}
+-                              onMouseEnter={() => item.card && setHoveredCard(item.card)}
+-                              onMouseLeave={() => setHoveredCard(null)}
+-                            >
+-                              <div className="flex items-center justify-between">
+-                                <div className="flex-1 min-w-0">
+-                                  <span className="text-white font-semibold">{item.player}</span>
+-                                  {item.isOpponent && (
+-                                    <span className="ml-1.5 text-[8px] text-orange-300 bg-orange-500/20 px-1 py-0.5 rounded">OPP</span>
+-                                  )}
+-                                  <span className="text-white/70 ml-1.5">
+-                                    {getActionLabel(item.actionType).toLowerCase()}
+-                                    {item.card && (
+-                                      <span className="text-white/90 font-medium"> {item.card.name?.replace(/_/g, ' ')}</span>
+-                                    )}
+-                                  </span>
+-                                </div>
+-                                <span className="text-white/40 text-[9px] flex-shrink-0 ml-2">{formatTime(item.timestamp)}</span>
+-                              </div>
+-                            </div>
+-                          )}
+-
+-                          {/* System Log */}
+-                          {item.type === 'log' && (
+-                            <div className={`${getActionColor('log')} rounded-lg p-2 border ${isMobile ? 'text-[10px]' : 'text-xs'}`}>
+-                              <div className="flex items-center justify-between">
+-                                <div className="flex items-center gap-1.5 flex-1">
+-                                  <span className="text-gray-400">ℹ️</span>
+-                                  <span className="text-white/80">{item.message}</span>
+-                                </div>
+-                                <span className="text-white/40 text-[9px] flex-shrink-0 ml-2">{formatTime(item.timestamp)}</span>
+-                              </div>
+-                            </div>
+-                          )}
+-                        </div>
+-                      ))}
+-                    </div>
+-                  )}
+-                </div>
+-              </div>
+-
+-              {/* Chat Input */}
+-              <div className="mt-2 pt-2 border-t border-white/10 flex-shrink-0">
+-                <div className="flex items-center gap-1.5">
+-                  <input
+-                    type="text"
+-                    value={chatInput}
+-                    onChange={(e) => setChatInput(e.target.value)}
+-                    onKeyPress={handleKeyPress}
+-                    placeholder="Type message..."
+-                    className={`flex-1 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:border-emerald-500 ${isMobile ? 'px-2 py-1 text-xs' : 'px-3 py-1.5 text-sm'}`}
+-                  />
+-                  <button
+-                    onClick={handleSendChat}
+-                    disabled={!chatInput.trim()}
+-                    className={`bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 ${isMobile ? 'px-2 py-1 text-xs' : 'px-3 py-1.5 text-sm'}`}
+-                    title="Send message"
+-                  >
+-                    💬
+-                  </button>
+-                </div>
+-              </div>
+-            </div>
++                    <span className="flex-shrink-0 text-xs tabular-nums text-fg-muted">{formatTime(item.timestamp)}</span>
++                  </div>
++                </li>
++              ))}
++            </ol>
++
++            <form className="flex items-center gap-2" onSubmit={send}>
++              <label htmlFor="chat-input" className="sr-only">Chat message</label>
++              <input
++                id="chat-input"
++                type="text"
++                value={chatInput}
++                onChange={(e) => setChatInput(e.target.value)}
++                placeholder="Say something…"
++                maxLength={200}
++                className="h-11 min-w-0 flex-1 rounded-stone-sm border border-black/50 bg-rock-950/70 px-3 text-base text-fg placeholder:text-fg-muted/60 focus:border-bronze-300 focus:outline-none"
++              />
++              <Button type="submit" disabled={!chatInput.trim()}>Send</Button>
++            </form>
+           </div>
+-        )}
+-      </div>
++        </div>,
++        document.body
++      )}
+ 
+-      {/* Hover Card Preview */}
+       {hoveredCard && createPortal(
+-        <div 
+-          className="fixed z-[100] pointer-events-none"
+-          style={{
+-            top: '50%',
+-            left: '50%',
+-            transform: 'translate(calc(-50% + 200px), -50%)',
+-          }}
+-        >
+-          <div className="bg-slate-900/95 backdrop-blur-md rounded-xl shadow-2xl border-2 border-white/30 overflow-hidden">
+-            <CardImage
+-              cardName={hoveredCard.name}
+-              className="w-40 aspect-[2/3] rounded-lg"
+-            />
+-          </div>
++        <div className="pointer-events-none fixed left-1/2 top-1/2 z-popover" style={{ transform: 'translate(calc(-50% - 220px), -50%)' }}>
++          <div className="surface-stone p-1.5"><CardImage name={hoveredCard.name} className="aspect-[2/3] w-40 rounded-stone-sm" /></div>
+         </div>,
+         document.body
+       )}
 --- a/web/react-frontend/src/components/CompactCard.jsx
 +++ b/web/react-frontend/src/components/CompactCard.jsx
 @@ -139,11 +139,7 @@
@@ -606,78 +1489,311 @@
  
 --- a/web/react-frontend/src/components/desktop/WebGameLayout.jsx
 +++ b/web/react-frontend/src/components/desktop/WebGameLayout.jsx
-@@ -2,6 +2,10 @@
- import useGameStore from '../../store/gameStore'
- import CompactCard from '../CompactCard'
+@@ -1,655 +1,167 @@
+-import React, { useState, useEffect } from 'react'
+-import useGameStore from '../../store/gameStore'
+-import CompactCard from '../CompactCard'
++import React from 'react'
++import useBoardActions from '../../hooks/useBoardActions'
++import useTurnTimer from '../../hooks/useTurnTimer'
  import PlayerCard from '../PlayerCard'
-+import PlayerAvatar from '../PlayerAvatar'
 +import WaitingRoom from '../WaitingRoom'
 +import AiThinkingIndicator from '../AiThinkingIndicator'
-+import { totalCrystals } from '../../utils/aiLevel'
  import GraveyardPanel from '../GraveyardPanel'
  import MyGolemsPanel from '../MyGolemsPanel'
  import HistorySection from '../HistorySection'
-@@ -12,6 +16,7 @@
- import AcquiredCardOverlay from '../AcquiredCardOverlay'
- import CollapsibleInfo from '../CollapsibleInfo'
- import { showToast } from '../../utils/toast'
-+import useReopenAfterUndo from '../../hooks/useReopenAfterUndo'
- 
- const WebGameLayout = () => {
-   const {
-@@ -35,9 +40,15 @@
-   const [tradeModal, setTradeModal] = useState({ show: false, card: null, index: null })
-   const [confirmGolem, setConfirmGolem] = useState({ show: false, golem: null, index: null })
- 
-+  // "Undo" in the discard popup: reopen the picker the card was played with
-+  useReopenAfterUndo(({ kind, card, cardIndex }) => {
-+    if (kind === 'upgrade') setUpgradeModal({ show: true, card, index: cardIndex })
-+    else if (kind === 'trade') setTradeModal({ show: true, card, index: cardIndex })
-+  })
+-import UpgradeModal from '../UpgradeModal'
+-import TradeModal from '../TradeModal'
+-import DepositModal from '../DepositModal'
+-import ConfirmGolemModal from '../ConfirmGolemModal'
+-import AcquiredCardOverlay from '../AcquiredCardOverlay'
+-import CollapsibleInfo from '../CollapsibleInfo'
+-import { showToast } from '../../utils/toast'
+-
++import CardTile from '../board/CardTile'
++import BoardModals from '../board/BoardModals'
++import Panel from '../ui/Panel'
++import Button from '../ui/Button'
++import Avatar from '../ui/Avatar'
++import Coin from '../ui/Coin'
++import CrystalRow from '../ui/CrystalRow'
++import TurnBanner from '../ui/TurnBanner'
++import { MAX_CARAVAN } from '../../utils/crystals'
 +
-   // Timer state
++/**
++ * Desktop board (≥ 768px wide, ≥ 500px tall): players across the top, market and golem rows, then
++ * history · played · my hand · my golems. Cards you can act on now glow; hover shows card details.
++ * The HUD (round, sound, activity) floats above it — see board/Hud.
++ */
+ const WebGameLayout = () => {
+-  const {
+-    gameState,
+-    myPlayer,
+-    currentPlayer,
+-    playerName,
+-    sessionId,
+-    roundNumber,
+-    acquireCard,
+-    claimPointCard,
+-    playCard,
+-    playCardWithUpgrade,
+-    playCardWithTrade,
+-    rest,
+-    startGame,
+-  } = useGameStore()
+-
+-  const [depositModal, setDepositModal] = useState({ show: false, card: null, index: null })
+-  const [upgradeModal, setUpgradeModal] = useState({ show: false, card: null, index: null })
+-  const [tradeModal, setTradeModal] = useState({ show: false, card: null, index: null })
+-  const [confirmGolem, setConfirmGolem] = useState({ show: false, golem: null, index: null })
+-
+-  // Timer state
 -  const [turnTimeRemaining, setTurnTimeRemaining] = useState(60)
 -  const turnTimeLimit = 60
-+  const turnTimeLimit = gameState?.turnTimeout || 60
-+  const [turnTimeRemaining, setTurnTimeRemaining] = useState(turnTimeLimit)
+-
+-  // Timer effect - reset when current player changes
+-  useEffect(() => {
+-    setTurnTimeRemaining(turnTimeLimit)
+-
+-    const timer = setInterval(() => {
+-      setTurnTimeRemaining((prev) => {
+-        if (prev <= 0) return 0
+-        return prev - 1
+-      })
+-    }, 1000)
+-
+-    return () => clearInterval(timer)
+-  }, [gameState?.currentPlayer])
+-
+-  // Get player name for chat (before early return)
+-  const chatPlayerName = myPlayer?.name || playerName || 'Player'
+-  // Get maxChatMessages from gameState (from backend config)
+-  const maxChatMessages = gameState?.maxChatMessages || 10
++  const a = useBoardActions({ reopenAfterUndo: true })
++  const timer = useTurnTimer()
++  const { gameState, myPlayer, currentPlayer, isSpectator, isWaiting, isMyTurn } = a
  
-   // Timer effect - reset when current player changes
-   useEffect(() => {
-@@ -116,12 +127,8 @@
-     if (isSpectator || !myPlayer?.caravan) return false
-     // Empty cost or no cost = always affordable
-     if (!cost || Object.keys(cost).length === 0) return true
+-  // Get isSpectator state
+-  const isSpectator = useGameStore((state) => state.isSpectator)
+-
+-  // Check if game is in waiting status
+-  // When waiting: backend doesn't send currentPlayer field, market is empty object {} or missing, and players have id: 0
+-  // When playing: backend always sends currentPlayer (number) and market has actionCards/pointCards
+-  const hasEmptyMarket = !gameState.market || Object.keys(gameState.market).length === 0
+-  const isWaiting = gameState.status === 'waiting' || hasEmptyMarket
+-
+-  // Only require market if not in waiting mode (v2 sessions don't send market in waiting mode)
+-  if (!isWaiting && !gameState?.market) {
+-    return (
+-      <div className="h-full w-full flex items-center justify-center">
+-        <div className="text-white">Loading game...</div>
+-      </div>
+-    )
++  if (!isWaiting && !isSpectator && !myPlayer) {
++    return <div className="flex h-full w-full items-center justify-center text-fg-muted">Loading game…</div>
+   }
+ 
+-  // For spectators, myPlayer will be null - handle this case (but not in waiting mode)
+-  if (!isSpectator && !myPlayer && !isWaiting) {
+-    return (
+-      <div className="h-full w-full flex items-center justify-center">
+-        <div className="text-white">Loading game...</div>
+-      </div>
+-    )
+-  }
+-
+-  // Get ALL other players (not me) - show all in top row
+-  // For spectators, show all players. For players, show all players including yourself
+-  const otherPlayers = gameState.players || []
+-
+-  // Get cards directly from current state (empty arrays in waiting mode)
+-  const actionCards = gameState.market?.actionCards || []
+-  const pointCards = gameState.market?.pointCards || []
+-  const coins = gameState.market?.coins || []
+-
+-  // In waiting mode, currentPlayer is 0/null, so isMyTurn should be false
+-  const isMyTurn = !isSpectator && !isWaiting && currentPlayer?.id === myPlayer?.id
+-
+-  // Handle start game button click
+-  const handleStartGame = async () => {
+-    const result = await startGame()
+-    if (!result.success) {
+-      showToast(result.error || 'Failed to start game', 'error')
+-    }
+-  }
+-  const hand = myPlayer?.hand || []
+-  const playedCards = myPlayer?.playedCards || []
+-  const canRest = isMyTurn && playedCards.length > 0
+-
+-  // Timer progress percentage
+-  const turnProgress = Math.max(0, Math.min(100, (turnTimeRemaining / turnTimeLimit) * 100))
+-
+-  // Check if can afford
+-  const canAfford = (cost) => {
+-    if (isSpectator || !myPlayer?.caravan) return false
+-    // Empty cost or no cost = always affordable
+-    if (!cost || Object.keys(cost).length === 0) return true
 -    return (
 -      (myPlayer.caravan.yellow || 0) >= (cost.yellow || 0) &&
 -      (myPlayer.caravan.green || 0) >= (cost.green || 0) &&
 -      (myPlayer.caravan.blue || 0) >= (cost.blue || 0) &&
 -      (myPlayer.caravan.pink || 0) >= (cost.pink || 0)
 -    )
-+    // Official rule: place one crystal of ANY colour on each card to the left
-+    return totalCrystals(myPlayer.caravan) >= totalCrystals(cost)
-   }
+-  }
+-
+-  const canClaimPointCard = (card) => {
+-    if (isSpectator || !card?.requirement || !myPlayer?.caravan) return false
+-    return (
+-      (myPlayer.caravan.yellow || 0) >= (card.requirement.yellow || 0) &&
+-      (myPlayer.caravan.green || 0) >= (card.requirement.green || 0) &&
+-      (myPlayer.caravan.blue || 0) >= (card.requirement.blue || 0) &&
+-      (myPlayer.caravan.pink || 0) >= (card.requirement.pink || 0)
+-    )
+-  }
+-
+-  const handleAcquireCard = (index) => {
+-    if (isSpectator) {
+-      showToast('You are spectating - cannot perform actions', 'info')
+-      return
+-    }
+-    if (!isMyTurn) {
+-      showToast('Not your turn!', 'error')
+-      return
+-    }
+-    const card = actionCards[index]
+-
+-    // Card at index 0 (position 1) is always FREE - no deposits needed
+-    if (index === 0) {
+-      acquireCard(index, {}, card)
+-      return
+-    }
+-
+-    // Check if player has any crystals to deposit
+-    const totalCrystals =
+-      (myPlayer?.caravan?.yellow || 0) +
+-      (myPlayer?.caravan?.green || 0) +
+-      (myPlayer?.caravan?.blue || 0) +
+-      (myPlayer?.caravan?.pink || 0)
+-
+-    if (totalCrystals < index) {
+-      showToast(`Need ${index} crystals to deposit for position ${index + 1}`, 'error')
+-      return
+-    }
+-
+-    // Show deposit modal
+-    setDepositModal({ show: true, card, index })
+-  }
+-
+-  const handleClaimPointCard = (index) => {
+-    if (isSpectator) {
+-      showToast('You are spectating - cannot perform actions', 'info')
+-      return
+-    }
+-    if (!isMyTurn) {
+-      showToast('Not your turn!', 'error')
+-      return
+-    }
+-
+-    const card = pointCards[index]
+-    if (!canClaimPointCard(card)) {
+-      // Show what's missing
+-      const req = card?.requirement || {}
+-      const have = myPlayer?.caravan || {}
+-      const missing = []
+-
+-      if ((req.yellow || 0) > (have.yellow || 0)) missing.push(`${(req.yellow || 0) - (have.yellow || 0)} Yellow`)
+-      if ((req.green || 0) > (have.green || 0)) missing.push(`${(req.green || 0) - (have.green || 0)} Green`)
+-      if ((req.blue || 0) > (have.blue || 0)) missing.push(`${(req.blue || 0) - (have.blue || 0)} Blue`)
+-      if ((req.pink || 0) > (have.pink || 0)) missing.push(`${(req.pink || 0) - (have.pink || 0)} Pink`)
+-
+-      showToast(`Missing: ${missing.join(', ')}`, 'error')
+-      return
+-    }
+-
+-    // Show confirmation modal
+-    setConfirmGolem({ show: true, golem: card, index })
+-  }
+-
+-  const handleConfirmClaim = () => {
+-    if (confirmGolem.index !== null && confirmGolem.golem) {
+-      claimPointCard(confirmGolem.index, confirmGolem.golem)
+-    }
+-    setConfirmGolem({ show: false, golem: null, index: null })
+-  }
+-
+-  const handleCardClick = (card, index) => {
+-    if (isSpectator) {
+-      showToast('You are spectating - cannot perform actions', 'info')
+-      return
+-    }
+-    if (!isMyTurn) {
+-      showToast('Not your turn!', 'error')
+-      return
+-    }
+-
+-    // Check card type
+-    if (card.actionType === 1) {
+-      setUpgradeModal({ show: true, card, index })
+-    } else if (card.actionType === 2) {
+-      setTradeModal({ show: true, card, index })
+-    } else {
+-      playCard(index, card)
+-    }
+-  }
+-
+-  const handleRest = () => {
+-    if (canRest) {
+-      rest()
+-    }
+-  }
+-
+-  // Crystal colors
+-  const crystalColors = {
+-    yellow: 'bg-yellow-400',
+-    green: 'bg-green-500',
+-    blue: 'bg-blue-500',
+-    pink: 'bg-pink-400',
+-  }
++  const players = gameState.players || []
++  const thinking = currentPlayer?.isAI && gameState?.aiThinking?.playerID === currentPlayer?.id
  
-   const canClaimPointCard = (card) => {
-@@ -255,10 +262,12 @@
-           </div>
-         )}
- 
+   return (
+     <div className="relative h-full w-full overflow-hidden">
+-      {/* Collapsible Info with Activity Feed */}
+-      <CollapsibleInfo sessionId={gameState?.sessionID || sessionId || 'unknown'} />
+-      
+-      <div className="h-full w-full grid p-2 sm:p-4 gap-2 overflow-auto" style={{ gridTemplateRows: 'auto minmax(0, 1fr) minmax(0, 1fr) minmax(150px, 1fr)', minHeight: '100%' }}>
+-
+-        {/* Round Number Display */}
+-        {!isWaiting && roundNumber > 0 && (
+-          <div className="absolute top-4 left-4 z-40">
+-            <div className="bg-blue-600/90 backdrop-blur-md text-white px-3 py-1.5 rounded-lg shadow-lg border border-blue-300/30 flex items-center gap-2">
+-              <span className="text-sm">🎯</span>
+-              <span className="font-bold text-sm">Round {roundNumber}</span>
+-            </div>
+-          </div>
+-        )}
+-
 -        {/* Row 1 - ALL Players in one row (auto height) */}
 -        <div className="flex gap-2 sm:gap-3 justify-center items-center flex-wrap overflow-x-auto">
-+        {/* Row 1 - ALL Players in one row (auto height). Side padding keeps the cards clear of the
-+            floating buttons (✨ skin toggle top-left; sound + activity feed top-right, ~120px); cards
-+            shrink between 11rem and 16rem so 5 players fit in one row instead of running under them. */}
-+        <div className="flex gap-2 sm:gap-3 justify-center items-center flex-wrap px-12 sm:px-32">
-           {otherPlayers.map((player) => (
+-          {otherPlayers.map((player) => (
 -            <div key={player.id || player.name} className="w-48 sm:w-64 flex-shrink-0">
-+            <div key={player.id || player.name} className="flex-1 min-w-[11rem] max-w-[16rem]">
-               {/* In waiting mode, don't highlight current player (currentPlayer is 0/null) */}
+-              {/* In waiting mode, don't highlight current player (currentPlayer is 0/null) */}
++      <div
++        className="grid h-full w-full gap-2.5 overflow-auto px-3 pb-3 lg:px-4"
++        style={{ gridTemplateRows: 'auto minmax(0, 1fr) minmax(0, 1fr) minmax(170px, 1.05fr)', paddingTop: 'calc(max(8px, var(--safe-top)) + 52px)' }}
++      >
++        {/* Players */}
++        <div className="flex flex-wrap items-stretch justify-center gap-2.5">
++          {players.map((player) => (
++            <div key={player.id || player.name} className="min-w-[12.5rem] max-w-[17rem] flex-1">
                <PlayerCard player={player} isCurrentPlayer={!isWaiting && currentPlayer?.id === player.id} />
              </div>
-@@ -267,43 +276,8 @@
+           ))}
+         </div>
  
-         {/* Waiting Mode UI - spans rows 2-4 */}
-         {isWaiting && (
+-        {/* Waiting Mode UI - spans rows 2-4 */}
+-        {isWaiting && (
 -          <div className="row-span-3 flex flex-col items-center justify-center gap-6 bg-gradient-to-b from-purple-900/40 to-blue-900/40 backdrop-blur-md rounded-xl border-2 border-purple-400/50 p-6 relative shadow-2xl" style={{ minHeight: '400px' }}>
 -            {/* Waiting message with high visibility */}
 -            <div className="text-white text-lg sm:text-2xl font-bold text-center px-4 py-3 bg-black/50 rounded-lg border border-white/30 shadow-xl">
@@ -715,38 +1831,457 @@
 -                </button>
 -              </>
 -            )}
-+          <div className="row-span-3 flex items-center justify-center p-6" style={{ minHeight: '400px' }}>
-+            <WaitingRoom players={otherPlayers} isSpectator={isSpectator} onStart={handleStartGame} mode={gameState?.mode} />
-           </div>
-         )}
- 
-@@ -476,9 +450,10 @@
-                   <div className="flex items-center gap-3">
-                     {/* Avatar & Name */}
-                     <div className="flex items-center gap-2">
+-          </div>
+-        )}
+-
+-        {/* Row 2 - Market (Action Cards) - Hidden in waiting mode */}
+-        {!isWaiting && (
+-        <div className="bg-black/30 backdrop-blur-md rounded-xl border border-white/20 p-2 flex flex-col min-h-[120px] sm:min-h-0 overflow-hidden">
+-          <div className="text-white/70 text-xs font-semibold mb-1">Market</div>
+-          <div className="flex-1 grid grid-cols-6 gap-1 place-items-center min-h-0">
+-            {actionCards.slice(0, 6).map((card, index) => {
+-              const cost = card.cost || {}
+-              const isAffordable = isMyTurn && canAfford(cost)
+-              const deposits = card.deposits || {}
+-
+-              // Build crystal badges array
+-              const crystalBadges = []
+-              const crystalImages = {
+-                yellow: '/assets/images/stone_yellow.JPG',
+-                green: '/assets/images/stone_green.JPG',
+-                blue: '/assets/images/stone_blue.JPG',
+-                pink: '/assets/images/stone_pink.JPG',
+-              }
+-              Object.entries(deposits).forEach(([type, count]) => {
+-                for (let i = 0; i < parseInt(count || 0); i++) {
+-                  crystalBadges.push({ type, src: crystalImages[type] || crystalImages.yellow })
+-                }
+-              })
+-
+-              return (
+-                <div
+-                  key={card.id || `action-${index}`}
+-                  className="relative cursor-pointer h-full aspect-[2/3]"
+-                  onClick={() => handleAcquireCard(index)}
+-                >
+-                  {/* Position Badge */}
+-                  <div className="absolute -top-1 -left-1 bg-purple-600 text-white rounded-full w-4 h-4 flex items-center justify-center font-bold text-[9px] z-20 shadow-lg border border-white pointer-events-none">
+-                    {index + 1}
+-                  </div>
+-
+-                  {/* Deposit Crystals Badge */}
+-                  {crystalBadges.length > 0 && (
+-                    <div className="absolute -top-1 -right-1 z-20 flex flex-wrap gap-0.5 max-w-[40px] justify-end pointer-events-none">
+-                      {crystalBadges.map((crystal, i) => (
+-                        <img
+-                          key={i}
+-                          src={crystal.src}
+-                          alt={crystal.type}
+-                          className="w-3.5 h-3.5 rounded-full object-cover border border-white shadow"
+-                          onError={(e) => {
+-                            e.target.src = '/assets/images/stone_yellow.JPG'
+-                          }}
+-                        />
+-                      ))}
+-                    </div>
+-                  )}
+-
+-                  <CompactCard card={card} type="action" index={index} cost={cost} isAffordable={isAffordable} size="flexible" />
+-                </div>
+-              )
+-            })}
+-          </div>
+-        </div>
+-        )}
+-
+-        {/* Row 3 - Golems (Point Cards) - Hidden in waiting mode */}
+-        {!isWaiting && (
+-        <div className="bg-black/30 backdrop-blur-md rounded-xl border border-white/20 p-2 flex flex-col min-h-[120px] sm:min-h-0 overflow-hidden">
+-          <div className="flex items-center justify-between mb-1">
+-            <div className="text-white/70 text-xs font-semibold">Golems</div>
+-            {/* Coins remaining info */}
+-            <div className="flex items-center gap-2 text-[10px]">
+-              {coins[0]?.amount > 0 && (
+-                <span className="text-orange-400" title="Copper coins (3pts each)">
+-                  🥉{coins[0].amount}
+-                </span>
+-              )}
+-              {coins[1]?.amount > 0 && (
+-                <span className="text-gray-300" title="Silver coins (1pt each)">
+-                  🥈{coins[1].amount}
++        {isWaiting ? (
++          <div className="row-span-3 flex items-center justify-center p-6">
++            <WaitingRoom players={players} isSpectator={isSpectator} onStart={a.onStartGame} mode={gameState?.mode} />
++          </div>
++        ) : (
++          <>
++            {/* Market */}
++            <Panel title="Market" className="min-h-[150px]" bodyClassName="grid grid-cols-6 place-items-center gap-3 pt-2">
++              {a.actionCards.slice(0, 6).map((card, i) => {
++                const affordable = a.canAfford(i)
++                return (
++                  <CardTile
++                    key={card.id || `m${i}`}
++                    card={card}
++                    slot={i + 1}
++                    placeCost={a.placeCost(i)}
++                    ready={isMyTurn && affordable}
++                    dim={isMyTurn && !affordable}
++                    onClick={() => a.onMarketCard(i)}
++                  />
++                )
++              })}
++            </Panel>
++
++            {/* Golems */}
++            <Panel
++              title="Golems"
++              className="min-h-[150px]"
++              actions={(
++                <span className="flex items-center gap-2 text-xs text-fg-muted" title="Coins left">
++                  <span className="inline-flex items-center gap-1"><Coin kind="copper" size={16} />{a.coins[0]?.amount ?? 0}</span>
++                  <span className="inline-flex items-center gap-1"><Coin kind="silver" size={16} />{a.coins[1]?.amount ?? 0}</span>
+                 </span>
+               )}
+-            </div>
+-          </div>
+-          <div className="flex-1 grid grid-cols-5 gap-1 place-items-center min-h-0">
+-            {pointCards.slice(0, 5).map((card, index) => {
+-              // Helper function to get coin for position based on new rules
+-              // Position 0: First available coin (copper if available, silver if copper is gone)
+-              // Position 1: Silver coin only if copper is still available
+-              const getCoinForPosition = (pos) => {
+-                if (pos === 0) {
+-                  // Position 0: First available coin
+-                  if (coins && coins[0] && coins[0].amount > 0) {
+-                    return { coin: coins[0], isCopper: coins[0].points === 3 }
+-                  } else if (coins && coins[1] && coins[1].amount > 0) {
+-                    return { coin: coins[1], isCopper: false }
+-                  }
+-                } else if (pos === 1) {
+-                  // Position 1: Silver coin only if copper is still available
+-                  if (coins && coins[0] && coins[0].amount > 0 && coins[1] && coins[1].amount > 0) {
+-                    return { coin: coins[1], isCopper: false }
+-                  }
+-                }
+-                return null
+-              }
+-
+-              const coinInfo = getCoinForPosition(index)
+-              const coinBonus = coinInfo !== null
+-              const coinAmount = coinInfo ? coinInfo.coin.amount : 0
+-              const isCopperCoin = coinInfo ? coinInfo.isCopper : false
+-              const coinEmoji = isCopperCoin ? '🥉' : '🥈'
+-
+-              return (
+-                <div
+-                  key={card.id || `point-${index}`}
+-                  className="relative cursor-pointer h-full aspect-[2/3]"
+-                  onClick={() => handleClaimPointCard(index)}
+-                >
+-                  {/* Position Badge */}
+-                  <div className="absolute -top-1 -left-1 bg-purple-600 text-white rounded-full w-4 h-4 flex items-center justify-center font-bold text-[9px] z-20 shadow-lg border border-white pointer-events-none">
+-                    {index + 1}
+-                  </div>
+-
+-                  {/* Coin Bonus Badge */}
+-                  {coinBonus && (
+-                    <div
+-                      className="absolute -top-1 -right-1 z-20 flex items-center gap-0.5 bg-black/70 backdrop-blur-sm rounded-full px-1 py-0.5 border border-white/30 pointer-events-none"
+-                      title={`${isCopperCoin ? 'Copper (3pts)' : 'Silver (1pt)'} - ${coinAmount} left`}
+-                    >
+-                      <span className="text-xs">{coinEmoji}</span>
+-                      <span className="text-[8px] text-white font-bold">{coinAmount}</span>
+-                    </div>
+-                  )}
+-
+-                  <CompactCard
++              bodyClassName="grid grid-cols-5 place-items-center gap-3 pt-2"
++            >
++              {a.pointCards.slice(0, 5).map((card, i) => {
++                const claimable = a.canClaim(card)
++                return (
++                  <CardTile
++                    key={card.id || `g${i}`}
+                     card={card}
+                     type="point"
+-                    index={index}
+-                    isAffordable={isMyTurn && canClaimPointCard(card)}
+-                    size="flexible"
++                    slot={i + 1}
++                    coin={a.coinFor(i)}
++                    ready={isMyTurn && claimable}
++                    dim={isMyTurn && !claimable}
++                    onClick={() => a.onGolem(i)}
+                   />
+-                </div>
+-              )
+-            })}
+-          </div>
+-        </div>
+-        )}
+-
+-        {/* Row 4 - Bottom Row: History | Graveyard | My Hand + Crystals + Timer | My Golems - Hidden in waiting mode */}
+-        {!isWaiting && (
+-        <div className="flex gap-2 sm:gap-3 min-h-[150px] overflow-x-auto overflow-y-hidden">
+-          {/* History */}
+-          <div className="w-44 flex-shrink-0 bg-black/30 backdrop-blur-md rounded-xl border border-white/20 flex flex-col min-h-0 overflow-hidden">
+-            <HistorySection />
+-          </div>
+-
+-          {/* Graveyard */}
+-          <div className="w-28 flex-shrink-0 bg-black/30 backdrop-blur-md rounded-xl border border-white/20 py-2 flex flex-col min-h-0">
+-            <GraveyardPanel playedCards={playedCards} />
+-          </div>
+-
+-          {/* My Hand + Info + Timer (Hidden for spectators) */}
+-          {!isSpectator ? (
+-            <>
+-              <div
+-                className={`flex-1 bg-black/30 backdrop-blur-md rounded-xl p-2 flex flex-col min-w-0 min-h-0 transition-all duration-300 ${
+-                  isMyTurn ? 'border-2 border-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.4)]' : 'border border-white/20'
+-                }`}
+-              >
+-                {/* Header with info */}
+-                <div className="flex items-center justify-between mb-2">
+-                  <div className="flex items-center gap-3">
+-                    {/* Avatar & Name */}
+-                    <div className="flex items-center gap-2">
 -                      <div className="w-8 h-8 rounded-full bg-yellow-500 text-black flex items-center justify-center font-bold text-sm border-2 border-white">
 -                        {myPlayer?.name?.charAt(0)?.toUpperCase() || '?'}
--                      </div>
-+                      <PlayerAvatar
-+                        player={myPlayer}
-+                        className="w-8 h-8 rounded-full bg-yellow-500 text-black text-sm border-2 border-white"
-+                      />
-                       <div className="text-white font-bold text-sm">{myPlayer?.name || 'You'}</div>
-                     </div>
- 
-@@ -533,7 +508,11 @@
-                         Your Turn
++                )
++              })}
++            </Panel>
++
++            {/* History · played · my hand · my golems */}
++            <div className="flex min-h-[170px] gap-2.5 overflow-x-auto overflow-y-hidden">
++              <div className="w-36 flex-shrink-0 lg:w-40"><HistorySection /></div>
++              <div className="w-28 flex-shrink-0 lg:w-32"><GraveyardPanel playedCards={a.playedCards} /></div>
++
++              {!isSpectator ? (
++                <>
++                  <Panel glow={isMyTurn} className="min-w-0 flex-1" bodyClassName="flex h-full flex-col gap-2 p-2.5">
++                    <div className="flex items-center gap-x-3">
++                      <div className="flex min-w-0 items-center gap-2">
++                        <Avatar player={myPlayer} size={32} turn={isMyTurn} />
++                        <span className="hidden truncate text-sm font-bold text-fg xl:inline">{myPlayer?.name || 'You'}</span>
                        </div>
-                     ) : (
+-                      <div className="text-white font-bold text-sm">{myPlayer?.name || 'You'}</div>
+-                    </div>
+-
+-                    {/* Crystals - always show all 4 colors */}
+-                    <div className="flex items-center gap-1.5 ml-2">
+-                      {['yellow', 'green', 'blue', 'pink'].map((color) => {
+-                        const count = myPlayer?.caravan?.[color] || 0
+-                        return (
+-                          <div key={color} className="flex items-center gap-0.5">
+-                            <div className={`w-4 h-4 rounded-full ${crystalColors[color]}`} />
+-                            <span className="text-white text-sm font-bold">{count}</span>
+-                          </div>
+-                        )
+-                      })}
+-                    </div>
+-                  </div>
+-
+-                  {/* Timer + Actions */}
+-                  <div className="flex items-center gap-3">
+-                    {/* Timer */}
+-                    <div className="flex items-center gap-2">
+-                      <div className="w-24 h-2 bg-white/20 rounded-full overflow-hidden">
+-                        <div
+-                          className={`h-full transition-all duration-1000 ${
+-                            turnProgress > 50 ? 'bg-green-500' : turnProgress > 20 ? 'bg-yellow-500' : 'bg-red-500'
+-                          }`}
+-                          style={{ width: `${turnProgress}%` }}
+-                        />
++                      <CrystalRow resources={a.caravan} capacity={MAX_CARAVAN} size="sm" className="flex-shrink-0" />
++                      <div className="ml-auto flex flex-shrink-0 items-center gap-2">
++                        {isMyTurn ? (
++                          <>
++                            <TurnBanner show seconds={timer.remaining} />
++                            <Button
++                              size="sm"
++                              variant="secondary"
++                              onClick={a.onRest}
++                              disabled={!a.canRest}
++                              title={a.canRest ? 'Take all played cards back to your hand' : 'Play a card first — nothing to take back yet'}
++                            >
++                              Rest
++                            </Button>
++                          </>
++                        ) : (
++                          <span className="max-w-[16rem] truncate rounded-stone-sm bg-rock-950/50 px-3 py-1.5 text-sm text-fg-muted">
++                            {thinking ? <AiThinkingIndicator label={`${currentPlayer.name} is thinking`} /> : `Waiting for ${currentPlayer?.name || 'the next player'}…`}
++                          </span>
++                        )}
+                       </div>
+-                      <span
+-                        className={`text-sm font-bold min-w-[2rem] text-right ${
+-                          turnProgress > 50 ? 'text-green-400' : turnProgress > 20 ? 'text-yellow-400' : 'text-red-400'
+-                        }`}
+-                      >
+-                        {turnTimeRemaining}s
+-                      </span>
+-                    </div>
+-
+-                    {/* Rest Button */}
+-                    {canRest && (
+-                      <button
+-                        onClick={handleRest}
+-                        className="px-3 py-1 rounded-lg font-bold bg-green-600 hover:bg-green-500 text-white text-sm border border-green-400 transition-all"
+-                      >
+-                        Rest
+-                      </button>
+-                    )}
+-
+-                    {/* Turn indicator */}
+-                    {isMyTurn ? (
+-                      <div className="px-3 py-1 bg-yellow-500/20 text-yellow-400 rounded-lg text-sm font-bold border border-yellow-400">
+-                        Your Turn
+-                      </div>
+-                    ) : (
 -                      <div className="px-3 py-1 bg-white/10 text-white/50 rounded-lg text-sm">Waiting...</div>
-+                      <div className="px-3 py-1 bg-white/10 text-white/50 rounded-lg text-sm w-52 text-center whitespace-nowrap overflow-hidden text-ellipsis">
-+                        {currentPlayer?.isAI && gameState?.aiThinking?.playerID === currentPlayer?.id
-+                          ? <AiThinkingIndicator label={`${currentPlayer.name} is thinking`} />
-+                          : 'Waiting...'}
-+                      </div>
-                     )}
-                   </div>
-                 </div>
+-                    )}
+-                  </div>
+-                </div>
+-
+-                {/* Hand Cards */}
+-                <div className="flex-1 flex items-center gap-2 overflow-x-auto scrollbar-thin scrollbar-thumb-white/30 scrollbar-track-transparent min-h-0">
+-                  {hand.map((card, index) => (
+-                    <div
+-                      key={`hand-${index}`}
+-                      className="flex-shrink-0 h-full aspect-[2/3] cursor-pointer"
+-                      onClick={() => handleCardClick(card, index)}
+-                    >
+-                      <CompactCard card={card} type="action" index={index} isPlayable={isMyTurn} size="flexible" />
+-                    </div>
+-                  ))}
+-
+-                  {hand.length === 0 && (
+-                    <div className="h-full aspect-[2/3] rounded-xl border-2 border-dashed border-white/30 flex items-center justify-center flex-shrink-0">
+-                      <span className="text-white/40 text-xs">No cards</span>
+-                    </div>
+-                  )}
+-                </div>
+-              </div>
+-
+-              {/* My Golems */}
+-              <div className="w-28 flex-shrink-0 bg-black/30 backdrop-blur-md rounded-xl border border-white/20 py-2 flex flex-col min-h-0">
+-                <MyGolemsPanel pointCards={myPlayer?.pointCards || []} coins={myPlayer?.coins || []} />
+-              </div>
+-            </>
+-          ) : (
+-            /* Spectator Info Area */
+-            <div className="flex-1 bg-black/30 backdrop-blur-md rounded-xl p-2 flex flex-col min-w-0 min-h-0 border border-purple-400/40">
+-              <div className="flex items-center justify-between mb-2">
+-
+-                {/* Timer for spectators */}
+-                <div className="flex items-center gap-3">
+-                  {/* Timer */}
+-                  <div className="flex items-center gap-2">
+-                    <div className="w-24 h-2 bg-white/20 rounded-full overflow-hidden">
+-                      <div
+-                        className={`h-full transition-all duration-1000 ${
+-                          turnProgress > 50 ? 'bg-green-500' : turnProgress > 20 ? 'bg-yellow-500' : 'bg-red-500'
+-                        }`}
+-                        style={{ width: `${turnProgress}%` }}
+-                      />
+                     </div>
+-                    <span
+-                      className={`text-sm font-bold min-w-[2rem] text-right ${
+-                        turnProgress > 50 ? 'text-green-400' : turnProgress > 20 ? 'text-yellow-400' : 'text-red-400'
+-                      }`}
+-                    >
+-                      {turnTimeRemaining}s
+-                    </span>
+-                  </div>
+-                </div>
+-              </div>
+-
+-              {/* Spectator message */}
+-              <div className="flex-1 flex items-center justify-center">
+-                <div className="text-center text-white/60">
+-                  <p className="text-sm">You are watching this game</p>
+-                  <p className="text-xs mt-1">You cannot perform any actions</p>
+-                </div>
+-              </div>
++                    <div className="flex min-h-0 flex-1 items-stretch gap-2.5 overflow-x-auto overflow-y-hidden pb-1 scrollbar-thin" role="list" aria-label="Your hand">
++                      {a.hand.length ? a.hand.map((card, i) => (
++                        <div key={`h${i}-${card.id}`} role="listitem" className="h-full flex-shrink-0">
++                          <CardTile card={card} ready={isMyTurn} onClick={() => a.onHandCard(card, i)} />
++                        </div>
++                      )) : (
++                        <span className="flex items-center px-3 text-sm text-fg-muted">No cards in hand — rest to take your played cards back.</span>
++                      )}
++                    </div>
++                  </Panel>
++                  <div className="w-28 flex-shrink-0 lg:w-32"><MyGolemsPanel pointCards={myPlayer?.pointCards || []} coins={myPlayer?.coins || []} /></div>
++                </>
++              ) : (
++                <Panel className="min-w-0 flex-1" bodyClassName="flex h-full flex-col items-center justify-center gap-1 text-center">
++                  <span className="font-display text-lg font-bold text-bronze-100">Watching</span>
++                  <span className="text-sm text-fg-muted">
++                    {thinking ? <AiThinkingIndicator label={`${currentPlayer.name} is thinking`} /> : `${currentPlayer?.name || 'A player'} to move · ${timer.remaining}s`}
++                  </span>
++                </Panel>
++              )}
+             </div>
+-          )}
+-        </div>
+-        )}
+-
+-        {/* Modals */}
+-        {depositModal.show && (
+-          <DepositModal
+-            card={depositModal.card}
+-            cardIndex={depositModal.index}
+-            onClose={() => setDepositModal({ show: false, card: null, index: null })}
+-          />
++          </>
+         )}
+-
+-        {upgradeModal.show && (
+-          <UpgradeModal
+-            card={upgradeModal.card}
+-            cardIndex={upgradeModal.index}
+-            playerResources={myPlayer?.resources}
+-            maxTurnUpgrade={upgradeModal.card?.turnUpgrade || 1}
+-            onConfirm={(inputResources, outputResources) => {
+-              playCardWithUpgrade(upgradeModal.index, inputResources, outputResources, upgradeModal.card)
+-              setUpgradeModal({ show: false, card: null, index: null })
+-            }}
+-            onCancel={() => setUpgradeModal({ show: false, card: null, index: null })}
+-          />
+-        )}
+-
+-        {tradeModal.show && (
+-          <TradeModal
+-            card={tradeModal.card}
+-            cardIndex={tradeModal.index}
+-            playerResources={myPlayer?.resources}
+-            onConfirm={(multiplier) => {
+-              playCardWithTrade(tradeModal.index, multiplier, tradeModal.card)
+-              setTradeModal({ show: false, card: null, index: null })
+-            }}
+-            onCancel={() => setTradeModal({ show: false, card: null, index: null })}
+-          />
+-        )}
+-
+-        {/* Confirm Golem Modal */}
+-        <ConfirmGolemModal
+-          isOpen={confirmGolem.show}
+-          golem={confirmGolem.golem}
+-          onConfirm={handleConfirmClaim}
+-          onCancel={() => setConfirmGolem({ show: false, golem: null, index: null })}
+-        />
+-
+-        {/* Card acquisition overlay animation */}
+-        <AcquiredCardOverlay />
+       </div>
++      <BoardModals actions={a} />
+     </div>
+   )
+ }
 --- a/web/react-frontend/src/components/DifficultyBadge.jsx
 +++ b/web/react-frontend/src/components/DifficultyBadge.jsx
 @@ -0,0 +1,19 @@
@@ -1598,21 +3133,414 @@
  
  export default GameOverModal
 -
+--- a/web/react-frontend/src/components/GraveyardPanel.jsx
++++ b/web/react-frontend/src/components/GraveyardPanel.jsx
+@@ -1,114 +1,29 @@
+ import React, { useState } from 'react'
+-import { createPortal } from 'react-dom'
+-import { motion, AnimatePresence } from 'framer-motion'
+-import CompactCard from './CompactCard'
++import CardPile from './board/CardPile'
++import Modal from './ui/Modal'
++import CardImage from './ui/CardImage'
+ 
++// Cards played since the last rest (a rest takes them all back to hand).
+ const GraveyardPanel = ({ playedCards = [] }) => {
+-  const [expanded, setExpanded] = useState(false)
+-  
+-  const hasCards = playedCards.length > 0
+-  const displayCard = hasCards ? playedCards[playedCards.length - 1] : null
+-
++  const [open, setOpen] = useState(false)
+   return (
+     <>
+-      <div 
+-        className="h-full flex flex-col items-center justify-center cursor-pointer group"
+-        onClick={() => hasCards && setExpanded(true)}
+-      >
+-        {/* Label */}
+-        <div className="text-white/70 text-xs font-semibold mb-2">Graveyard</div>
+-        
+-        {/* Card Display */}
+-        <div className="relative">
+-          {hasCards ? (
+-            <div className="relative">
+-              {/* Stacked cards effect */}
+-              {playedCards.length > 1 && (
+-                <>
+-                  <div className="absolute -left-1 -top-1 w-24 h-36 bg-white/10 rounded-xl border border-white/20 transform rotate-[5deg]" />
+-                  {playedCards.length > 2 && (
+-                    <div className="absolute -left-2 -top-2 w-24 h-36 bg-white/5 rounded-xl border border-white/10 transform rotate-[10deg]" />
+-                  )}
+-                </>
+-              )}
+-              
+-              {/* Top card (grayed out) */}
+-              <div className="relative z-10 w-24 h-36 opacity-70 grayscale group-hover:opacity-90 group-hover:grayscale-0 transition-all">
+-                <CompactCard
+-                  card={displayCard}
+-                  type="action"
+-                  index={playedCards.length - 1}
+-                  size="sm"
+-                />
+-              </div>
+-              
+-              {/* Count badge */}
+-              {playedCards.length > 1 && (
+-                <div className="absolute -top-2 -right-2 z-20 bg-gray-500 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center">
+-                  {playedCards.length}
+-                </div>
+-              )}
+-            </div>
+-          ) : (
+-            <div className="w-24 h-36 rounded-xl border-2 border-dashed border-white/30 flex items-center justify-center">
+-              <span className="text-white/40 text-xs">Empty</span>
+-            </div>
+-          )}
++      <CardPile
++        title="Played"
++        count={playedCards.length}
++        top={playedCards[playedCards.length - 1]}
++        empty="None yet"
++        dim
++        onOpen={() => setOpen(true)}
++      />
++      <Modal open={open} onClose={() => setOpen(false)} title={`Played cards (${playedCards.length})`} variant="stone" size="lg">
++        <p className="mb-3 text-sm text-fg-muted">Rest to take them all back to your hand.</p>
++        <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
++          {playedCards.map((card, i) => <CardImage key={i} name={card.name} alt={card.name} className="aspect-[2/3] w-full rounded-stone-sm border border-black/50" />)}
+         </div>
+-      </div>
+-
+-      {/* Expanded Modal */}
+-      {expanded && createPortal(
+-        <AnimatePresence>
+-          <motion.div
+-            initial={{ opacity: 0 }}
+-            animate={{ opacity: 1 }}
+-            exit={{ opacity: 0 }}
+-            className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+-            onClick={() => setExpanded(false)}
+-          >
+-            <motion.div
+-              initial={{ scale: 0.9, opacity: 0 }}
+-              animate={{ scale: 1, opacity: 1 }}
+-              exit={{ scale: 0.9, opacity: 0 }}
+-              className="bg-gray-900/95 rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto"
+-              onClick={(e) => e.stopPropagation()}
+-            >
+-              <div className="flex items-center justify-between mb-4">
+-                <h3 className="text-white font-bold text-lg">
+-                  Graveyard ({playedCards.length})
+-                  <span className="text-sm font-normal text-white/60 ml-2">
+-                    Rest to recover these cards
+-                  </span>
+-                </h3>
+-                <button
+-                  onClick={() => setExpanded(false)}
+-                  className="text-white/60 hover:text-white text-2xl"
+-                >
+-                  ×
+-                </button>
+-              </div>
+-              
+-              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+-                {playedCards.map((card, index) => (
+-                  <div key={index} className="opacity-70">
+-                    <CompactCard
+-                      card={card}
+-                      type="action"
+-                      index={index}
+-                      size="normal"
+-                    />
+-                  </div>
+-                ))}
+-              </div>
+-            </motion.div>
+-          </motion.div>
+-        </AnimatePresence>,
+-        document.body
+-      )}
++      </Modal>
+     </>
+   )
+ }
+ 
+ export default GraveyardPanel
+-
 --- a/web/react-frontend/src/components/HistorySection.jsx
 +++ b/web/react-frontend/src/components/HistorySection.jsx
-@@ -67,10 +67,8 @@
-     return `${minutes}m`
-   }
+@@ -1,235 +1,48 @@
+ import React, { useState } from 'react'
+-import { motion, AnimatePresence } from 'framer-motion'
+-import { createPortal } from 'react-dom'
+ import useGameStore from '../store/gameStore'
+-import { getCardSpriteStyle, getCardImagePath } from '../utils/cardNames'
+-
+-// Helper component to render card image (sprite or fallback)
+-const CardImage = ({ cardName, className, style = {} }) => {
+-  const spriteStyle = getCardSpriteStyle(cardName)
+-  if (spriteStyle) {
+-    return (
+-      <div 
+-        className={className}
+-        style={{ ...spriteStyle, ...style }}
+-      />
+-    )
+-  }
+-  return (
+-    <img
+-      src={getCardImagePath(cardName)}
+-      alt=""
+-      className={className}
+-      style={style}
+-      onError={(e) => { e.target.style.display = 'none' }}
+-    />
+-  )
++import CardPile from './board/CardPile'
++import Modal from './ui/Modal'
++import CardImage from './ui/CardImage'
++
++const LABEL = { play: 'played', upgrade: 'upgraded with', trade: 'traded with', acquire: 'took', claim: 'claimed', rest: 'rested' }
++const EDGE = { play: 'border-l-gem-blue', upgrade: 'border-l-gem-blue', trade: 'border-l-gem-blue', acquire: 'border-l-moss', claim: 'border-l-bronze-300', rest: 'border-l-gem-pink' }
++
++const ago = (t) => {
++  const s = Math.max(0, Math.floor((Date.now() - t) / 1000))
++  return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m`
+ }
  
++// Recent moves, newest on top of the pile; the list shows who did what with which card.
+ const HistorySection = () => {
+   const { actionHistory } = useGameStore()
+-  const [hoveredCard, setHoveredCard] = useState(null)
+-  const [expanded, setExpanded] = useState(false)
+-
+-  const getActionLabel = (type) => {
+-    switch (type) {
+-      case 'play': return 'Played'
+-      case 'upgrade': return 'Upgraded'
+-      case 'trade': return 'Traded'
+-      case 'acquire': return 'Acquired'
+-      case 'claim': return 'Claimed'
+-      case 'rest': return 'Rested'
+-      default: return 'Action'
+-    }
+-  }
+-
+-  const getActionColor = (type) => {
+-    switch (type) {
+-      case 'play':
+-      case 'upgrade':
+-      case 'trade':
+-        return 'bg-blue-500/20 border-blue-500/30'
+-      case 'acquire':
+-        return 'bg-green-500/20 border-green-500/30'
+-      case 'claim':
+-        return 'bg-yellow-500/20 border-yellow-500/30'
+-      case 'rest':
+-        return 'bg-purple-500/20 border-purple-500/30'
+-      default:
+-        return 'bg-gray-500/20 border-gray-500/30'
+-    }
+-  }
+-
+-  const formatTime = (timestamp) => {
+-    const seconds = Math.floor((Date.now() - timestamp) / 1000)
+-    if (seconds < 60) return `${seconds}s`
+-    const minutes = Math.floor(seconds / 60)
+-    return `${minutes}m`
+-  }
+-
 -  // Show last 4 actions in preview
 -  const previewActions = actionHistory.slice(0, 4)
 -  const hasCard = previewActions.some(a => a.card)
 -  const displayCard = hasCard ? previewActions.find(a => a.card)?.card : null
-+  // Top of the stack = the latest action: a rest shows 💤 instead of hiding behind an older card
-+  const displayCard = actionHistory[0]?.card || null
- 
+-
++  const [open, setOpen] = useState(false)
++  const latest = actionHistory[0]
    return (
      <>
+-      <div 
+-        className="h-full flex flex-col items-center justify-center cursor-pointer group"
+-        onClick={() => actionHistory.length > 0 && setExpanded(true)}
+-      >
+-        {/* Label */}
+-        <div className="text-white/70 text-xs font-semibold mb-2">History</div>
+-        
+-        {/* Card Display */}
+-        <div className="relative">
+-          {actionHistory.length > 0 ? (
+-            <div className="relative">
+-              {/* Stacked cards effect */}
+-              {actionHistory.length > 1 && (
+-                <>
+-                  <div className="absolute -left-1 -top-1 w-24 aspect-[2/3] bg-white/10 rounded-xl border border-white/20 transform rotate-[5deg]" />
+-                  {actionHistory.length > 2 && (
+-                    <div className="absolute -left-2 -top-2 w-24 aspect-[2/3] bg-white/5 rounded-xl border border-white/10 transform rotate-[10deg]" />
+-                  )}
+-                </>
+-              )}
+-              
+-              {/* Top card */}
+-              <div className="relative z-10 w-24 group-hover:scale-105 transition-all">
+-                {displayCard ? (
+-                  <CardImage
+-                    cardName={displayCard.name}
+-                    className="w-full aspect-[2/3] rounded-xl border border-white/30"
+-                  />
+-                ) : (
+-                  <div className="w-full aspect-[2/3] rounded-xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center">
+-                    <span className="text-2xl">💤</span>
+-                  </div>
+-                )}
+-              </div>
+-              
+-              {/* Count badge */}
+-              <div className="absolute -top-2 -right-2 z-20 bg-blue-500 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center">
+-                {actionHistory.length}
+-              </div>
+-            </div>
+-          ) : (
+-            <div className="w-24 aspect-[2/3] rounded-xl border-2 border-dashed border-white/30 flex items-center justify-center">
+-              <span className="text-white/40 text-xs text-center px-2">No actions<br/>yet</span>
+-            </div>
+-          )}
+-        </div>
+-      </div>
+-
+-      {/* Expanded Modal */}
+-      {expanded && createPortal(
+-        <AnimatePresence>
+-          <motion.div
+-            initial={{ opacity: 0 }}
+-            animate={{ opacity: 1 }}
+-            exit={{ opacity: 0 }}
+-            className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+-            onClick={() => setExpanded(false)}
+-          >
+-            <motion.div
+-              initial={{ scale: 0.9, opacity: 0 }}
+-              animate={{ scale: 1, opacity: 1 }}
+-              exit={{ scale: 0.9, opacity: 0 }}
+-              className="bg-gray-900/95 rounded-2xl p-6 max-w-lg w-full max-h-[80vh] overflow-y-auto"
+-              onClick={(e) => e.stopPropagation()}
+-            >
+-              <div className="flex items-center justify-between mb-4">
+-                <h3 className="text-white font-bold text-lg">
+-                  📜 Action History ({actionHistory.length})
+-                </h3>
+-                <button
+-                  onClick={() => setExpanded(false)}
+-                  className="text-white/60 hover:text-white text-2xl"
+-                >
+-                  ×
+-                </button>
+-              </div>
+-              
+-              <div className="space-y-2">
+-                {actionHistory.map((action, index) => (
+-                  <div 
+-                    key={action.timestamp}
+-                    className={`${getActionColor(action.type)} rounded-lg p-3 border flex items-center gap-3`}
+-                    onMouseEnter={() => action.card && setHoveredCard(action.card)}
+-                    onMouseLeave={() => setHoveredCard(null)}
+-                  >
+-                    {/* Card Thumbnail */}
+-                    {action.card ? (
+-                      <CardImage
+-                        cardName={action.card.name}
+-                        className="w-14 aspect-[2/3] rounded border border-white/30 flex-shrink-0"
+-                      />
+-                    ) : (
+-                      <div className="w-14 aspect-[2/3] rounded bg-white/10 flex items-center justify-center flex-shrink-0">
+-                        <span className="text-xl">💤</span>
+-                      </div>
+-                    )}
+-
+-                    {/* Info */}
+-                    <div className="flex-1">
+-                      <div className="flex items-center gap-2">
+-                        <span className="text-white font-medium">
+-                          {action.playerName}
+-                        </span>
+-                        {action.isOpponent && (
+-                          <span className="text-[10px] text-orange-300 bg-orange-500/20 px-1.5 py-0.5 rounded">
+-                            opponent
+-                          </span>
+-                        )}
+-                      </div>
+-                      <span className="text-white/60 text-sm">
+-                        {getActionLabel(action.type)}
+-                        {action.card && ` • ${action.card.name?.replace(/_/g, ' ')}`}
+-                      </span>
+-                    </div>
+-
+-                    {/* Time */}
+-                    <span className="text-white/40 text-sm">
+-                      {formatTime(action.timestamp)}
+-                    </span>
+-                  </div>
+-                ))}
+-
+-                {actionHistory.length === 0 && (
+-                  <div className="text-center py-8 text-white/40">
+-                    No actions yet. Play a card to start!
+-                  </div>
+-                )}
+-              </div>
+-            </motion.div>
+-          </motion.div>
+-        </AnimatePresence>,
+-        document.body
+-      )}
+-
+-      {/* Hover Preview */}
+-      {hoveredCard && createPortal(
+-        <div 
+-          className="fixed z-[100] pointer-events-none"
+-          style={{
+-            top: '50%',
+-            left: '50%',
+-            transform: 'translate(calc(-50% + 200px), -50%)',
+-          }}
+-        >
+-          <div className="bg-slate-900/95 backdrop-blur-md rounded-xl shadow-2xl border-2 border-white/30 overflow-hidden">
+-            <CardImage
+-              cardName={hoveredCard.name}
+-              className="w-40 aspect-[2/3] rounded-lg"
+-            />
+-          </div>
+-        </div>,
+-        document.body
+-      )}
++      <CardPile
++        title="History"
++        count={actionHistory.length}
++        top={latest?.card || null}
++        restTop={latest?.type === 'rest'}
++        empty="No moves yet"
++        onOpen={() => setOpen(true)}
++      />
++      <Modal open={open} onClose={() => setOpen(false)} title="Recent moves" variant="stone" size="md">
++        <ol className="flex flex-col gap-1.5">
++          {actionHistory.map((a) => (
++            <li key={a.timestamp} className={`flex items-center gap-3 rounded-stone-sm border-l-4 bg-rock-900/70 px-3 py-2 ${EDGE[a.type] || 'border-l-rock-400'}`}>
++              {a.card ? <CardImage name={a.card.name} className="h-14 w-10 flex-shrink-0 rounded-sm border border-black/50" /> : <span className="h-14 w-10 flex-shrink-0" />}
++              <span className="min-w-0 flex-1 text-sm">
++                <b className="text-fg">{a.playerName}</b> <span className="text-fg-muted">{LABEL[a.type] || 'acted'}</span>
++                {a.card ? <span className="text-fg"> {a.card.name?.replace(/_/g, ' ')}</span> : null}
++              </span>
++              <span className="text-xs tabular-nums text-fg-muted">{ago(a.timestamp)}</span>
++            </li>
++          ))}
++        </ol>
++      </Modal>
+     </>
+   )
+ }
+ 
+ export default HistorySection
+-
 --- a/web/react-frontend/src/components/LevelPill.jsx
 +++ b/web/react-frontend/src/components/LevelPill.jsx
 @@ -0,0 +1,12 @@
@@ -2455,6 +4383,189 @@
                <div>
                  <div className={`text-white font-medium ${isMobile ? 'text-xs' : 'text-sm'}`}>
                    {myPlayer.name || 'You'}
+--- a/web/react-frontend/src/components/MyGolemsPanel.jsx
++++ b/web/react-frontend/src/components/MyGolemsPanel.jsx
+@@ -1,153 +1,38 @@
+ import React, { useState } from 'react'
+-import { createPortal } from 'react-dom'
+-import { motion, AnimatePresence } from 'framer-motion'
+-import CompactCard from './CompactCard'
++import CardPile from './board/CardPile'
++import Modal from './ui/Modal'
++import CardImage from './ui/CardImage'
++import Coin from './ui/Coin'
+ 
++// Golems I claimed + coins, with the points they are worth.
+ const MyGolemsPanel = ({ pointCards = [], coins = [] }) => {
+-  const [expanded, setExpanded] = useState(false)
+-  
+-  const hasCards = pointCards.length > 0
+-  const displayCard = hasCards ? pointCards[pointCards.length - 1] : null
+-  
+-  // Calculate points
+-  const golemPoints = pointCards.reduce((sum, card) => sum + (card.points || 0), 0)
+-  const coinPoints = coins.reduce((sum, c) => sum + (c.points || 0), 0)
+-  const totalPoints = golemPoints + coinPoints
+-  const copperCoins = coins.filter(c => c.points === 3).length
+-  const silverCoins = coins.filter(c => c.points === 1).length
+-
++  const [open, setOpen] = useState(false)
++  const golemPoints = pointCards.reduce((s, c) => s + (c.points || 0), 0)
++  const coinPoints = coins.reduce((s, c) => s + (c.points || 0), 0)
++  const copper = coins.filter((c) => c.points === 3).length
++  const silver = coins.filter((c) => c.points === 1).length
+   return (
+     <>
+-      <div 
+-        className="h-full flex flex-col items-center justify-center cursor-pointer group"
+-        onClick={() => hasCards && setExpanded(true)}
+-      >
+-        {/* Label */}
+-        <div className="text-white/70 text-xs font-semibold mb-2">My Golems</div>
+-        
+-        {/* Card Display */}
+-        <div className="relative">
+-          {hasCards ? (
+-            <div className="relative">
+-              {/* Stacked cards effect */}
+-              {pointCards.length > 1 && (
+-                <>
+-                  <div className="absolute -left-1 -top-1 w-24 h-36 bg-white/10 rounded-xl border border-white/20 transform rotate-[-5deg]" />
+-                  {pointCards.length > 2 && (
+-                    <div className="absolute -left-2 -top-2 w-24 h-36 bg-white/5 rounded-xl border border-white/10 transform rotate-[-10deg]" />
+-                  )}
+-                </>
+-              )}
+-              
+-              {/* Top card */}
+-              <div className="relative z-10 w-24 h-36 group-hover:scale-105 transition-transform">
+-                <CompactCard
+-                  card={displayCard}
+-                  type="point"
+-                  index={pointCards.length - 1}
+-                  size="sm"
+-                />
+-              </div>
+-              
+-              {/* Count badge */}
+-              {pointCards.length > 1 && (
+-                <div className="absolute -top-2 -right-2 z-20 bg-yellow-500 text-black text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center">
+-                  {pointCards.length}
+-                </div>
+-              )}
+-            </div>
+-          ) : (
+-            <div className="w-24 h-36 rounded-xl border-2 border-dashed border-white/30 flex items-center justify-center">
+-              <span className="text-white/40 text-xs">No Golems</span>
+-            </div>
+-          )}
++      <CardPile
++        title="My Golems"
++        count={pointCards.length}
++        top={pointCards[pointCards.length - 1]}
++        empty="None yet"
++        footer={pointCards.length || coins.length ? `★${golemPoints + coinPoints}` : null}
++        onOpen={() => setOpen(true)}
++      />
++      <Modal open={open} onClose={() => setOpen(false)} title={`My golems (${pointCards.length})`} variant="stone" size="lg">
++        <div className="mb-3 flex flex-wrap items-center gap-4 text-sm text-fg-muted">
++          <span>Golems <b className="text-fg">{golemPoints}</b></span>
++          <span className="inline-flex items-center gap-1"><Coin kind="copper" size={18} />×{copper} <Coin kind="silver" size={18} />×{silver} = <b className="text-fg">{coinPoints}</b></span>
++          <span>Total <b className="font-display text-lg text-bronze-100">{golemPoints + coinPoints}</b></span>
+         </div>
+-      </div>
+-
+-      {/* Expanded Modal */}
+-      {expanded && createPortal(
+-        <AnimatePresence>
+-          <motion.div
+-            initial={{ opacity: 0 }}
+-            animate={{ opacity: 1 }}
+-            exit={{ opacity: 0 }}
+-            className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+-            onClick={() => setExpanded(false)}
+-          >
+-            <motion.div
+-              initial={{ scale: 0.9, opacity: 0 }}
+-              animate={{ scale: 1, opacity: 1 }}
+-              exit={{ scale: 0.9, opacity: 0 }}
+-              className="bg-gray-900/95 rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto"
+-              onClick={(e) => e.stopPropagation()}
+-            >
+-              <div className="flex items-center justify-between mb-4">
+-                <h3 className="text-white font-bold text-lg">My Golems ({pointCards.length})</h3>
+-                <button
+-                  onClick={() => setExpanded(false)}
+-                  className="text-white/60 hover:text-white text-2xl"
+-                >
+-                  ×
+-                </button>
+-              </div>
+-              
+-              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+-                {pointCards.map((card, index) => (
+-                  <CompactCard
+-                    key={index}
+-                    card={card}
+-                    type="point"
+-                    index={index}
+-                    size="normal"
+-                  />
+-                ))}
+-              </div>
+-              
+-              {/* Points Summary */}
+-              <div className="mt-4 p-3 bg-black/40 rounded-xl border border-white/20">
+-                <div className="flex flex-wrap items-center justify-center gap-4">
+-                  {/* Golem Points */}
+-                  <div className="flex items-center gap-1">
+-                    <span className="text-white/70 text-sm">Golems:</span>
+-                    <span className="text-yellow-400 font-bold">★{golemPoints}</span>
+-                  </div>
+-                  
+-                  {/* Coin Bonuses */}
+-                  {coins.length > 0 && (
+-                    <div className="flex items-center gap-2">
+-                      <span className="text-white/70 text-sm">Bonus:</span>
+-                      {copperCoins > 0 && (
+-                        <span className="flex items-center gap-0.5 text-orange-400">
+-                          <span>🥉</span>
+-                          <span className="font-bold">{copperCoins}</span>
+-                        </span>
+-                      )}
+-                      {silverCoins > 0 && (
+-                        <span className="flex items-center gap-0.5 text-gray-300">
+-                          <span>🥈</span>
+-                          <span className="font-bold">{silverCoins}</span>
+-                        </span>
+-                      )}
+-                      <span className="text-yellow-400 font-bold">(+{coinPoints})</span>
+-                    </div>
+-                  )}
+-                  
+-                  {/* Total */}
+-                  <div className="flex items-center gap-1">
+-                    <span className="text-white/70 text-sm">Total:</span>
+-                    <span className="text-green-400 font-bold text-lg">★{totalPoints}</span>
+-                  </div>
+-                </div>
+-              </div>
+-            </motion.div>
+-          </motion.div>
+-        </AnimatePresence>,
+-        document.body
+-      )}
++        <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
++          {pointCards.map((card, i) => <CardImage key={i} name={card.name} alt={`Golem, ${card.points} points`} className="aspect-[2/3] w-full rounded-stone-sm border border-black/50" />)}
++        </div>
++      </Modal>
+     </>
+   )
+ }
+ 
+ export default MyGolemsPanel
+-
+-
 --- a/web/react-frontend/src/components/OpponentArea.jsx
 +++ b/web/react-frontend/src/components/OpponentArea.jsx
 @@ -2,6 +2,7 @@
@@ -2526,22 +4637,65 @@
 +export default PlayerAvatar
 --- a/web/react-frontend/src/components/PlayerCard.jsx
 +++ b/web/react-frontend/src/components/PlayerCard.jsx
-@@ -1,4 +1,5 @@
+@@ -1,87 +1,71 @@
  import React from 'react'
-+import PlayerAvatar from './PlayerAvatar'
- 
+-
++import useGameStore from '../store/gameStore'
++import useTurnTimer from '../hooks/useTurnTimer'
++import Avatar from './ui/Avatar'
++import CrystalRow from './ui/CrystalRow'
++import GolemIcon from './ui/GolemIcon'
++import Pill from './ui/Pill'
++import AiThinkingIndicator from './AiThinkingIndicator'
++
++// Points so far = golems + coins (non-yellow crystals only count at the end).
++const pointsOf = (p) =>
++  (p?.pointCards?.reduce((s, c) => s + (c.points || 0), 0) || 0) + (p?.coins?.reduce((s, c) => s + (c.points || 0), 0) || 0)
++
++/**
++ * A player's plaque on the desktop board: portrait (timer ring on their turn; anchor of the rest
++ * popup), name, points, golems, crystals, cards in hand / played, AI thinking, offline.
++ */
  const PlayerCard = ({ player, isCurrentPlayer }) => {
++  const aiThinking = useGameStore((s) => s.gameState?.aiThinking)
++  const golemsToEnd = useGameStore((s) => s.gameState?.golemsToEnd)
++  const myId = useGameStore((s) => s.myPlayer?.id)
++  const timer = useTurnTimer()
    if (!player) return null
-@@ -28,56 +29,59 @@
-         <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-pulse" />
-       )}
  
+-  const golemsCount = player.pointCards?.length || 0
+-  
+-  // Crystal colors
+-  const crystalColors = {
+-    yellow: 'bg-yellow-400',
+-    green: 'bg-green-500',
+-    blue: 'bg-blue-500',
+-    pink: 'bg-pink-400'
+-  }
++  const golems = player.pointCards?.length || 0
++  const offline = !player.isAI && player.online === false
++  const thinking = player.isAI && isCurrentPlayer && aiThinking?.playerID === player.id
++  const nearEnd = golemsToEnd && golems >= golemsToEnd - 1
+ 
+   return (
+-    <div 
+-      className={`
+-        relative bg-white/10 backdrop-blur-md rounded-xl border p-2
+-        ${isCurrentPlayer 
+-          ? 'border-yellow-400 ring-2 ring-yellow-400/50 bg-yellow-500/10' 
+-          : 'border-white/20'
+-        }
+-      `}
+-    >
+-      {/* Current Turn Indicator */}
+-      {isCurrentPlayer && (
+-        <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-pulse" />
+-      )}
+-
 -      {/* Row 1: Avatar + Name + Golems (top right) */}
 -      <div className="flex items-center gap-2 mb-1">
 -        {/* Avatar with online status indicator */}
-+      {/* Avatar on the left, as tall as both rows (name row + crystal row) */}
-+      <div className="flex items-center gap-2.5">
-         <div className="relative flex-shrink-0">
+-        <div className="relative flex-shrink-0">
 -          <div className={`
 -            w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs
 -            border-2 border-white shadow
@@ -2553,27 +4707,28 @@
 -          {/* Online/Offline status indicator */}
 -          {player.online !== undefined && (
 -            <div 
-+          <PlayerAvatar
-+            player={player}
-+            restAnchor
-+            className={`
-+              w-12 h-12 rounded-full text-base
-+              border-2 ${isCurrentPlayer ? 'border-yellow-400' : 'border-white'} shadow
-+              ${isCurrentPlayer ? 'bg-yellow-500 text-black' : 'bg-purple-600 text-white'}
-+              ${player.online === false ? 'opacity-50' : ''}
-+            `}
-+          />
-+          {/* Online/Offline status indicator (humans only; AIs are always there) */}
-+          {player.online !== undefined && !player.isAI && (
-+            <div
-               className={`
+-              className={`
 -                absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white shadow
-+                absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white shadow
-                 ${player.online ? 'bg-green-500' : 'bg-gray-500'}
-               `}
-               title={player.online ? 'Online' : 'Offline'}
-             />
-           )}
+-                ${player.online ? 'bg-green-500' : 'bg-gray-500'}
+-              `}
+-              title={player.online ? 'Online' : 'Offline'}
+-            />
+-          )}
++    <div className={`surface-stone flex items-center gap-2.5 px-2.5 py-2 ${isCurrentPlayer ? 'turn-glow' : ''}`}>
++      <Avatar
++        player={player}
++        size={44}
++        turn={isCurrentPlayer}
++        timer={isCurrentPlayer && !player.isAI ? timer : undefined}
++        offline={offline}
++        restAnchor
++      />
++      <div className="min-w-0 flex-1">
++        <div className="flex items-center gap-1.5">
++          <span className={`truncate text-sm font-bold ${offline ? 'text-fg-muted' : 'text-fg'}`} title={player.name}>
++            {player.name || 'Player'}{player.id === myId ? <span className="font-normal text-fg-muted"> (you)</span> : null}
++          </span>
++          <span className="ml-auto flex-shrink-0 font-display text-sm font-bold text-bronze-100 tabular-nums" title="Golems + coins so far">★{pointsOf(player)}</span>
          </div>
 -        
 -        {/* Name */}
@@ -2581,16 +4736,32 @@
 -          {player.name || 'Player'}
 -          {player.online === false && (
 -            <span className="text-gray-400 text-xs ml-1">(offline)</span>
--          )}
--        </div>
++        <div className="mt-1 flex items-center gap-2">
++          {thinking ? (
++            <AiThinkingIndicator label="thinking" className="text-xs" />
++          ) : (
++            <CrystalRow resources={player.caravan} size="xs" />
+           )}
++          <span
++            className={`ml-auto inline-flex flex-shrink-0 items-center gap-0.5 rounded-full px-1.5 text-xs font-bold ${nearEnd ? 'bg-ember/30 text-[rgb(255_210_196)]' : 'text-bronze-300'}`}
++            title={nearEnd ? 'One golem away from ending the game' : 'Golems'}
++          >
++            <GolemIcon size={14} label="Golems" />{golems}
++          </span>
+         </div>
 -        
 -        {/* Golems count (top right) */}
 -        <div className={`flex items-center gap-1 bg-purple-600/50 rounded-lg px-2 py-0.5 ${golemsCount >= 4 ? 'animate-bounce ring-2 ring-red-500' : ''}`}>
 -          <span className="text-base">🗿</span>
 -          <span className="text-white font-bold text-sm">{golemsCount}</span>
--        </div>
--      </div>
- 
++        <div className="mt-0.5 flex items-center gap-2 text-xs text-fg-muted">
++          <span title="Cards in hand">{player.hand?.length || 0} in hand</span>
++          <span aria-hidden="true">·</span>
++          <span title="Cards played since the last rest">{player.playedCards?.length || 0} played</span>
++          {offline ? <Pill tone="ember" className="ml-auto">Offline</Pill> : null}
+         </div>
+       </div>
+-
 -      {/* Row 2: Crystals */}
 -      <div className="flex items-center gap-1.5 justify-center">
 -        {['yellow', 'green', 'blue', 'pink'].map((color) => {
@@ -2599,39 +4770,16 @@
 -            <div key={color} className="flex items-center">
 -              <div className={`w-4 h-4 rounded-full ${crystalColors[color]}`} />
 -              <span className="text-white text-sm font-bold">{count}</span>
-+        <div className="flex-1 min-w-0">
-+          {/* Row 1: Name + Golems */}
-+          <div className="flex items-center gap-2 mb-1">
-+            <div className={`text-white font-bold text-sm flex-1 min-w-0 flex items-center ${player.online === false ? 'opacity-60' : ''}`}>
-+              <span className="truncate" title={player.name || 'Player'}>{player.name || 'Player'}</span>
-+              {!player.isAI && player.online === false && (
-+                <span className="text-gray-400 text-xs ml-1 flex-shrink-0">(offline)</span>
-+              )}
-             </div>
+-            </div>
 -          )
 -        })}
-+            <div className={`flex-shrink-0 flex items-center gap-1 bg-purple-600/50 rounded-lg px-2 py-0.5 ${golemsCount >= 4 ? 'animate-bounce ring-2 ring-red-500' : ''}`}>
-+              <span className="text-base leading-5">🗿</span>
-+              <span className="text-white font-bold text-sm">{golemsCount}</span>
-+            </div>
-+          </div>
-+
-+          {/* Row 2: Crystals */}
-+          <div className="flex items-center gap-1.5">
-+            {['yellow', 'green', 'blue', 'pink'].map((color) => {
-+              const count = player.caravan?.[color] || 0
-+              return (
-+                <div key={color} className="flex items-center gap-0.5">
-+                  <div className={`w-4 h-4 rounded-full ${crystalColors[color]}`} />
-+                  <span className="text-white text-sm font-bold">{count}</span>
-+                </div>
-+              )
-+            })}
-+          </div>
-+        </div>
-       </div>
+-      </div>
      </div>
    )
+ }
+ 
+ export default PlayerCard
+-
 --- a/web/react-frontend/src/components/PlayersInfoBar.jsx
 +++ b/web/react-frontend/src/components/PlayersInfoBar.jsx
 @@ -1,5 +1,7 @@
@@ -2733,8 +4881,8 @@
 +  const pos = show ? placed.pos : null
 +  const text = show && (
 +    <div className="leading-tight">
-+      <div className="font-bold text-sm">💤 {show.playerName} rested</div>
-+      <div className="text-xs text-purple-100">
++      <div className="text-sm font-bold text-bronze-100">{show.playerName} rested</div>
++      <div className="text-xs text-fg-muted">
 +        took back {show.cards} card{show.cards === 1 ? '' : 's'}
 +      </div>
 +    </div>
@@ -2746,7 +4894,7 @@
 +        <div
 +          key={show.id}
 +          data-testid="rest-popup-anchored"
-+          className="fixed z-[9998] pointer-events-none"
++          className="fixed z-toast pointer-events-none"
 +          style={{ top: pos.top, left: pos.left, transform: 'translateX(-50%)' }}
 +        >
 +          <motion.div
@@ -2755,11 +4903,11 @@
 +            initial={{ opacity: 0, y: -8, scale: 0.9 }}
 +            animate={{ opacity: 1, y: 0, scale: 1 }}
 +            exit={{ opacity: 0, y: -8, scale: 0.9 }}
-+            className="relative px-3 py-2 rounded-xl bg-purple-700 border-2 border-purple-300 text-white shadow-2xl whitespace-nowrap"
++            className="surface-stone relative whitespace-nowrap border-bronze-300/70 px-3 py-2 shadow-elev-2"
 +          >
 +            <span
 +              aria-hidden="true"
-+              className="absolute -top-[7px] w-3 h-3 rotate-45 bg-purple-700 border-l-2 border-t-2 border-purple-300"
++              className="absolute -top-[7px] h-3 w-3 rotate-45 border-l border-t border-bronze-300/70 bg-rock-700"
 +              style={{ left: `calc(50% + ${pos.caret}px - 6px)` }}
 +            />
 +            {text}
@@ -2767,19 +4915,19 @@
 +        </div>
 +      )}
 +      {show && !pos && (
-+        <div key={show.id} className="fixed inset-x-0 top-24 z-[9998] flex justify-center px-4 pointer-events-none">
++        <div key={show.id} className="fixed inset-x-0 top-24 z-toast flex justify-center px-4 pointer-events-none">
 +          <motion.div
 +            role="status"
 +            aria-live="polite"
 +            initial={{ opacity: 0, y: -16, scale: 0.9 }}
 +            animate={{ opacity: 1, y: 0, scale: 1 }}
 +            exit={{ opacity: 0, y: -16, scale: 0.9 }}
-+            className="flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-purple-700/90 border-2 border-purple-300 text-white shadow-2xl backdrop-blur-md"
++            className="surface-stone flex items-center gap-3 border-bronze-300/70 px-4 py-2.5 shadow-elev-2"
 +          >
 +            <img
 +              src={avatarSrc(show.avatarId)}
 +              alt=""
-+              className="w-10 h-10 rounded-full border-2 border-white/60 object-cover flex-shrink-0"
++              className="h-10 w-10 flex-shrink-0 rounded-full border-2 border-bronze-500/80 object-cover"
 +            />
 +            {text}
 +          </motion.div>
@@ -2791,6 +4939,49 @@
 +}
 +
 +export default RestPopup
+--- a/web/react-frontend/src/components/RoomDisplay.jsx
++++ b/web/react-frontend/src/components/RoomDisplay.jsx
+@@ -1,28 +1,21 @@
+ import React, { useState } from 'react'
++import Button from './ui/Button'
+ 
++// Room ID with a Copy button (activity drawer).
+ const RoomDisplay = ({ sessionId }) => {
+   const [copied, setCopied] = useState(false)
+-
+-  const copyToClipboard = () => {
+-    navigator.clipboard.writeText(sessionId)
+-    setCopied(true)
+-    setTimeout(() => setCopied(false), 2000)
+-  }
+-
+   if (!sessionId) return null
+-
++  const copy = async () => {
++    try {
++      await navigator.clipboard.writeText(sessionId)
++      setCopied(true)
++      setTimeout(() => setCopied(false), 2000)
++    } catch { /* clipboard refused: the ID stays selectable */ }
++  }
+   return (
+-    <div className="bg-black/40 backdrop-blur-md rounded-lg px-4 py-2 flex items-center gap-3">
+-      <div className="flex flex-col">
+-        <span className="text-white/60 text-xs">Room ID</span>
+-        <span className="text-white font-mono text-sm">{sessionId}</span>
+-      </div>
+-      <button
+-        onClick={copyToClipboard}
+-        className="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm transition-colors"
+-      >
+-        {copied ? '✓ Copied!' : 'Copy'}
+-      </button>
++    <div className="flex items-center gap-2">
++      <span className="min-w-0 flex-1 select-all truncate font-mono text-sm text-fg" title={sessionId}>{sessionId}</span>
++      <Button size="sm" variant="secondary" onClick={copy}>{copied ? 'Copied' : 'Copy'}</Button>
+     </div>
+   )
+ }
 --- a/web/react-frontend/src/components/SinglePlayerLobby.jsx
 +++ b/web/react-frontend/src/components/SinglePlayerLobby.jsx
 @@ -1,25 +1,27 @@
@@ -3058,28 +5249,82 @@
  
 --- a/web/react-frontend/src/components/SoundToggleButton.jsx
 +++ b/web/react-frontend/src/components/SoundToggleButton.jsx
-@@ -1,9 +1,11 @@
- import React from 'react';
- import useGameStore from '../store/gameStore';
- import soundManager from '../utils/sounds';
-+import useOrientation from '../hooks/useOrientation';
+@@ -1,61 +1,18 @@
+-import React from 'react';
+-import useGameStore from '../store/gameStore';
+-import soundManager from '../utils/sounds';
++import React from 'react'
++import useGameStore from '../store/gameStore'
++import soundManager from '../utils/sounds'
++import { IconButton } from './ui/Button'
  
++// Mute / unmute game sounds (part of the HUD cluster).
  export default function SoundToggleButton() {
-   const { soundsMuted, toggleSoundsMuted } = useGameStore();
-+  const { isMobile } = useOrientation();
- 
-   const handleToggle = () => {
-     const newMutedState = toggleSoundsMuted();
-@@ -13,7 +15,8 @@
+-  const { soundsMuted, toggleSoundsMuted } = useGameStore();
+-
+-  const handleToggle = () => {
+-    const newMutedState = toggleSoundsMuted();
+-    soundManager.setMuted(newMutedState);
+-  };
+-
++  const { soundsMuted, toggleSoundsMuted } = useGameStore()
++  const toggle = () => soundManager.setMuted(toggleSoundsMuted())
    return (
-     <button
-       onClick={handleToggle}
+-    <button
+-      onClick={handleToggle}
 -      className="fixed top-4 right-20 z-50 p-2 bg-gray-800/80 hover:bg-gray-700/90 text-white rounded-lg shadow-lg transition-all duration-200 backdrop-blur-sm border border-gray-600/50"
-+      // phone: stacked under the activity-feed button in the right gutter, clear of the players bar
-+      className={`fixed ${isMobile ? 'top-14 right-2' : 'top-4 right-20'} z-50 p-2 bg-gray-800/80 hover:bg-gray-700/90 text-white rounded-lg shadow-lg transition-all duration-200 backdrop-blur-sm border border-gray-600/50`}
-       title={soundsMuted ? 'Unmute sounds' : 'Mute sounds'}
-       aria-label={soundsMuted ? 'Unmute sounds' : 'Mute sounds'}
-     >
+-      title={soundsMuted ? 'Unmute sounds' : 'Mute sounds'}
+-      aria-label={soundsMuted ? 'Unmute sounds' : 'Mute sounds'}
+-    >
+-      {soundsMuted ? (
+-        // Muted icon
+-        <svg
+-          xmlns="http://www.w3.org/2000/svg"
+-          className="h-6 w-6"
+-          fill="none"
+-          viewBox="0 0 24 24"
+-          stroke="currentColor"
+-        >
+-          <path
+-            strokeLinecap="round"
+-            strokeLinejoin="round"
+-            strokeWidth={2}
+-            d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
+-          />
+-          <path
+-            strokeLinecap="round"
+-            strokeLinejoin="round"
+-            strokeWidth={2}
+-            d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"
+-          />
+-        </svg>
+-      ) : (
+-        // Unmuted icon
+-        <svg
+-          xmlns="http://www.w3.org/2000/svg"
+-          className="h-6 w-6"
+-          fill="none"
+-          viewBox="0 0 24 24"
+-          stroke="currentColor"
+-        >
+-          <path
+-            strokeLinecap="round"
+-            strokeLinejoin="round"
+-            strokeWidth={2}
+-            d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
+-          />
+-        </svg>
+-      )}
+-    </button>
+-  );
++    <IconButton label={soundsMuted ? 'Unmute sounds' : 'Mute sounds'} onClick={toggle} aria-pressed={soundsMuted}>
++      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
++        <path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5H4z" />
++        {soundsMuted ? <path d="M16 9.5l5 5M21 9.5l-5 5" /> : <path d="M15.5 9a4 4 0 010 6M18 6.5a7.5 7.5 0 010 11" />}
++      </svg>
++    </IconButton>
++  )
+ }
 --- a/web/react-frontend/src/components/start/ConnectionDialog.jsx
 +++ b/web/react-frontend/src/components/start/ConnectionDialog.jsx
 @@ -0,0 +1,30 @@
@@ -3425,38 +5670,178 @@
 +    expect(screen.queryByText(/one team/i)).toBeNull()
 +  })
 +})
+--- a/web/react-frontend/src/components/ThemeToggleButton.jsx
++++ b/web/react-frontend/src/components/ThemeToggleButton.jsx
+@@ -1,51 +1,23 @@
+ import React from 'react'
+-import { createLogger } from '../utils/logger'
+ import { useTheme, THEMES } from '../contexts/ThemeContext'
++import { IconButton } from './ui/Button'
+ 
+-const logger = createLogger('ThemeToggleButton');
+-
++// Switch between the standard board and the ✨ table layout (desktop only; part of the HUD cluster).
+ const ThemeToggleButton = () => {
+   const { theme, toggleTheme } = useTheme()
+   const isFantasy = theme === THEMES.FANTASY
+-
+-  logger.debug('Current theme:', theme)
+-
+   return (
+-    <button
+-      onClick={() => {
+-        toggleTheme()
+-      }}
+-      style={{
+-        position: 'fixed',
+-        top: '8px',
+-        left: '8px',
+-        zIndex: 99999,
+-        padding: '8px',
+-        borderRadius: '50%',
+-        border: '2px solid',
+-        borderColor: isFantasy ? '#f59e0b' : '#a855f7',
+-        backgroundColor: isFantasy ? '#92400e' : '#7c3aed',
+-        color: 'white',
+-        fontSize: '16px',
+-        cursor: 'pointer',
+-        display: 'flex',
+-        alignItems: 'center',
+-        justifyContent: 'center',
+-        width: '36px',
+-        height: '36px',
+-        boxShadow: '0 2px 10px rgba(0,0,0,0.3)',
+-        transition: 'all 0.2s ease',
+-      }}
+-      onMouseEnter={(e) => {
+-        e.target.style.transform = 'scale(1.1)'
+-      }}
+-      onMouseLeave={(e) => {
+-        e.target.style.transform = 'scale(1)'
+-      }}
+-      title={isFantasy ? 'Switch to Default' : 'Switch to Fantasy'}
++    <IconButton
++      data-skin-toggle
++      label={isFantasy ? 'Back to the standard board' : 'Switch to the table layout'}
++      onClick={toggleTheme}
++      aria-pressed={isFantasy}
+     >
+-      {isFantasy ? '⬅️' : '✨'}
+-    </button>
++      <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
++        <path d="M12 2l1.8 5.2L19 9l-5.2 1.8L12 16l-1.8-5.2L5 9l5.2-1.8z" opacity={isFantasy ? 1 : 0.85} />
++        <path d="M19 14l.9 2.1L22 17l-2.1.9L19 20l-.9-2.1L16 17l2.1-.9z" />
++      </svg>
++    </IconButton>
+   )
+ }
+ 
 --- a/web/react-frontend/src/components/Toast.jsx
 +++ b/web/react-frontend/src/components/Toast.jsx
-@@ -19,10 +19,10 @@
-       logger.debug('Received toast:', toast)
-       setToasts(prev => [...prev, toast])
-       
--      // Auto remove after 3 seconds (longer to give time to read)
-+      // Auto remove after 3 seconds (AI intents stay a bit longer: they are worth reading)
-       setTimeout(() => {
-         removeToast(toast.id)
--      }, 3000)
-+      }, toast.type === 'ai' ? 4500 : 3000)
-     })
+@@ -1,69 +1,56 @@
+ import React, { useEffect, useState, useCallback } from 'react'
+ import { createPortal } from 'react-dom'
+ import { motion, AnimatePresence } from 'framer-motion'
+-import { createLogger } from '../utils/logger'
+ import { setToastListener, clearToastListener } from '../utils/toast'
  
-     return () => {
-@@ -47,13 +47,15 @@
-                 ? 'bg-red-500/90 border-red-300' 
-                 : toast.type === 'success'
-                 ? 'bg-green-500/90 border-green-300'
-+                : toast.type === 'ai'
-+                ? 'bg-purple-600/90 border-purple-300'
-                 : 'bg-blue-500/90 border-blue-300'
-               }
-             `}
+-const logger = createLogger('ToastComponent');
++const EDGE = { error: 'border-l-ember', success: 'border-l-moss', ai: 'border-l-gem-pink', info: 'border-l-teal' }
+ 
++function Icon({ type }) {
++  const common = { viewBox: '0 0 24 24', width: 18, height: 18, fill: 'none', strokeWidth: 2.4, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true }
++  if (type === 'error') return <svg {...common} stroke="rgb(var(--ember))"><path d="M12 8v5M12 16.5v.5" /><circle cx="12" cy="12" r="9" /></svg>
++  if (type === 'success') return <svg {...common} stroke="rgb(var(--moss))"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
++  return <svg {...common} stroke="rgb(var(--teal))"><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 7.5v.5" /></svg>
++}
++
++/** Short messages, top-centre under the HUD: stone pill with a coloured edge. 3 s (AI notes 4.5 s). */
+ const Toast = () => {
+   const [toasts, setToasts] = useState([])
+-
+-  const removeToast = useCallback((id) => {
+-    setToasts(prev => prev.filter(t => t.id !== id))
+-  }, [])
++  const removeToast = useCallback((id) => setToasts((prev) => prev.filter((t) => t.id !== id)), [])
+ 
+   useEffect(() => {
+-    logger.debug('Component mounted, setting up listener')
+     setToastListener((toast) => {
+-      logger.debug('Received toast:', toast)
+-      setToasts(prev => [...prev, toast])
+-      
+-      // Auto remove after 3 seconds (longer to give time to read)
+-      setTimeout(() => {
+-        removeToast(toast.id)
+-      }, 3000)
++      setToasts((prev) => [...prev.slice(-2), toast]) // at most 3 on screen
++      setTimeout(() => removeToast(toast.id), toast.type === 'ai' ? 4500 : 3000)
+     })
+-
+-    return () => {
+-      clearToastListener()
+-    }
++    return () => clearToastListener()
+   }, [removeToast])
+ 
+-  // Always render portal container - positioned top right
+   return createPortal(
+-    <div className="fixed top-4 right-4 z-[9999] flex flex-col gap-2 pointer-events-none max-w-sm">
++    <div
++      className="pointer-events-none fixed inset-x-0 z-toast flex flex-col items-center gap-2 px-3"
++      style={{ top: 'calc(max(8px, var(--safe-top)) + 56px)' }}
++      aria-live="polite"
++    >
+       <AnimatePresence>
+-        {toasts.map(toast => (
++        {toasts.map((toast) => (
+           <motion.div
+             key={toast.id}
+-            initial={{ opacity: 0, x: 100, scale: 0.9 }}
+-            animate={{ opacity: 1, x: 0, scale: 1 }}
+-            exit={{ opacity: 0, x: 100, scale: 0.9 }}
+-            className={`
+-              px-4 py-3 rounded-xl shadow-2xl text-white font-semibold text-sm
+-              backdrop-blur-md border-2 pointer-events-auto
+-              ${toast.type === 'error' 
+-                ? 'bg-red-500/90 border-red-300' 
+-                : toast.type === 'success'
+-                ? 'bg-green-500/90 border-green-300'
+-                : 'bg-blue-500/90 border-blue-300'
+-              }
+-            `}
++            role={toast.type === 'error' ? 'alert' : 'status'}
++            initial={{ opacity: 0, y: -12, scale: 0.96 }}
++            animate={{ opacity: 1, y: 0, scale: 1 }}
++            exit={{ opacity: 0, y: -12, scale: 0.96 }}
++            className={`surface-stone pointer-events-auto flex w-full max-w-md items-center gap-2.5 border-l-4 py-2 pl-3 pr-1 text-sm font-semibold ${EDGE[toast.type] || EDGE.info}`}
            >
-             <div className="flex items-center gap-2">
-               <span>
+-            <div className="flex items-center gap-2">
+-              <span>
 -                {toast.type === 'error' ? '❌' : toast.type === 'success' ? '✅' : 'ℹ️'}
-+                {toast.type === 'error' ? '❌' : toast.type === 'success' ? '✅' : toast.type === 'ai' ? '🤖' : 'ℹ️'}
-               </span>
-               <span className="flex-1">{toast.message}</span>
-               <button
+-              </span>
+-              <span className="flex-1">{toast.message}</span>
+-              <button
+-                onClick={() => removeToast(toast.id)}
+-                className="ml-2 w-5 h-5 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/40 transition-colors text-xs font-bold"
+-                aria-label="Close"
+-              >
+-                ✕
+-              </button>
+-            </div>
++            <Icon type={toast.type} />
++            <span className="flex-1 text-fg">{toast.message}</span>
++            <button
++              type="button"
++              onClick={() => removeToast(toast.id)}
++              aria-label="Dismiss"
++              className="inline-flex h-9 w-9 items-center justify-center rounded-stone-sm text-fg-muted hover:bg-rock-700/60 hover:text-fg"
++            >
++              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
++            </button>
+           </motion.div>
+         ))}
+       </AnimatePresence>
 --- a/web/react-frontend/src/components/TradeModal.jsx
 +++ b/web/react-frontend/src/components/TradeModal.jsx
 @@ -1,327 +1,113 @@
@@ -4094,11 +6479,12 @@
 +export default Coin
 --- a/web/react-frontend/src/components/ui/CrystalRow.jsx
 +++ b/web/react-frontend/src/components/ui/CrystalRow.jsx
-@@ -0,0 +1,62 @@
+@@ -0,0 +1,63 @@
 +import React from 'react'
 +import Gem, { CRYSTALS } from './Gem'
 +
-+const totalOf = (res) => CRYSTALS.reduce((n, c) => n + (res?.[c] || 0), 0)
++const count = (res, c) => Number(res?.[c]) || 0 // the server sends some counts as strings
++const totalOf = (res) => CRYSTALS.reduce((n, c) => n + count(res, c), 0)
 +
 +const TEXT = { xs: 'text-xs', sm: 'text-sm', md: 'text-base', lg: 'text-lg' }
 +const GEM = { xs: 14, sm: 16, md: 20, lg: 24 }
@@ -4109,12 +6495,12 @@
 + */
 +const CrystalRow = ({ resources, size = 'sm', capacity, showZero = true, className = '', tone = 'stone' }) => {
 +  const total = totalOf(resources)
-+  const label = CRYSTALS.map((c) => `${resources?.[c] || 0} ${c}`).join(', ') + (capacity ? `, ${total} of ${capacity}` : '')
++  const label = CRYSTALS.map((c) => `${count(resources, c)} ${c}`).join(', ') + (capacity ? `, ${total} of ${capacity}` : '')
 +  const muted = tone === 'parchment' ? 'text-ink-muted' : 'text-fg-muted'
 +  return (
 +    <div className={`inline-flex items-center gap-2 ${TEXT[size]} ${className}`} role="group" aria-label={`Crystals: ${label}`}>
 +      {CRYSTALS.map((c) => {
-+        const n = resources?.[c] || 0
++        const n = count(resources, c)
 +        if (!showZero && n === 0) return null
 +        return (
 +          <span key={c} className={`inline-flex items-center gap-0.5 font-semibold tabular-nums ${n === 0 ? 'opacity-40' : ''}`}>
@@ -4137,11 +6523,11 @@
 + * `resources` is a {yellow, green, blue, pink} count map.
 + */
 +export const CrystalCost = ({ resources, size = 16, className = '', max = 5 }) => {
-+  const label = CRYSTALS.filter((c) => resources?.[c]).map((c) => `${resources[c]} ${c}`).join(', ') || 'nothing'
++  const label = CRYSTALS.filter((c) => count(resources, c)).map((c) => `${count(resources, c)} ${c}`).join(', ') || 'nothing'
 +  return (
 +    <span className={`inline-flex flex-wrap items-center gap-0.5 ${className}`} role="img" aria-label={label}>
 +      {CRYSTALS.map((c) => {
-+        const n = resources?.[c] || 0
++        const n = count(resources, c)
 +        if (!n) return null
 +        if (n > max) {
 +          return (
@@ -5455,6 +7841,139 @@
 +    expect(soundsFor(me(3, 1, { pendingDiscard: 2 }), me(4, 0))).toEqual([])
 +  })
 +})
+--- a/web/react-frontend/src/hooks/useBoardActions.js
++++ b/web/react-frontend/src/hooks/useBoardActions.js
+@@ -0,0 +1,130 @@
++import { useState } from 'react'
++import useGameStore from '../store/gameStore'
++import useReopenAfterUndo from './useReopenAfterUndo'
++import { showToast } from '../utils/toast'
++import { crystalsToPlace } from '../utils/aiLevel'
++import { COLORS, total } from '../utils/crystals'
++
++const NAMES = { yellow: 'Yellow', green: 'Green', blue: 'Blue', pink: 'Pink' }
++const CLOSED = { show: false, card: null, index: null }
++
++/**
++ * Everything a board needs to act on the game, shared by the desktop, mobile and ✨ layouts:
++ * whose turn it is, what the player can afford, the coin on each golem slot, and the handlers that
++ * open the right popup (rendered by <BoardModals actions={…} />).
++ * `reopenAfterUndo`: this instance reopens the trade/upgrade picker after an Undo (only one per screen).
++ */
++export default function useBoardActions({ reopenAfterUndo = false } = {}) {
++  const gameState = useGameStore((s) => s.gameState)
++  const myPlayer = useGameStore((s) => s.myPlayer)
++  const currentPlayer = useGameStore((s) => s.currentPlayer)
++  const isSpectator = useGameStore((s) => s.isSpectator)
++  const store = useGameStore.getState
++
++  const [depositModal, setDepositModal] = useState(CLOSED)
++  const [upgradeModal, setUpgradeModal] = useState(CLOSED)
++  const [tradeModal, setTradeModal] = useState(CLOSED)
++  const [confirmGolem, setConfirmGolem] = useState({ show: false, golem: null, index: null, coin: null })
++
++  useReopenAfterUndo(({ kind, card, cardIndex }) => {
++    if (!reopenAfterUndo) return
++    if (kind === 'upgrade') setUpgradeModal({ show: true, card, index: cardIndex })
++    else if (kind === 'trade') setTradeModal({ show: true, card, index: cardIndex })
++  })
++
++  // Waiting room: the server sends no market (or an empty one) before the game starts
++  const market = gameState?.market
++  const isWaiting = gameState?.status === 'waiting' || !market || Object.keys(market).length === 0
++  const actionCards = market?.actionCards || []
++  const pointCards = market?.pointCards || []
++  const coins = market?.coins || []
++  const caravan = myPlayer?.caravan || myPlayer?.resources || {}
++  const isMyTurn = !isSpectator && !isWaiting && !!myPlayer && currentPlayer?.id === myPlayer?.id
++  const hand = myPlayer?.hand || []
++  const playedCards = myPlayer?.playedCards || []
++  const canRest = isMyTurn && playedCards.length > 0
++
++  // Market card k costs k crystals (one on each card to its left)
++  const placeCost = (index) => crystalsToPlace(actionCards[index], index)
++  const canAfford = (index) => !isSpectator && total(caravan) >= placeCost(index)
++  const canClaim = (card) => !isSpectator && !!card?.requirement && COLORS.every((c) => (caravan[c] || 0) >= (card.requirement[c] || 0))
++
++  // Coin on golem slot: slot 1 takes the first coin left (copper, then silver); slot 2 the silver one
++  // while copper coins remain (official rules).
++  const coinFor = (index) => {
++    const copper = coins[0]?.amount > 0 ? coins[0] : null
++    const silver = coins[1]?.amount > 0 ? coins[1] : null
++    if (index === 0) {
++      if (copper) return { kind: 'copper', left: copper.amount }
++      if (silver) return { kind: 'silver', left: silver.amount }
++    } else if (index === 1 && copper && silver) {
++      return { kind: 'silver', left: silver.amount }
++    }
++    return null
++  }
++
++  const guard = () => {
++    if (isSpectator) { showToast('You are watching — spectators cannot act', 'info'); return false }
++    if (!isMyTurn) { showToast('Not your turn yet', 'info'); return false }
++    return true
++  }
++
++  const onMarketCard = (index) => {
++    if (!guard()) return
++    const card = actionCards[index]
++    if (!canAfford(index)) {
++      showToast(`Card ${index + 1} needs ${placeCost(index)} crystals to place`, 'error')
++      return
++    }
++    // the free first card is taken at once unless crystals lie on it (then show what you pick up)
++    if (index === 0 && total(card?.deposits) === 0) {
++      store().acquireCard(0, [], card)
++      return
++    }
++    setDepositModal({ show: true, card, index })
++  }
++
++  const onGolem = (index) => {
++    if (!guard()) return
++    const card = pointCards[index]
++    if (!canClaim(card)) {
++      const missing = COLORS.filter((c) => (card?.requirement?.[c] || 0) > (caravan[c] || 0))
++        .map((c) => `${card.requirement[c] - (caravan[c] || 0)} ${NAMES[c]}`)
++      showToast(`Missing ${missing.join(', ')}`, 'error')
++      return
++    }
++    setConfirmGolem({ show: true, golem: card, index, coin: coinFor(index)?.kind || null })
++  }
++
++  const onHandCard = (card, index) => {
++    if (!guard()) return
++    if (card.actionType === 1) setUpgradeModal({ show: true, card, index })
++    else if (card.actionType === 2) setTradeModal({ show: true, card, index })
++    else store().playCard(index, card)
++  }
++
++  const onRest = () => {
++    if (canRest) store().rest()
++  }
++
++  const onStartGame = async () => {
++    const result = await store().startGame()
++    if (!result?.success) showToast(result?.error || 'Could not start the game', 'error')
++  }
++
++  const modals = {
++    depositModal, upgradeModal, tradeModal, confirmGolem,
++    closeDeposit: () => setDepositModal(CLOSED),
++    closeUpgrade: () => setUpgradeModal(CLOSED),
++    closeTrade: () => setTradeModal(CLOSED),
++    closeGolem: () => setConfirmGolem({ show: false, golem: null, index: null, coin: null }),
++  }
++
++  return {
++    gameState, myPlayer, currentPlayer, isSpectator, isWaiting, isMyTurn,
++    actionCards, pointCards, coins, caravan, hand, playedCards, canRest,
++    placeCost, canAfford, canClaim, coinFor,
++    onMarketCard, onGolem, onHandCard, onRest, onStartGame,
++    modals,
++  }
++}
 --- a/web/react-frontend/src/hooks/useGameSounds.js
 +++ b/web/react-frontend/src/hooks/useGameSounds.js
 @@ -2,6 +2,7 @@
@@ -5556,6 +8075,28 @@
 +    open(reopenPlay)
 +    // eslint-disable-next-line react-hooks/exhaustive-deps
 +  }, [reopenPlay])
++}
+--- a/web/react-frontend/src/hooks/useTurnTimer.js
++++ b/web/react-frontend/src/hooks/useTurnTimer.js
+@@ -0,0 +1,19 @@
++import { useEffect, useState } from 'react'
++import useGameStore from '../store/gameStore'
++
++/**
++ * Seconds left in the current turn (counted down in the browser, restarted when the turn passes to
++ * another player). `total` = the room's turn timeout. One shared implementation for every layout.
++ */
++export default function useTurnTimer() {
++  // currentTurn counts every turn (a discard keeps the same turn); fall back to the player to move
++  const turnKey = useGameStore((s) => s.gameState?.currentTurn ?? s.gameState?.currentPlayer)
++  const total = useGameStore((s) => s.gameState?.turnTimeout) || 60
++  const [remaining, setRemaining] = useState(total)
++  useEffect(() => {
++    setRemaining(total)
++    const t = setInterval(() => setRemaining((p) => Math.max(0, p - 1)), 1000)
++    return () => clearInterval(t)
++  }, [turnKey, total])
++  return { remaining, total }
 +}
 --- a/web/react-frontend/src/index.css
 +++ b/web/react-frontend/src/index.css
@@ -5756,16 +8297,18 @@
  
 --- a/web/react-frontend/src/SinglePlayerApp.jsx
 +++ b/web/react-frontend/src/SinglePlayerApp.jsx
-@@ -1,4 +1,4 @@
+@@ -1,18 +1,22 @@
 -import React, { useState, useEffect } from 'react'
 +import React, { useState, useEffect, useRef } from 'react'
  import { useParams, useNavigate } from 'react-router-dom'
  import SinglePlayerLobby from './components/SinglePlayerLobby'
  import Lobby from './components/Lobby'
-@@ -8,11 +8,19 @@
- import CollapsibleInfo from './components/CollapsibleInfo'
+ import PlayersInfoBar from './components/PlayersInfoBar'
+ import CompactGameBoard from './components/mobile/CompactGameBoard'
+ import CompactPlayerHand from './components/mobile/CompactPlayerHand'
+-import CollapsibleInfo from './components/CollapsibleInfo'
  import DiscardModal from './components/DiscardModal'
- import AcquiredCardOverlay from './components/AcquiredCardOverlay'
+-import AcquiredCardOverlay from './components/AcquiredCardOverlay'
 +import RestPopup from './components/RestPopup'
  import GameOverModal from './components/GameOverModal'
  import Toast from './components/Toast'
@@ -5776,13 +8319,13 @@
 +import { apiFetch } from './utils/api'
 +import { showToast } from './utils/toast'
  import WebGameLayout from './components/desktop/WebGameLayout'
- import ThemeToggleButton from './components/ThemeToggleButton'
- import SoundToggleButton from './components/SoundToggleButton'
-+import DifficultyBadge from './components/DifficultyBadge'
+-import ThemeToggleButton from './components/ThemeToggleButton'
+-import SoundToggleButton from './components/SoundToggleButton'
++import Hud from './components/board/Hud'
  import FantasyGameLayout from './components/desktop/FantasyGameLayout'
  import useGameStore from './store/gameStore'
  import useOrientation from './hooks/useOrientation'
-@@ -21,34 +29,29 @@
+@@ -21,59 +25,44 @@
  import { ThemeProvider, useTheme } from './contexts/ThemeContext'
  
  // Game Content with Theme Support
@@ -5809,14 +8352,17 @@
 +  const handleNewGame = onNewGame
 +  const handleBackToMenu = onBackToMenu
  
-   // Fantasy Theme Layout
-   if (isFantasy) {
+-  // Fantasy Theme Layout
+-  if (isFantasy) {
++  // ✨ table layout: desktop only (phones and short landscape screens always get the compact board)
++  if (isFantasy && useWebLayout) {
      return (
        <>
-         <ThemeToggleButton />
-+        <DifficultyBadge />
-         <SoundToggleButton />
-         <FantasyGameLayout 
+-        <ThemeToggleButton />
+-        <SoundToggleButton />
+-        <FantasyGameLayout 
++        <Hud sessionId={sessionId} showSkinToggle />
++        <FantasyGameLayout
            onNewGame={handleNewGame}
            onBackToMenu={handleBackToMenu}
          />
@@ -5824,16 +8370,25 @@
          <Toast />
        </>
      )
-@@ -59,21 +62,19 @@
+   }
+ 
+-  // Default Theme Layout
++  // Standard layout
+   return (
      <>
-       {/* Theme Toggle Button - Always visible */}
-       <ThemeToggleButton />
+-      {/* Theme Toggle Button - Always visible */}
+-      <ThemeToggleButton />
+-      
+-      {/* Sound Toggle Button - Always visible */}
+-      <SoundToggleButton />
++      {/* Round · difficulty (left), ✨ · sound · activity (right) */}
++      <Hud sessionId={sessionId} showSkinToggle={useWebLayout} compact={!useWebLayout} />
 +
-+      {/* AI difficulty — one badge for the whole game, under the theme toggle */}
-+      <DifficultyBadge />
-       
-       {/* Sound Toggle Button - Always visible */}
-       <SoundToggleButton />
++      {/* "<opponent> rested" popup */}
++      <RestPopup />
++
++      {/* Night mountains behind the board */}
++      <NightBackdrop />
  
 -      {/* Blurred Background Layer */}
 -      <div className="fixed inset-0 z-0"
@@ -5846,16 +8401,22 @@
 -        }}
 -      />
 -      
-+      {/* "<opponent> rested" popup */}
-+      <RestPopup />
-+
-+      {/* Night mountains behind the board */}
-+      <NightBackdrop />
-+
        {useWebLayout ? (
          /* Desktop/Tablet - WebGameLayout */
          <div className="h-screen h-[100dvh] relative z-10">
-@@ -144,6 +145,7 @@
+@@ -119,11 +108,6 @@
+           {/* Discard Modal (when crystals exceed max) */}
+           <DiscardModal />
+           
+-          {/* Overlay when other players acquire or play cards */}
+-          <AcquiredCardOverlay />
+-
+-          {/* Activity Feed (Chat & History) - Works on all screen sizes */}
+-          <CollapsibleInfo sessionId={sessionId} />
+         </div>
+       )}
+ 
+@@ -144,6 +128,7 @@
    const navigate = useNavigate()
    const [gameMode, setGameMode] = useState(null) // null, 'single', 'multi'
    const [inGame, setInGame] = useState(false)
@@ -5863,7 +8424,7 @@
    const { 
      connectWebSocket, 
      gameState, 
-@@ -158,13 +160,30 @@
+@@ -158,13 +143,30 @@
      playerAvatar: storedPlayerAvatar,
      isSpectator,
    } = useGameStore()
@@ -5897,7 +8458,7 @@
      }
    }, [roomId, inGame, isConnecting])
  
-@@ -183,250 +202,142 @@
+@@ -183,250 +185,142 @@
    }
  
    const handleBackToMenu = () => {
@@ -6810,26 +9371,29 @@
 +})
 --- a/web/react-frontend/src/utils/crystals.js
 +++ b/web/react-frontend/src/utils/crystals.js
-@@ -0,0 +1,30 @@
+@@ -0,0 +1,33 @@
 +// Crystal maps {yellow, green, blue, pink} — small helpers shared by the popups.
 +export const COLORS = ['yellow', 'green', 'blue', 'pink']
 +export const LEVEL = { yellow: 1, green: 2, blue: 3, pink: 4 }
 +export const MAX_CARAVAN = 10
 +
++// Counts may arrive as strings (the server sends market-card deposits as {"yellow": "1"}): always coerce.
++export const num = (x) => Number(x) || 0
++
 +export const empty = () => ({ yellow: 0, green: 0, blue: 0, pink: 0 })
-+export const of = (res) => Object.fromEntries(COLORS.map((c) => [c, res?.[c] || 0]))
-+export const total = (res) => COLORS.reduce((n, c) => n + (res?.[c] || 0), 0)
-+export const levels = (res) => COLORS.reduce((n, c) => n + (res?.[c] || 0) * LEVEL[c], 0)
-+export const add = (a, b) => Object.fromEntries(COLORS.map((c) => [c, (a?.[c] || 0) + (b?.[c] || 0)]))
-+export const sub = (a, b) => Object.fromEntries(COLORS.map((c) => [c, (a?.[c] || 0) - (b?.[c] || 0)]))
-+export const times = (a, k) => Object.fromEntries(COLORS.map((c) => [c, (a?.[c] || 0) * k]))
++export const of = (res) => Object.fromEntries(COLORS.map((c) => [c, num(res?.[c])]))
++export const total = (res) => COLORS.reduce((n, c) => n + num(res?.[c]), 0)
++export const levels = (res) => COLORS.reduce((n, c) => n + num(res?.[c]) * LEVEL[c], 0)
++export const add = (a, b) => Object.fromEntries(COLORS.map((c) => [c, num(a?.[c]) + num(b?.[c])]))
++export const sub = (a, b) => Object.fromEntries(COLORS.map((c) => [c, num(a?.[c]) - num(b?.[c])]))
++export const times = (a, k) => Object.fromEntries(COLORS.map((c) => [c, num(a?.[c]) * k]))
 +
 +/** The n cheapest crystals of `res`, yellow first (what you give away when the choice doesn't matter). */
 +export function cheapest(res, n) {
 +  const out = empty()
 +  let left = n
 +  for (const c of COLORS) {
-+    const take = Math.min(left, res?.[c] || 0)
++    const take = Math.min(left, num(res?.[c]))
 +    out[c] = take
 +    left -= take
 +  }
@@ -6843,7 +9407,7 @@
 +}
 --- a/web/react-frontend/src/utils/crystals.test.js
 +++ b/web/react-frontend/src/utils/crystals.test.js
-@@ -0,0 +1,15 @@
+@@ -0,0 +1,19 @@
 +import { describe, test, expect } from 'vitest'
 +import { cheapest, cheapestList, total, levels, add, sub } from './crystals'
 +
@@ -6852,6 +9416,10 @@
 +    expect(cheapest({ yellow: 1, green: 2, blue: 3, pink: 1 }, 3)).toEqual({ yellow: 1, green: 2, blue: 0, pink: 0 })
 +    expect(cheapestList({ yellow: 0, green: 0, blue: 3, pink: 7 }, 1)).toEqual(['blue'])
 +    expect(cheapest({ yellow: 1 }, 4)).toEqual({ yellow: 1, green: 0, blue: 0, pink: 0 }) // not enough: what there is
++  })
++  test('string counts from the server are numbers', () => {
++    expect(total({ yellow: '1', pink: '2' })).toBe(3)
++    expect(add({ yellow: '1' }, { yellow: 1 })).toEqual({ yellow: 2, green: 0, blue: 0, pink: 0 })
 +  })
 +  test('totals, levels and arithmetic', () => {
 +    expect(total({ yellow: 3, pink: 2 })).toBe(5)
@@ -6933,6 +9501,20 @@
 +    expect(restAnchorPosition(undefined, docWith(null), win)).toBeNull()
 +  })
 +})
+--- a/web/react-frontend/src/utils/toast.js
++++ b/web/react-frontend/src/utils/toast.js
+@@ -11,9 +11,8 @@
+   if (toastListener) {
+     toastListener({ id: ++toastId, message, type })
+   } else {
+-    // Fallback: use alert if Toast not mounted
+-    logger.warn('No listener, using alert fallback')
+-    alert(message)
++    // every screen mounts <Toast/>; without it the message only goes to the log (no blocking alert)
++    logger.warn('No toast listener:', message)
+   }
+ }
+ 
 --- a/web/react-frontend/src/utils/undo.js
 +++ b/web/react-frontend/src/utils/undo.js
 @@ -0,0 +1,13 @@

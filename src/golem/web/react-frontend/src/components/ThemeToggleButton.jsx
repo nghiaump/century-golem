@@ -1,51 +1,23 @@
 import React from 'react'
-import { createLogger } from '../utils/logger'
 import { useTheme, THEMES } from '../contexts/ThemeContext'
+import { IconButton } from './ui/Button'
 
-const logger = createLogger('ThemeToggleButton');
-
+// Switch between the standard board and the ✨ table layout (desktop only; part of the HUD cluster).
 const ThemeToggleButton = () => {
   const { theme, toggleTheme } = useTheme()
   const isFantasy = theme === THEMES.FANTASY
-
-  logger.debug('Current theme:', theme)
-
   return (
-    <button
-      onClick={() => {
-        toggleTheme()
-      }}
-      style={{
-        position: 'fixed',
-        top: '8px',
-        left: '8px',
-        zIndex: 99999,
-        padding: '8px',
-        borderRadius: '50%',
-        border: '2px solid',
-        borderColor: isFantasy ? '#f59e0b' : '#a855f7',
-        backgroundColor: isFantasy ? '#92400e' : '#7c3aed',
-        color: 'white',
-        fontSize: '16px',
-        cursor: 'pointer',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: '36px',
-        height: '36px',
-        boxShadow: '0 2px 10px rgba(0,0,0,0.3)',
-        transition: 'all 0.2s ease',
-      }}
-      onMouseEnter={(e) => {
-        e.target.style.transform = 'scale(1.1)'
-      }}
-      onMouseLeave={(e) => {
-        e.target.style.transform = 'scale(1)'
-      }}
-      title={isFantasy ? 'Switch to Default' : 'Switch to Fantasy'}
+    <IconButton
+      data-skin-toggle
+      label={isFantasy ? 'Back to the standard board' : 'Switch to the table layout'}
+      onClick={toggleTheme}
+      aria-pressed={isFantasy}
     >
-      {isFantasy ? '⬅️' : '✨'}
-    </button>
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+        <path d="M12 2l1.8 5.2L19 9l-5.2 1.8L12 16l-1.8-5.2L5 9l5.2-1.8z" opacity={isFantasy ? 1 : 0.85} />
+        <path d="M19 14l.9 2.1L22 17l-2.1.9L19 20l-.9-2.1L16 17l2.1-.9z" />
+      </svg>
+    </IconButton>
   )
 }
 

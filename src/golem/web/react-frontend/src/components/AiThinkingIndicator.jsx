@@ -1,14 +1,15 @@
 import React from 'react'
+import Gem from './ui/Gem'
 
-// "thinking…" marker shown on the AI whose turn it is (Hard/Very Hard think for 1.4–3 s).
+// "<AI> is thinking…" marker (Hard/Very Hard think for 1.4–3 s): three crystals pulsing in turn.
 const AiThinkingIndicator = ({ label = 'thinking', className = '' }) => (
-  <span className={`inline-flex items-center gap-1 text-purple-200 ${className}`} role="status" aria-live="polite">
+  <span className={`inline-flex items-center gap-1.5 text-fg-muted ${className}`} role="status" aria-live="polite">
     <span className="flex gap-0.5" aria-hidden="true">
-      <span className="w-1.5 h-1.5 rounded-full bg-purple-300 animate-bounce" style={{ animationDelay: '0ms' }} />
-      <span className="w-1.5 h-1.5 rounded-full bg-purple-300 animate-bounce" style={{ animationDelay: '150ms' }} />
-      <span className="w-1.5 h-1.5 rounded-full bg-purple-300 animate-bounce" style={{ animationDelay: '300ms' }} />
+      {['blue', 'green', 'pink'].map((c, i) => (
+        <span key={c} className="animate-pulse" style={{ animationDelay: `${i * 0.2}s` }}><Gem color={c} size={12} label={false} /></span>
+      ))}
     </span>
-    <span>{label}…</span>
+    <span className="truncate">{label}…</span>
   </span>
 )
 

@@ -11,9 +11,8 @@ export const showToast = (message, type = 'error') => {
   if (toastListener) {
     toastListener({ id: ++toastId, message, type })
   } else {
-    // Fallback: use alert if Toast not mounted
-    logger.warn('No listener, using alert fallback')
-    alert(message)
+    // every screen mounts <Toast/>; without it the message only goes to the log (no blocking alert)
+    logger.warn('No toast listener:', message)
   }
 }
 

@@ -26,8 +26,8 @@ const RestPopup = () => {
   const pos = show ? placed.pos : null
   const text = show && (
     <div className="leading-tight">
-      <div className="font-bold text-sm">💤 {show.playerName} rested</div>
-      <div className="text-xs text-purple-100">
+      <div className="text-sm font-bold text-bronze-100">{show.playerName} rested</div>
+      <div className="text-xs text-fg-muted">
         took back {show.cards} card{show.cards === 1 ? '' : 's'}
       </div>
     </div>
@@ -39,7 +39,7 @@ const RestPopup = () => {
         <div
           key={show.id}
           data-testid="rest-popup-anchored"
-          className="fixed z-[9998] pointer-events-none"
+          className="fixed z-toast pointer-events-none"
           style={{ top: pos.top, left: pos.left, transform: 'translateX(-50%)' }}
         >
           <motion.div
@@ -48,11 +48,11 @@ const RestPopup = () => {
             initial={{ opacity: 0, y: -8, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.9 }}
-            className="relative px-3 py-2 rounded-xl bg-purple-700 border-2 border-purple-300 text-white shadow-2xl whitespace-nowrap"
+            className="surface-stone relative whitespace-nowrap border-bronze-300/70 px-3 py-2 shadow-elev-2"
           >
             <span
               aria-hidden="true"
-              className="absolute -top-[7px] w-3 h-3 rotate-45 bg-purple-700 border-l-2 border-t-2 border-purple-300"
+              className="absolute -top-[7px] h-3 w-3 rotate-45 border-l border-t border-bronze-300/70 bg-rock-700"
               style={{ left: `calc(50% + ${pos.caret}px - 6px)` }}
             />
             {text}
@@ -60,19 +60,19 @@ const RestPopup = () => {
         </div>
       )}
       {show && !pos && (
-        <div key={show.id} className="fixed inset-x-0 top-24 z-[9998] flex justify-center px-4 pointer-events-none">
+        <div key={show.id} className="fixed inset-x-0 top-24 z-toast flex justify-center px-4 pointer-events-none">
           <motion.div
             role="status"
             aria-live="polite"
             initial={{ opacity: 0, y: -16, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -16, scale: 0.9 }}
-            className="flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-purple-700/90 border-2 border-purple-300 text-white shadow-2xl backdrop-blur-md"
+            className="surface-stone flex items-center gap-3 border-bronze-300/70 px-4 py-2.5 shadow-elev-2"
           >
             <img
               src={avatarSrc(show.avatarId)}
               alt=""
-              className="w-10 h-10 rounded-full border-2 border-white/60 object-cover flex-shrink-0"
+              className="h-10 w-10 flex-shrink-0 rounded-full border-2 border-bronze-500/80 object-cover"
             />
             {text}
           </motion.div>
