@@ -34,7 +34,7 @@ Play solo against 1–4 AI opponents or with up to 5 friends, right in the brows
 <img alt="Status: live" src="https://img.shields.io/badge/status-live-22c55e?style=flat-square"/>
 </p>
 
-<p><a href="#-features">Features</a> • <a href="#-screenshots">Screenshots</a> • <a href="#-how-to-play">How to play</a> • <a href="#-quick-start">Quick start</a> • <a href="#-architecture">Architecture</a> • <a href="#-configuration">Configuration</a> • <a href="#-operations">Operations</a> • <a href="#-credits--disclaimer">Credits</a></p>
+<p><a href="#-features">Features</a> • <a href="#-screenshots">Screenshots</a> • <a href="#-on-your-phone">On your phone</a> • <a href="#-how-to-play">How to play</a> • <a href="#-quick-start">Quick start</a> • <a href="#-architecture">Architecture</a> • <a href="#-configuration">Configuration</a> • <a href="#-operations">Operations</a> • <a href="#-credits--disclaimer">Credits</a></p>
 
 <img src="docs/assets/screenshots/board.webp" alt="Desktop board in the Stone &amp; Crystal style: player plaques with points, the market and golem rows with the cards you can take glowing, and your hand with the Your turn ribbon" width="100%"/>
 
@@ -66,11 +66,12 @@ Play solo against 1–4 AI opponents or with up to 5 friends, right in the brows
 - **One "Stone & Crystal" look** on every screen: carved-stone panels, parchment popups, bronze buttons, a night-mountain backdrop
 - **Colour-blind friendly crystals**: each colour has its own shape (▲ yellow, ◆ green, ⬟ blue, ⬢ pink)
 - **Helpful board**: cards you can take or claim glow, hovering (or tapping on a phone) shows what a card does, popups pick the cheapest crystals for you and warn before you go over 10
-- **Phone-first mobile layout** (portrait and landscape): big touch targets, tap a card to see it and act, safe areas for notches
+- **Made for phones** (portrait and landscape): the **whole game on one screen** with every player in turn order (who opens and closes the round, and where you sit), and nothing scrolls except your own hand; tap any card to see it large and act. See [📱 On your phone](#-on-your-phone)
+- **See what everyone just did**: on a phone, an opponent's card pops up under their chip as they play it; tap the chip for their last moves and the cards they played since their last rest. The activity timeline shows the last 30 moves with card thumbnails, next to the chat
 - **24 original golem avatars** drawn for this project; AI opponents wear random ones and are named after them (Basalt, Mossback, Rime…)
 - **Your own picture as avatar** in both modes: pick an image (≤ 5 MB), drag/zoom it into the circle; it is shrunk to 256 px in the browser, re-encoded on the server (metadata removed) and **deleted with the room** — never stored
 - **Undo** an overflowing card play from the discard popup; **reconnect banner** keeps the board on screen if the connection drops
-- **Sound effects** for your turn, plays, purchases, golem claims, rests, the last round and game over
+- **Sound effects** for your turn, plays, purchases, golem claims, rests, the last round and game over, and a **victory celebration** with a fanfare when you win
 
 </td>
 </tr>
@@ -101,16 +102,67 @@ Play solo against 1–4 AI opponents or with up to 5 friends, right in the brows
 
 <table>
 <tr>
-<td align="center" width="50%"><img src="docs/assets/screenshots/menu.webp" alt="Main menu: the Century wordmark over night mountains and two stone tiles, Single Player and Multiplayer"/><br/><sub><b>Main menu</b>: Single Player or Multiplayer</sub></td>
-<td align="center" width="25%"><img src="docs/assets/screenshots/difficulty.webp" alt="Single-player lobby on a phone: name, number of AIs, difficulty with level dots and the golem avatar grid"/><br/><sub><b>Lobby</b>: 1–4 AIs, Easy → Very Hard, pick a golem</sub></td>
-<td align="center" width="25%"><img src="docs/assets/screenshots/mobile.webp" alt="Mobile board: player chips, Your turn banner, swipeable golem row, market and the hand at the bottom"/><br/><sub><b>Mobile</b>: the whole board on a phone</sub></td>
-</tr>
-<tr>
-<td align="center"><img src="docs/assets/screenshots/details.webp" alt="Hovering a market card shows a stone popover with the card large, its trade and what it costs to take"/><br/><sub><b>Card details</b> on hover (desktop)</sub></td>
-<td align="center"><img src="docs/assets/screenshots/popup.webp" alt="Place Crystals popup on parchment with the cheapest crystals already chosen"/><br/><sub><b>Buying</b>: cheapest crystals pre-picked</sub></td>
-<td align="center"><img src="docs/assets/screenshots/mobile-sheet.webp" alt="On a phone, tapping a golem opens a sheet with the card, its cost, points and coin, and a Claim button"/><br/><sub><b>Tap a card</b> to see it and act</sub></td>
+<td align="center" width="34%"><img src="docs/assets/screenshots/menu.webp" alt="Main menu: the Century wordmark over night mountains and two stone tiles, Single Player and Multiplayer"/><br/><sub><b>Main menu</b>: Single Player or Multiplayer</sub></td>
+<td align="center" width="33%"><img src="docs/assets/screenshots/details.webp" alt="Hovering a market card shows a stone popover with the card large, its trade and what it costs to take"/><br/><sub><b>Card details</b> on hover (desktop)</sub></td>
+<td align="center" width="33%"><img src="docs/assets/screenshots/popup.webp" alt="Place Crystals popup on parchment with the cheapest crystals already chosen"/><br/><sub><b>Buying</b>: cheapest crystals pre-picked</sub></td>
 </tr>
 </table>
+
+## 📱 On your phone
+
+The phone layout was tuned on an **iPhone 15 Pro in Safari**, including the floating toolbar of iOS 26, and is also checked
+at Android sizes in Chrome. **The whole game fits one screen**: the top bar, every player in turn order (you included), the golems,
+the market and your hand. Only your
+own hand scrolls, sideways. Card sizes are worked out from the space you can actually see, so nothing hides under the toolbar
+or the notch.
+
+<table>
+<tr>
+<td align="center" width="25%"><img src="docs/assets/screenshots/mobile.webp" alt="Phone board: top bar with round, Your turn 56s, sound and activity buttons; four player chips in turn order numbered 1 to 4, yours second with a bronze number and outline, each with points, golems, cards in hand and played, crystals; five golems and six market cards in one row each, the ones you can take marked with a check; your crystals 4/10, golems, Rest and played buttons above your hand"/><br/><sub><b>Your turn</b>: everyone in turn order, golems, market and hand on one screen</sub></td>
+<td align="center" width="25%"><img src="docs/assets/screenshots/mobile-moves.webp" alt="While an AI thinks, the merchant card another opponent just took pops up under their chip with the word took"/><br/><sub><b>Live moves</b>: the card an opponent just played or took pops up under them</sub></td>
+<td align="center" width="25%"><img src="docs/assets/screenshots/mobile-player.webp" alt="Sheet for opponent Amethyst: points, golems, cards in hand and played, crystals, then Last moves (Took, Claimed a golem, Played, with card pictures and what each card does) and Played since last rest"/><br/><sub><b>Tap an opponent</b>: their last moves and the cards they played since resting</sub></td>
+<td align="center" width="25%"><img src="docs/assets/screenshots/mobile-sheet.webp" alt="Tapping market card 2 opens a sheet with the card large, what it does, the rule to place one crystal on each card to its left, and a Place 1 and take button"/><br/><sub><b>Tap a card</b>: what it does and the one action you can take</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="docs/assets/screenshots/difficulty.webp" alt="Single-player lobby on a phone: name, 1 to 4 AI opponents, difficulty Easy to Very Hard with level dots, and the golem avatar grid with an upload tile for your own picture"/><br/><sub><b>Lobby</b>: 1–4 AIs, Easy → Very Hard, a golem or your own picture</sub></td>
+<td align="center" colspan="2"><img src="docs/assets/screenshots/mobile-landscape.webp" alt="Phone held sideways: top bar, golems and market on the left; the four numbered player chips and your hand on the right"/><br/><sub><b>Sideways</b>: board on the left, opponents and your hand on the right</sub></td>
+<td align="center"><img src="docs/assets/screenshots/mobile-activity.webp" alt="Activity sheet: room ID with a Copy button, a timeline of moves with card thumbnails and what each card does, and a chat box"/><br/><sub><b>Activity</b>: the last 30 moves with cards, chat, room ID</sub></td>
+</tr>
+</table>
+
+| I want to… | On the phone |
+|:--|:--|
+| Know whose turn it is | The top bar says **Your turn** with your seconds left, or *Waiting for …* / *… is thinking*. The player to move glows and their portrait ring pulses; people (not AIs) get a timer ring |
+| See the turn order | Every player, **you included**, sits in one row in the order of play: left to right, each portrait numbered **1** (opens the round) to the last (closes it). Your number is bronze and your chip has a bronze outline. In the last round, players who already had their final turn are dimmed |
+| Check my opponents | Each chip shows **★ points**, golems, cards in hand, cards played and the 4 crystals; chips get denser as the table fills, so all 5 players fit a phone |
+| See what someone just did | Their card pops up under their chip for about 3 seconds (*played*, *took*, *claimed*). Rests show as *"… rested · took back n cards"*. Touch anywhere to dismiss |
+| Look back at a player's moves | **Tap their chip**: their last moves with card pictures and what each card does, every card they played since their last rest (newest first) and their golems |
+| Take a merchant card | Tap it in the Market. On your turn the cards you can take now have a ✓; the ones you can't afford are dimmed with *Place n* (the crystals it needs). The sheet offers **Take** or **Place n & take** |
+| Claim a golem | Tap it: cost, points and the copper/silver coin bonus, then **Claim** |
+| Play a card | Swipe your hand, tap a card: **Play**, **Trade…** (pick ×n) or **Upgrade…** (tap crystals to raise them) |
+| Rest | The **Rest** button in your hand bar (lit once you have played a card) |
+| See my golems or played cards | The golem ★ button and the played-cards button next to Rest |
+| Read all moves, chat, share the room | The 💬 button (top right): timeline, chat and the room ID with **Copy** |
+| Play sideways | Turn the phone: the board on the left, opponents and your hand on the right |
+| Use my own photo | In the lobby, tap the upload tile in the avatar grid, then drag and zoom it into the circle |
+| Mute | The 🔊 button |
+
+<details>
+<summary>How the phone layout is built and checked</summary>
+
+<br/>
+
+- `PhoneShell` measures the board area and `utils/phoneLayout` plans the card sizes: golems 5 in a row, the market 6 in a row,
+  and any space left over goes to your hand (84–160 px tall).
+- The height used is what is **really visible**: the smallest of `innerHeight`, `visualViewport` and `100svh`, in a fixed frame
+  with page scrolling locked. iOS 26 Safari's floating toolbar covers the page, and `100dvh` alone would put your hand under it.
+- Cards get explicit pixel sizes because WebKit draws aspect-ratio cards 0 px wide in some layouts that Chrome handles fine.
+  Notch, Dynamic Island and home-indicator areas are kept clear.
+- Every UI change is checked with [`ui-shots.mjs`](deploy/ui-shots.mjs) (Chrome at phone, landscape and desktop sizes) and
+  [`webkit-shots.cjs`](deploy/webkit-shots.cjs) (Safari's engine at iPhone 15 Pro sizes).
+- Odd layout on a phone? Open the site with **`?vp`** to show what that browser reports for the viewport and safe areas.
+
+</details>
 
 ## 🎲 How to play
 
@@ -222,6 +274,7 @@ DOCKER_BUILDKIT=1 docker compose up -d --build --no-deps server    # redeploy ba
 | [`sanitize-src.sh`](deploy/sanitize-src.sh) | Cleans a new upstream drop: strips foreign config, applies patches, copies the golem avatars and fonts, removes image metadata |
 | [`make-golem-avatars.py`](deploy/make-golem-avatars.py) | Draws the 24 original golem avatars as SVG (12 golems + one variant each); `--preview` writes a contact sheet |
 | [`ui-shots.mjs`](deploy/ui-shots.mjs) `[URL] [DIR]` | Screenshots every screen at desktop, phone and landscape sizes and fails on external requests, console errors, overflow, text < 12 px or touch targets < 44 px |
+| [`webkit-shots.cjs`](deploy/webkit-shots.cjs) `[URL]` | Same idea in Safari's engine (WebKit, iPhone 15 Pro portrait/landscape + Mac): fails if a card renders 0 px wide, a tap does not open the card sheet, or the page scrolls sideways (runs in the Playwright Docker image) |
 | [`ship.sh`](deploy/ship.sh) `web\|server\|all` | Production deploy: builds on a workstation, the phone only packages and restarts |
 | [`strip-image-metadata.py`](deploy/strip-image-metadata.py) | Removes EXIF/XMP metadata from images |
 
@@ -273,7 +326,8 @@ DOCKER_BUILDKIT=1 docker compose up -d --build --no-deps server    # redeploy ba
 - The `session` package has data races reported by `go test -race`.
 - History endpoints (`/api/games`, `/api/events`, …) are public and unauthenticated, and client IDs are guessable
   (deck order of games still being played is hidden).
-- The mobile layout is tested in Chrome's phone emulation; iPhone Safari (dynamic viewport, notch safe areas) has not been checked on a device.
+- The phone layout is checked automatically in Chrome and WebKit and has been played on an iPhone 15 Pro (Safari, iOS 26).
+  Other phones and browsers have had less testing; open the site with `?vp` to see the viewport numbers if something looks off.
 
 ## 🙏 Credits & disclaimer
 
