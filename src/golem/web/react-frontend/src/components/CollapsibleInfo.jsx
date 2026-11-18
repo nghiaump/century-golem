@@ -5,12 +5,9 @@ import useGameStore from '../store/gameStore'
 import { IconButton } from './ui/Button'
 import Button from './ui/Button'
 import CardImage from './ui/CardImage'
+import { MOVE_VERB, MOVE_EDGE, moveDetail, RestMark } from './board/MoveRow'
 
-const LABEL = { play: 'played', upgrade: 'upgraded with', trade: 'traded with', acquire: 'took', claim: 'claimed', rest: 'rested' }
-const TONE = {
-  play: 'border-l-gem-blue', upgrade: 'border-l-gem-blue', trade: 'border-l-gem-blue',
-  acquire: 'border-l-moss', claim: 'border-l-bronze-300', rest: 'border-l-gem-pink', chat: 'border-l-teal', log: 'border-l-rock-400',
-}
+const TONE = { ...MOVE_EDGE, chat: 'border-l-teal', log: 'border-l-rock-400' }
 
 const formatTime = (timestamp) => {
   if (!timestamp) return ''
@@ -58,7 +55,7 @@ const CollapsibleInfo = ({ sessionId, size = 'md' }) => {
     const combined = []
     chatMessages.forEach((msg) => combined.push({ id: `chat-${msg.id}`, type: 'chat', player: msg.player, message: msg.message, timestamp: msg.timestamp }))
     ;(actionHistory || []).forEach((a, idx) => combined.push({
-      id: `action-${idx}-${a.timestamp}`, type: 'action', actionType: a.type, player: a.playerName, card: a.card, isOpponent: a.isOpponent, timestamp: new Date(a.timestamp),
+      id: `action-${a.seq ?? idx}-${a.timestamp}`, type: 'action', actionType: a.type, player: a.playerName, card: a.card, detail: moveDetail(a), isOpponent: a.isOpponent, timestamp: new Date(a.timestamp),
     }))
     ;(actionLog || []).forEach((log, idx) => combined.push({ id: `log-${idx}`, type: 'log', message: log, timestamp: new Date() }))
     combined.sort((a, b) => a.timestamp - b.timestamp)
@@ -152,13 +149,18 @@ const CollapsibleInfo = ({ sessionId, size = 'md' }) => {
                   onMouseLeave={() => setHoveredCard(null)}
                 >
                   <div className="flex items-start gap-2">
+                    {item.type === 'action' ? (
+                      item.card
+                        ? <CardImage name={item.card.name} className="h-12 w-7 flex-shrink-0 rounded-sm border border-black/50" />
+                        : <RestMark className="h-12 w-7 flex-shrink-0 [&>span:last-child]:hidden" />
+                    ) : null}
                     <div className="min-w-0 flex-1">
                       {item.type === 'chat' && (<><span className="font-semibold text-[rgb(170_225_220)]">{item.player}</span>: <span className="break-words text-fg">{item.message}</span></>)}
                       {item.type === 'action' && (
                         <>
                           <span className="font-semibold text-fg">{item.player}</span>{' '}
-                          <span className="text-fg-muted">{LABEL[item.actionType] || 'acted'}</span>
-                          {item.card ? <span className="text-fg"> {item.card.name?.replace(/_/g, ' ')}</span> : null}
+                          <span className="text-fg-muted">{MOVE_VERB[item.actionType] || 'acted'}</span>
+                          {item.detail ? <span className="block text-xs text-fg-muted">{item.detail}</span> : null}
                         </>
                       )}
                       {item.type === 'log' && <span className="text-fg-muted">{item.message}</span>}

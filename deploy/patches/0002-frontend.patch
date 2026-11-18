@@ -516,9 +516,62 @@
 +}
 +
 +export default Hud
+--- a/web/react-frontend/src/components/board/MoveRow.jsx
++++ b/web/react-frontend/src/components/board/MoveRow.jsx
+@@ -0,0 +1,50 @@
++import React from 'react'
++import CardImage from '../ui/CardImage'
++import Gem from '../ui/Gem'
++import { cardSummary } from './cardInfo'
++
++export const MOVE_VERB = { play: 'played', upgrade: 'upgraded with', trade: 'traded with', acquire: 'took', claim: 'claimed', rest: 'rested' }
++export const MOVE_EDGE = {
++  play: 'border-l-gem-blue', upgrade: 'border-l-gem-blue', trade: 'border-l-gem-blue',
++  acquire: 'border-l-moss', claim: 'border-l-bronze-300', rest: 'border-l-gem-pink',
++}
++
++export const ago = (t, now = Date.now()) => {
++  const s = Math.max(0, Math.floor((now - t) / 1000))
++  if (s < 60) return `${s}s`
++  return s < 3600 ? `${Math.floor(s / 60)}m` : `${Math.floor(s / 3600)}h`
++}
++
++/** What the move's card does, in words ("Trade 2 yellow for 1 blue", "Golem worth 9 points…"). */
++export const moveDetail = (move) => (move?.card ? cardSummary(move.card, move.type === 'claim' ? 'point' : undefined) : null)
++
++/** Stand-in for the card of a rest (it has none): blue + pink gem over "Rest". */
++export const RestMark = ({ className = '' }) => (
++  <span className={`flex flex-col items-center justify-center gap-0.5 rounded-sm border border-black/50 bg-rock-800 ${className}`} aria-hidden="true">
++    <span className="flex gap-0.5"><Gem color="blue" size={10} label={false} /><Gem color="pink" size={10} label={false} /></span>
++    <span className="font-display text-xs font-bold text-bronze-100">Rest</span>
++  </span>
++)
++
++/**
++ * One move in a history list: its card (or a rest marker), who did what and with which card, how long
++ * ago. `showName={false}` inside one player's sheet ("Took · Trade 2 yellow for 1 blue").
++ */
++const MoveRow = ({ move, showName = true, now }) => {
++  const verb = MOVE_VERB[move.type] || 'acted'
++  const detail = moveDetail(move)
++  return (
++    <li className={`flex items-center gap-3 rounded-stone-sm border-l-4 bg-rock-900/70 px-3 py-2 ${MOVE_EDGE[move.type] || 'border-l-rock-400'}`}>
++      {move.card
++        ? <CardImage name={move.card.name} className="h-14 w-10 flex-shrink-0 rounded-sm border border-black/50" />
++        : <RestMark className="h-14 w-10 flex-shrink-0" />}
++      <span className="min-w-0 flex-1 text-sm leading-snug">
++        {showName ? <><b className="text-fg">{move.playerName}</b> <span className="text-fg-muted">{verb}</span></> : <span className="font-semibold text-fg">{verb[0].toUpperCase() + verb.slice(1)}</span>}
++        {detail ? <span className="block text-xs text-fg-muted">{detail}</span> : null}
++      </span>
++      <span className="flex-shrink-0 text-xs tabular-nums text-fg-muted">{ago(move.timestamp, now)}</span>
++    </li>
++  )
++}
++
++export default MoveRow
 --- a/web/react-frontend/src/components/CollapsibleInfo.jsx
 +++ b/web/react-frontend/src/components/CollapsibleInfo.jsx
-@@ -1,409 +1,195 @@
+@@ -1,409 +1,197 @@
  import { useState, useEffect, useRef } from 'react'
  import { createPortal } from 'react-dom'
  import RoomDisplay from './RoomDisplay'
@@ -528,11 +581,17 @@
 +import { IconButton } from './ui/Button'
 +import Button from './ui/Button'
 +import CardImage from './ui/CardImage'
++import { MOVE_VERB, MOVE_EDGE, moveDetail, RestMark } from './board/MoveRow'
 +
-+const LABEL = { play: 'played', upgrade: 'upgraded with', trade: 'traded with', acquire: 'took', claim: 'claimed', rest: 'rested' }
-+const TONE = {
-+  play: 'border-l-gem-blue', upgrade: 'border-l-gem-blue', trade: 'border-l-gem-blue',
-+  acquire: 'border-l-moss', claim: 'border-l-bronze-300', rest: 'border-l-gem-pink', chat: 'border-l-teal', log: 'border-l-rock-400',
++const TONE = { ...MOVE_EDGE, chat: 'border-l-teal', log: 'border-l-rock-400' }
++
++const formatTime = (timestamp) => {
++  if (!timestamp) return ''
++  const seconds = Math.floor((Date.now() - timestamp) / 1000)
++  if (seconds < 60) return `${Math.max(0, seconds)}s`
++  const minutes = Math.floor(seconds / 60)
++  if (minutes < 60) return `${minutes}m`
++  return `${Math.floor(minutes / 60)}h`
 +}
  
 -// Helper component to render card image (sprite or fallback)
@@ -546,15 +605,6 @@
 -      />
 -    )
 -  }
-+const formatTime = (timestamp) => {
-+  if (!timestamp) return ''
-+  const seconds = Math.floor((Date.now() - timestamp) / 1000)
-+  if (seconds < 60) return `${Math.max(0, seconds)}s`
-+  const minutes = Math.floor(seconds / 60)
-+  if (minutes < 60) return `${minutes}m`
-+  return `${Math.floor(minutes / 60)}h`
-+}
-+
 +function ChatIcon() {
    return (
 -    <img
@@ -664,7 +714,7 @@
 -    // Sort by timestamp (newest last) and take last 50
 +    chatMessages.forEach((msg) => combined.push({ id: `chat-${msg.id}`, type: 'chat', player: msg.player, message: msg.message, timestamp: msg.timestamp }))
 +    ;(actionHistory || []).forEach((a, idx) => combined.push({
-+      id: `action-${idx}-${a.timestamp}`, type: 'action', actionType: a.type, player: a.playerName, card: a.card, isOpponent: a.isOpponent, timestamp: new Date(a.timestamp),
++      id: `action-${a.seq ?? idx}-${a.timestamp}`, type: 'action', actionType: a.type, player: a.playerName, card: a.card, detail: moveDetail(a), isOpponent: a.isOpponent, timestamp: new Date(a.timestamp),
 +    }))
 +    ;(actionLog || []).forEach((log, idx) => combined.push({ id: `log-${idx}`, type: 'log', message: log, timestamp: new Date() }))
      combined.sort((a, b) => a.timestamp - b.timestamp)
@@ -932,18 +982,7 @@
 -                  {activityFeed.length === 0 ? (
 -                    <div className={`text-white/50 text-center py-8 ${isMobile ? 'text-[10px]' : 'text-xs'}`}>
 -                      No activity yet
-+                  <div className="flex items-start gap-2">
-+                    <div className="min-w-0 flex-1">
-+                      {item.type === 'chat' && (<><span className="font-semibold text-[rgb(170_225_220)]">{item.player}</span>: <span className="break-words text-fg">{item.message}</span></>)}
-+                      {item.type === 'action' && (
-+                        <>
-+                          <span className="font-semibold text-fg">{item.player}</span>{' '}
-+                          <span className="text-fg-muted">{LABEL[item.actionType] || 'acted'}</span>
-+                          {item.card ? <span className="text-fg"> {item.card.name?.replace(/_/g, ' ')}</span> : null}
-+                        </>
-+                      )}
-+                      {item.type === 'log' && <span className="text-fg-muted">{item.message}</span>}
-                     </div>
+-                    </div>
 -                  ) : (
 -                    <div className="space-y-1.5">
 -                      {activityFeed.map((item) => (
@@ -999,7 +1038,23 @@
 -                          )}
 -                        </div>
 -                      ))}
--                    </div>
++                  <div className="flex items-start gap-2">
++                    {item.type === 'action' ? (
++                      item.card
++                        ? <CardImage name={item.card.name} className="h-12 w-7 flex-shrink-0 rounded-sm border border-black/50" />
++                        : <RestMark className="h-12 w-7 flex-shrink-0 [&>span:last-child]:hidden" />
++                    ) : null}
++                    <div className="min-w-0 flex-1">
++                      {item.type === 'chat' && (<><span className="font-semibold text-[rgb(170_225_220)]">{item.player}</span>: <span className="break-words text-fg">{item.message}</span></>)}
++                      {item.type === 'action' && (
++                        <>
++                          <span className="font-semibold text-fg">{item.player}</span>{' '}
++                          <span className="text-fg-muted">{MOVE_VERB[item.actionType] || 'acted'}</span>
++                          {item.detail ? <span className="block text-xs text-fg-muted">{item.detail}</span> : null}
++                        </>
++                      )}
++                      {item.type === 'log' && <span className="text-fg-muted">{item.message}</span>}
+                     </div>
 -                  )}
 -                </div>
 -              </div>
@@ -4171,7 +4226,7 @@
 -
 --- a/web/react-frontend/src/components/HistorySection.jsx
 +++ b/web/react-frontend/src/components/HistorySection.jsx
-@@ -1,235 +1,48 @@
+@@ -1,235 +1,31 @@
  import React, { useState } from 'react'
 -import { motion, AnimatePresence } from 'framer-motion'
 -import { createPortal } from 'react-dom'
@@ -4198,17 +4253,10 @@
 -      onError={(e) => { e.target.style.display = 'none' }}
 -    />
 -  )
+-}
 +import CardPile from './board/CardPile'
++import MoveRow from './board/MoveRow'
 +import Modal from './ui/Modal'
-+import CardImage from './ui/CardImage'
-+
-+const LABEL = { play: 'played', upgrade: 'upgraded with', trade: 'traded with', acquire: 'took', claim: 'claimed', rest: 'rested' }
-+const EDGE = { play: 'border-l-gem-blue', upgrade: 'border-l-gem-blue', trade: 'border-l-gem-blue', acquire: 'border-l-moss', claim: 'border-l-bronze-300', rest: 'border-l-gem-pink' }
-+
-+const ago = (t) => {
-+  const s = Math.max(0, Math.floor((Date.now() - t) / 1000))
-+  return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m`
- }
  
 +// Recent moves, newest on top of the pile; the list shows who did what with which card.
  const HistorySection = () => {
@@ -4424,16 +4472,7 @@
 +      />
 +      <Modal open={open} onClose={() => setOpen(false)} title="Recent moves" variant="stone" size="md">
 +        <ol className="flex flex-col gap-1.5">
-+          {actionHistory.map((a) => (
-+            <li key={a.timestamp} className={`flex items-center gap-3 rounded-stone-sm border-l-4 bg-rock-900/70 px-3 py-2 ${EDGE[a.type] || 'border-l-rock-400'}`}>
-+              {a.card ? <CardImage name={a.card.name} className="h-14 w-10 flex-shrink-0 rounded-sm border border-black/50" /> : <span className="h-14 w-10 flex-shrink-0" />}
-+              <span className="min-w-0 flex-1 text-sm">
-+                <b className="text-fg">{a.playerName}</b> <span className="text-fg-muted">{LABEL[a.type] || 'acted'}</span>
-+                {a.card ? <span className="text-fg"> {a.card.name?.replace(/_/g, ' ')}</span> : null}
-+              </span>
-+              <span className="text-xs tabular-nums text-fg-muted">{ago(a.timestamp)}</span>
-+            </li>
-+          ))}
++          {actionHistory.map((a) => <MoveRow key={a.seq ?? a.timestamp} move={a} />)}
 +        </ol>
 +      </Modal>
      </>
@@ -6146,9 +6185,120 @@
      </div>
    )
  }
+--- a/web/react-frontend/src/components/mobile/MoveBubbles.jsx
++++ b/web/react-frontend/src/components/mobile/MoveBubbles.jsx
+@@ -0,0 +1,108 @@
++import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
++import { createPortal } from 'react-dom'
++import { motion, AnimatePresence } from 'framer-motion'
++import useGameStore from '../../store/gameStore'
++import CardImage from '../ui/CardImage'
++import { cardBox } from '../../utils/phoneLayout'
++import { anchorBelow } from '../../utils/rest'
++
++export const BUBBLE_MS = 3000
++const CARD = cardBox(84)
++const BORDER = 2
++const WIDTH = CARD.width + BORDER * 2 // the frame hugs the card: nothing around it covers the board
++const VERB = { play: 'played', upgrade: 'upgraded', trade: 'traded', acquire: 'took', claim: 'claimed' }
++
++/** Moves by others that came in after `after` (store seq) and have a card: the newest per player. */
++export function freshMoves(history, after) {
++  const out = new Map()
++  for (const m of history) { // newest first
++    if (m.seq > after && m.isOpponent && m.card && m.playerId != null && !out.has(m.playerId)) out.set(m.playerId, m)
++  }
++  return [...out.values()].reverse()
++}
++
++/**
++ * Phones: when someone else plays, takes or claims a card, that card pops up for a few seconds just
++ * below their chip ("took", "played"…), so you see the move as it happens without any room taken
++ * from the board. Only the card shows — a thin bronze frame tight around it, a caret up to the chip and
++ * the verb as a tag on its bottom edge — so it hides as little of the golems below as possible. Never blocks a tap (and any tap hides them); the full list is in the player's sheet.
++ */
++const MoveBubbles = () => {
++  const history = useGameStore((s) => s.actionHistory)
++  const [bubbles, setBubbles] = useState([]) // [{ move, pos }]
++  const seen = useRef(null)
++  const timers = useRef(new Map())
++
++  useLayoutEffect(() => {
++    const top = history.reduce((n, m) => Math.max(n, m.seq || 0), 0)
++    if (seen.current === null) { // moves from before this screen was up: no bubbles
++      seen.current = top
++      return
++    }
++    const fresh = freshMoves(history, seen.current)
++    seen.current = Math.max(seen.current, top)
++    const placed = fresh.map((move) => ({ move, pos: anchorBelow(move.playerId, WIDTH) })).filter((b) => b.pos)
++    if (!placed.length) return
++    setBubbles((prev) => [...prev.filter((b) => !placed.some((p) => p.move.playerId === b.move.playerId)), ...placed])
++    placed.forEach(({ move }) => {
++      clearTimeout(timers.current.get(move.playerId))
++      timers.current.set(move.playerId, setTimeout(() => setBubbles((prev) => prev.filter((b) => b.move.seq !== move.seq)), BUBBLE_MS))
++    })
++  }, [history])
++
++  useEffect(() => {
++    const t = timers.current
++    return () => t.forEach(clearTimeout)
++  }, [])
++
++  // a tap anywhere, a rotation or a resize hides them
++  const showing = bubbles.length > 0
++  useEffect(() => {
++    if (!showing) return undefined
++    const hide = () => setBubbles([])
++    document.addEventListener('pointerdown', hide, true)
++    window.addEventListener('resize', hide)
++    return () => {
++      document.removeEventListener('pointerdown', hide, true)
++      window.removeEventListener('resize', hide)
++    }
++  }, [showing])
++
++  return createPortal(
++    <AnimatePresence>
++      {bubbles.map(({ move, pos }) => (
++        <div
++          key={move.playerId}
++          data-testid="move-bubble"
++          className="pointer-events-none fixed z-popover"
++          style={{ top: pos.top, left: pos.left, transform: 'translateX(-50%)' }}
++          aria-hidden="true"
++        >
++          <motion.div
++            key={move.seq} // a newer move by the same player pops in again
++            initial={{ opacity: 0, y: -6, scale: 0.85 }}
++            animate={{ opacity: 1, y: 0, scale: 1 }}
++            exit={{ opacity: 0, scale: 0.9 }}
++            transition={{ duration: 0.18 }}
++            className="relative rounded-[5px] border-bronze-300 bg-rock-950 shadow-elev-2"
++            style={{ width: WIDTH, height: CARD.height + BORDER * 2, borderWidth: BORDER }}
++          >
++            {/* caret pointing up at the player's chip */}
++            <span
++              className="absolute -top-[8px] h-0 w-0 border-x-[6px] border-b-[6px] border-x-transparent border-b-bronze-300"
++              style={{ left: `calc(50% + ${pos.caret}px - 6px)` }}
++            />
++            <CardImage name={move.card.name} className="block h-full w-full overflow-hidden rounded-[3px]" />
++            {/* what they did, as a tag on the card's bottom edge */}
++            <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-bronze-300 bg-rock-950 px-1.5 py-0.5 text-xs font-bold leading-none text-bronze-100">
++              {VERB[move.type] || 'played'}
++            </span>
++          </motion.div>
++        </div>
++      ))}
++    </AnimatePresence>,
++    document.body
++  )
++}
++
++export default MoveBubbles
 --- a/web/react-frontend/src/components/mobile/PhoneShell.jsx
 +++ b/web/react-frontend/src/components/mobile/PhoneShell.jsx
-@@ -0,0 +1,133 @@
+@@ -0,0 +1,136 @@
 +import React, { useLayoutEffect, useRef, useState } from 'react'
 +import useGameStore from '../../store/gameStore'
 +import { planPhoneBoard } from '../../utils/phoneLayout'
@@ -6156,6 +6306,7 @@
 +import CompactGameBoard from './CompactGameBoard'
 +import CompactPlayerHand from './CompactPlayerHand'
 +import PhoneTopBar from './PhoneTopBar'
++import MoveBubbles from './MoveBubbles'
 +import Hud from '../board/Hud'
 +import useVisibleHeight, { viewportReport } from '../../hooks/useVisibleHeight'
 +
@@ -6190,7 +6341,7 @@
 + *   portrait   top bar · opponents · golems + market · my hand
 + *   landscape  [top bar · golems + market] [opponents · my hand]
 + * The board area is measured and the card sizes planned to fit it (utils/phoneLayout); safe areas
-+ * (notch / Dynamic Island, home indicator) are padded.
++ * (notch / Dynamic Island, home indicator) are padded. Others' moves pop up under their chips (MoveBubbles).
 + */
 +const PhoneShell = ({ sessionId, landscape = false, children }) => {
 +  const boardRef = useRef(null)
@@ -6259,6 +6410,7 @@
 +          <div className="min-h-0 flex-1"><CompactPlayerHand landscape /></div>
 +        </div>
 +        {children}
++        <MoveBubbles />
 +        {diagBox}
 +      </div>
 +    )
@@ -6276,6 +6428,7 @@
 +      {board}
 +      <CompactPlayerHand cardHeight={plan?.hand ?? 104} />
 +      {children}
++      <MoveBubbles />
 +      {diagBox}
 +    </div>
 +  )
@@ -6332,6 +6485,95 @@
 +}
 +
 +export default PhoneTopBar
+--- a/web/react-frontend/src/components/mobile/PlayerSheet.jsx
++++ b/web/react-frontend/src/components/mobile/PlayerSheet.jsx
+@@ -0,0 +1,86 @@
++import React from 'react'
++import useGameStore from '../../store/gameStore'
++import Modal from '../ui/Modal'
++import Avatar from '../ui/Avatar'
++import CardImage from '../ui/CardImage'
++import CrystalRow from '../ui/CrystalRow'
++import GolemIcon from '../ui/GolemIcon'
++import { HandIcon, PlayedIcon } from '../ui/CardIcons'
++import MoveRow from '../board/MoveRow'
++import { pointsOf } from '../PlayersInfoBar'
++
++const MAX_MOVES = 8
++
++const Section = ({ title, children }) => (
++  <section className="flex flex-col gap-2">
++    <h3 className="font-display text-xs font-bold uppercase tracking-wider text-bronze-300">{title}</h3>
++    {children}
++  </section>
++)
++
++const Cards = ({ cards }) => (
++  <div className="grid grid-cols-4 gap-2">
++    {cards.map((c, i) => (
++      <CardImage key={`${c.id ?? c.name}-${i}`} name={c.name} alt={c.name} className="aspect-[0.58] w-full rounded-stone-sm border border-black/50" />
++    ))}
++  </div>
++)
++
++/**
++ * Phones: tap an opponent's chip for what they have been doing — their last moves seen at this table
++ * (with the cards), the cards they played since their last rest (newest first) and their golems.
++ */
++const PlayerSheet = ({ playerId, onClose }) => {
++  const player = useGameStore((s) => (playerId == null ? null : s.gameState?.players?.find((p) => p.id === playerId)))
++  const history = useGameStore((s) => s.actionHistory)
++  const myId = useGameStore((s) => s.myPlayer?.id)
++  if (!player) return null
++
++  const moves = history.filter((m) => m.playerId === playerId).slice(0, MAX_MOVES)
++  const played = [...(player.playedCards || [])].reverse()
++  const golems = player.pointCards || []
++  const now = Date.now()
++
++  return (
++    <Modal
++      open
++      onClose={onClose}
++      title={player.id === myId ? 'You' : player.name}
++      icon={<Avatar player={player} size={40} fit />}
++      variant="stone"
++      size="sm"
++    >
++      <div className="flex flex-col gap-4">
++        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm font-semibold tabular-nums text-fg-muted">
++          <span className="font-display text-base font-bold text-bronze-100" aria-label={`${pointsOf(player)} points`}>★{pointsOf(player)}</span>
++          <span className="inline-flex items-center gap-1 text-bronze-300" aria-label={`${golems.length} golems`}><GolemIcon size={16} label={false} />{golems.length}</span>
++          <span className="inline-flex items-center gap-1" aria-label={`${player.hand?.length || 0} cards in hand`}><HandIcon size={16} />{player.hand?.length || 0}</span>
++          <span className="inline-flex items-center gap-1" aria-label={`${played.length} cards played`}><PlayedIcon size={16} />{played.length}</span>
++          <CrystalRow resources={player.caravan} size="xs" className="!gap-1.5" />
++        </div>
++
++        <Section title="Last moves">
++          {moves.length ? (
++            <ol className="flex flex-col gap-1.5" aria-label={`${player.name}'s last moves`}>
++              {moves.map((m) => <MoveRow key={m.seq ?? m.timestamp} move={m} showName={false} now={now} />)}
++            </ol>
++          ) : (
++            <p className="text-sm text-fg-muted">No moves seen yet — they show up here as they happen.</p>
++          )}
++        </Section>
++
++        <Section title={`Played since last rest · ${played.length}`}>
++          {played.length ? <Cards cards={played} /> : <p className="text-sm text-fg-muted">None right now — they have rested or not played yet.</p>}
++        </Section>
++
++        {golems.length ? (
++          <Section title={`Golems · ${golems.length}`}>
++            <Cards cards={golems} />
++          </Section>
++        ) : null}
++      </div>
++    </Modal>
++  )
++}
++
++export default PlayerSheet
 --- a/web/react-frontend/src/components/MyGolemsPanel.jsx
 +++ b/web/react-frontend/src/components/MyGolemsPanel.jsx
 @@ -1,153 +1,38 @@
@@ -6732,11 +6974,39 @@
 -
 --- a/web/react-frontend/src/components/PlayersInfoBar.jsx
 +++ b/web/react-frontend/src/components/PlayersInfoBar.jsx
-@@ -1,112 +1,85 @@
+@@ -1,112 +1,195 @@
 -import React, { useState, useEffect } from 'react'
-+import React from 'react'
++import React, { useState } from 'react'
  import useGameStore from '../store/gameStore'
--
++import useTurnTimer from '../hooks/useTurnTimer'
++import Avatar from './ui/Avatar'
++import Gem, { CRYSTALS } from './ui/Gem'
++import GolemIcon from './ui/GolemIcon'
++import { HandIcon, PlayedIcon } from './ui/CardIcons'
++import PlayerSheet from './mobile/PlayerSheet'
++import useElementSize from '../hooks/useElementSize'
++
++export const pointsOf = (p) =>
++  (p?.pointCards?.reduce((s, c) => s + (c.points || 0), 0) || 0) + (p?.coins?.reduce((s, c) => s + (c.points || 0), 0) || 0)
++
++const count = (res, c) => Number(res?.[c]) || 0
++
++const ORDINAL = ['1st', '2nd', '3rd', '4th', '5th']
++const GAP = 6 // gap-1.5
++
++/**
++ * Chip layout for a chip `w` px wide: wide (51px portrait, name · ★ golems · hand played beside it,
++ * crystals in one row) · medium (name on top, ★ / golems beside a 42px portrait, crystals in one row) ·
++ * narrow (no name, 42px portrait on top, crystals 2×2). Held sideways: 34 / 28px portraits. Below MIN_CHIP the row scrolls sideways instead (5 players on a 320px phone).
++ * Sizes allow for two-digit points and Safari's wider text.
++ */
++export function chipLayout(w) {
++  if (w >= 112) return 'wide'
++  if (w >= 80) return 'medium'
++  return 'narrow'
++}
++const MIN_CHIP = 58
+ 
 -// Timer Ring around avatar
 -const TimerRing = ({ duration = 60 }) => {
 -  const [timeLeft, setTimeLeft] = useState(duration)
@@ -6764,47 +7034,85 @@
 -      }}
 -    />
 -  )
-+import useTurnTimer from '../hooks/useTurnTimer'
-+import Avatar from './ui/Avatar'
-+import Gem, { CRYSTALS } from './ui/Gem'
-+import GolemIcon from './ui/GolemIcon'
-+import { HandIcon, PlayedIcon } from './ui/CardIcons'
-+
-+export const pointsOf = (p) =>
-+  (p?.pointCards?.reduce((s, c) => s + (c.points || 0), 0) || 0) + (p?.coins?.reduce((s, c) => s + (c.points || 0), 0) || 0)
-+
-+const count = (res, c) => Number(res?.[c]) || 0
-+
-+/** Opponents in turn order after me (spectators: everyone in seat order). */
-+export function opponentsOf(players, me) {
-+  if (!me) return players
-+  const i = players.findIndex((p) => p.id === me.id)
-+  if (i < 0) return players
-+  return [...players.slice(i + 1), ...players.slice(0, i)]
++/** Players who already had their final turn: in the last round, everyone seated before the player to move. */
++export function doneForGame(gameState, index) {
++  if (!gameState?.lastRound || gameState.gameOver) return false
++  const cur = gameState.players?.findIndex((p) => p.id === gameState.currentPlayer)
++  return cur >= 0 && index < cur
  }
  
 -const PlayersInfoBar = () => {
--  const { gameState, myPlayer, currentPlayer } = useGameStore()
++// Turn number on the portrait; mine is bronze ("you play 2nd").
++const Order = ({ k, me }) => (
++  <span
++    className={`absolute -left-1 -top-1 z-10 flex h-[18px] min-w-[18px] items-center justify-center rounded-full border px-1 font-display text-xs font-bold leading-none shadow-elev-1
++      ${me ? 'border-bronze-700 bg-bronze-300 text-ink' : 'border-black/70 bg-rock-950 text-bronze-100'}`}
++    aria-hidden="true"
++  >
++    {k}
++  </span>
++)
++
++const Counts = ({ hand, played, className = '' }) => (
++  <span className={`inline-flex items-center gap-2 text-xs font-semibold leading-none tabular-nums text-fg-muted ${className}`}>
++    <span className="inline-flex items-center gap-0.5"><HandIcon size={12} />{hand}</span>
++    <span className="inline-flex items-center gap-0.5"><PlayedIcon size={12} />{played}</span>
++  </span>
++)
++
++const Points = ({ p, golems }) => (
++  <>
++    <span className="font-display tabular-nums text-bronze-100">★{pointsOf(p)}</span>
++    <span className="inline-flex items-center gap-0.5 tabular-nums text-bronze-300"><GolemIcon size={12} label={false} />{golems}</span>
++  </>
++)
++const Stack = ({ children, className = '' }) => (
++  <span className={`flex min-w-0 flex-col items-start gap-1 text-xs font-bold leading-none ${className}`}>{children}</span>
++)
++
++const Crystals = ({ caravan, gem, grid = false }) => (
++  <span className={`text-xs font-semibold leading-none tabular-nums ${grid ? 'grid grid-cols-2 gap-x-1 gap-y-0.5' : 'flex items-center justify-between'}`}>
++    {CRYSTALS.map((c) => (
++      <span key={c} className={`inline-flex items-center gap-px ${count(caravan, c) ? 'text-fg' : 'text-fg-muted opacity-50'}`}>
++        <Gem color={c} size={gem} label={false} />{count(caravan, c)}
++      </span>
++    ))}
++  </span>
++)
++
++/**
++ * Phones: **everyone at the table in turn order** — left to right is the order of play in a round, each
++ * portrait numbered (1 starts the round, the highest number ends it), my own chip outlined in bronze —
++ * so you see who opens and closes the round and where you sit. Each stone chip: portrait, name (when
++ * there is room), ★ points, golems, cards in hand / played, crystals. The player to move glows; people get
++ * a timer ring. In the last round, players who already had their final turn are dimmed.
++ * Chips get denser as the row fills (`chipLayout`), so all five players fit a phone without scrolling.
++ * Tapping a chip opens that player's sheet (last moves, played cards, golems); the chip is also where
++ * their rest popup and move bubbles (MoveBubbles) point. `landscape`: the column beside the board.
++ */
++const PlayersInfoBar = ({ landscape = false }) => {
+   const { gameState, myPlayer, currentPlayer } = useGameStore()
 -
 -  if (!gameState?.players) return null
 -
 -  const otherPlayers = gameState.players; //.filter(p => p.id !== myPlayer?.id)
 -  if (otherPlayers.length === 0) return null
-+/**
-+ * Phones: every opponent at once (no sideways scrolling), each a small stone chip — portrait, name
-+ * (when there is room), points, golems, cards in hand / played, and their crystals. The player to move glows; people get a
-+ * timer ring. My own numbers are in the hand panel. `landscape`: the narrow column beside the board.
-+ */
-+const PlayersInfoBar = ({ landscape = false }) => {
-+  const { gameState, myPlayer, currentPlayer, isSpectator } = useGameStore()
 +  const timer = useTurnTimer()
++  const [sheet, setSheet] = useState(null) // player id
++  const [barEl, setBar] = useState(null)
++  const bar = useElementSize(barEl)
 +  if (!gameState?.players?.length) return null
 +  const started = !!gameState.market && Object.keys(gameState.market).length > 0
-+  const shown = isSpectator ? gameState.players : opponentsOf(gameState.players, myPlayer)
-+  const n = shown.length
-+  const cols = landscape ? (n <= 3 ? n : 2) : Math.min(n, 4)
-+  const roomy = landscape ? cols <= 2 : n <= 3 // chip wide enough for the name
-+  const gem = roomy ? 12 : 10
++  const players = gameState.players // seat order = order of play in every round
++  const n = players.length
++  const cols = landscape ? (n === 5 ? 3 : n) : n
++  const width = bar.width || (typeof window !== 'undefined' ? (landscape ? 296 : window.innerWidth - 24) : 360)
++  const chipW = (width - GAP * (cols - 1)) / cols
++  const scroll = chipW < MIN_CHIP
++  const layout = scroll ? 'narrow' : chipLayout(chipW)
++  // Portraits 1.5× in portrait (51 / 42px; user request 2026-11-18). Held sideways the column is short, so
++  // they stay 34 / 28px there and the hand keeps its room.
++  const big = !landscape
  
    return (
 -    <div data-players-info-bar className="w-full flex-shrink-0 py-1.5 px-2 bg-black/60">
@@ -6846,7 +7154,52 @@
 -                  <span className={`text-white font-medium ${player.online === false ? 'opacity-60' : ''}`}>
 -                    {player.name}
 -                    {player.online === false && <span className="text-gray-400 ml-1">(offline)</span>}
--                  </span>
++    <div
++      ref={setBar}
++      data-players-info-bar
++      data-layout={layout}
++      className={`grid flex-shrink-0 gap-1.5 ${scroll ? 'scrollbar-hide auto-cols-[64px] grid-flow-col overflow-x-auto' : ''}`}
++      style={scroll ? undefined : { gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
++      aria-label="Players in turn order"
++    >
++      {players.map((p, i) => {
++        const current = started && currentPlayer?.id === p.id
++        const me = p.id === myPlayer?.id
++        const done = started && doneForGame(gameState, i)
++        const offline = !p.isAI && p.online === false
++        const golems = p.pointCards?.length || 0
++        const hand = p.hand?.length || 0
++        const played = p.playedCards?.length || 0
++        const name = me ? 'You' : p.name
++        const turn = i === 0 ? `${ORDINAL[i]} to play, starts the round` : i === n - 1 ? `${ORDINAL[i] || `${i + 1}th`} to play, last in the round` : `${ORDINAL[i] || `${i + 1}th`} to play`
++        const portrait = (size) => (
++          <span className="relative flex flex-shrink-0">
++            <Avatar player={p} size={size} fit turn={current} timer={current && !p.isAI ? timer : undefined} offline={offline} />
++            <Order k={i + 1} me={me} />
++          </span>
++        )
++        return (
++          <button
++            type="button"
++            key={p.id || p.name}
++            title={`${name} — ${turn}${done ? ' (done for the game)' : ''}. Tap for last moves and cards`}
++            aria-label={`${name}, ${turn}${done ? ', done for the game' : ''}: ${pointsOf(p)} points, ${golems} golems, ${hand} in hand, ${played} played, crystals ${CRYSTALS.map((c) => `${count(p.caravan, c)} ${c}`).join(', ')}. Show last moves and cards`}
++            aria-haspopup="dialog"
++            onClick={() => setSheet(p.id)}
++            data-rest-anchor={p.id}
++            className={`surface-stone relative flex min-w-0 flex-col ${layout === 'wide' ? 'gap-1' : 'gap-0.5'} py-1 text-left transition-[filter,opacity] active:brightness-125
++              px-1 ${current ? 'turn-glow' : ''} ${done ? 'opacity-55 saturate-50' : ''}`}
++          >
++            {me ? <span className="pointer-events-none absolute inset-0 rounded-[inherit] bg-bronze-300/10 ring-1 ring-inset ring-bronze-300/80" aria-hidden="true" /> : null}
++            {layout === 'wide' ? (
++              <>
++                <span className="flex min-w-0 items-center gap-1">
++                  {portrait(big ? 51 : 34)}
++                  <span className="flex min-w-0 flex-1 flex-col gap-1 leading-none">
++                    <span className={`block truncate text-xs font-bold leading-tight ${me ? 'text-bronze-100' : 'text-fg'}`}>{name}</span>
++                    <span className="flex items-center gap-1.5 text-xs font-bold"><Points p={p} golems={golems} /></span>
++                    <Counts hand={hand} played={played} className="!gap-1.5" />
+                   </span>
 -                  <span className="text-yellow-400 font-bold">★{player.points || 0}</span>
 -                </div>
 -                
@@ -6869,53 +7222,52 @@
 -                  {/* Counts */}
 -                  <span className="text-blue-300">🎭{player.pointCards?.length || 0}</span>
 -                  <span className="text-green-300">🃏{player.playedCards?.length || 0}</span>
-+    <div
-+      data-players-info-bar
-+      className={`grid flex-shrink-0 gap-1.5 ${n > 4 && !landscape ? 'scrollbar-hide auto-cols-[88px] grid-flow-col overflow-x-auto' : ''}`}
-+      style={n > 4 && !landscape ? undefined : { gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
-+      aria-label="Players"
-+    >
-+      {shown.map((p) => {
-+        const current = started && currentPlayer?.id === p.id
-+        const offline = !p.isAI && p.online === false
-+        const golems = p.pointCards?.length || 0
-+        return (
-+          <div
-+            key={p.id || p.name}
-+            title={p.name}
-+            className={`surface-stone flex min-w-0 flex-col gap-1 px-1.5 py-1.5 ${current ? 'turn-glow' : ''}`}
-+          >
-+            <div className="flex min-w-0 items-center gap-1.5">
-+              <Avatar player={p} size={24} turn={current} timer={current && !p.isAI ? timer : undefined} offline={offline} restAnchor />
-+              <div className="min-w-0 flex-1 leading-tight">
-+                {roomy ? <div className="truncate text-xs font-bold text-fg">{p.id === myPlayer?.id ? 'You' : p.name}</div> : null}
-+                <div className={`flex text-xs font-bold ${roomy ? 'items-center gap-1.5' : 'flex-col items-start'}`}>
-+                  <span className="font-display text-bronze-100" aria-label={`${pointsOf(p)} points`}>★{pointsOf(p)}</span>
-+                  <span className="inline-flex items-center gap-0.5 text-bronze-300" aria-label={`${golems} golems`}><GolemIcon size={12} label={false} />{golems}</span>
-                 </div>
-               </div>
-             </div>
+-                </div>
+-              </div>
+-            </div>
 -          )
 -        })}
 -      </div>
-+            <div className="flex items-center gap-2.5 text-xs font-semibold tabular-nums text-fg-muted">
-+              <span className="inline-flex items-center gap-0.5" title="Cards in hand" aria-label={`${p.hand?.length || 0} cards in hand`}><HandIcon size={13} />{p.hand?.length || 0}</span>
-+              <span className="inline-flex items-center gap-0.5" title="Played since the last rest" aria-label={`${p.playedCards?.length || 0} cards played`}><PlayedIcon size={13} />{p.playedCards?.length || 0}</span>
-+            </div>
-+            <div
-+              className="flex items-center justify-between text-xs font-semibold tabular-nums"
-+              role="group"
-+              aria-label={`Crystals: ${CRYSTALS.map((c) => `${count(p.caravan, c)} ${c}`).join(', ')}`}
-+            >
-+              {CRYSTALS.map((c) => (
-+                <span key={c} className={`inline-flex items-center gap-px ${count(p.caravan, c) ? 'text-fg' : 'text-fg-muted opacity-50'}`} aria-hidden="true">
-+                  <Gem color={c} size={gem} label={false} />{count(p.caravan, c)}
 +                </span>
-+              ))}
-+            </div>
-+          </div>
++                <Crystals caravan={p.caravan} gem={12} />
++              </>
++            ) : layout === 'medium' ? (
++              <>
++                <span className={`block truncate pl-0.5 text-xs font-bold leading-tight ${me ? 'text-bronze-100' : 'text-fg'}`}>{name}</span>
++                <span className="flex min-w-0 items-center gap-1">
++                  {portrait(big ? 42 : 28)}
++                  <Stack><Points p={p} golems={golems} /></Stack>
++                  {!big && chipW >= 86 ? (
++                    <Stack className="ml-auto font-semibold text-fg-muted">
++                      <span className="inline-flex items-center gap-0.5"><HandIcon size={12} />{hand}</span>
++                      <span className="inline-flex items-center gap-0.5"><PlayedIcon size={12} />{played}</span>
++                    </Stack>
++                  ) : null}
++                </span>
++                {!big && chipW >= 86 ? null : <Counts hand={hand} played={played} className="!gap-1.5" />}
++                <Crystals caravan={p.caravan} gem={10} />
++              </>
++            ) : big ? (
++              <>
++                <span className="flex justify-center">{portrait(42)}</span>
++                <span className="flex items-center justify-center gap-1.5 text-xs font-bold leading-none"><Points p={p} golems={golems} /></span>
++                <Counts hand={hand} played={played} className="justify-center !gap-1.5" />
++                <span className="flex justify-center"><Crystals caravan={p.caravan} gem={10} grid /></span>
++              </>
++            ) : (
++              <>
++                <span className="flex min-w-0 items-center gap-1">
++                  {portrait(chipW >= 66 || scroll ? 28 : 26)}
++                  <Stack><Points p={p} golems={golems} /></Stack>
++                </span>
++                <Counts hand={hand} played={played} className="!gap-1.5" />
++                <Crystals caravan={p.caravan} gem={10} grid />
++              </>
++            )}
++          </button>
 +        )
 +      })}
++      <PlayerSheet playerId={sheet} onClose={() => setSheet(null)} />
      </div>
    )
  }
@@ -7630,6 +7982,187 @@
 +    render(<DiscardModal />)
 +    expect(screen.getByText(/Too Many Crystals/)).toBeTruthy()
 +    expect(screen.queryByRole('button', { name: /undo/i })).toBeNull()
++  })
++})
+--- a/web/react-frontend/src/components/__tests__/MoveBubbles.test.jsx
++++ b/web/react-frontend/src/components/__tests__/MoveBubbles.test.jsx
+@@ -0,0 +1,78 @@
++import React from 'react'
++import { render, screen, cleanup, act, fireEvent } from '@testing-library/react'
++import { describe, test, expect, vi, afterEach, beforeEach } from 'vitest'
++
++// no exit animations here: a hidden bubble leaves the DOM at once
++vi.mock('framer-motion', async (importOriginal) => ({ ...(await importOriginal()), AnimatePresence: ({ children }) => <>{children}</> }))
++
++import MoveBubbles, { BUBBLE_MS, freshMoves } from '../mobile/MoveBubbles'
++import useGameStore, { HISTORY_SIZE } from '../../store/gameStore'
++
++const add = (move) => act(() => useGameStore.getState().addActionToHistory(move))
++const took = { type: 'acquire', playerId: 3, playerName: 'AI 2', card: { id: 9, name: 'trade_0002_0100', actionType: 2 }, isOpponent: true }
++
++describe('MoveBubbles', () => {
++  let anchor
++  beforeEach(() => {
++    act(() => useGameStore.setState({ actionHistory: [] }))
++    anchor = document.createElement('button')
++    anchor.setAttribute('data-rest-anchor', '3')
++    anchor.getBoundingClientRect = () => ({ left: 100, width: 120, top: 60, bottom: 150, height: 90, right: 220 })
++    document.body.appendChild(anchor)
++  })
++  afterEach(() => {
++    cleanup()
++    anchor.remove()
++    vi.useRealTimers()
++  })
++
++  test('an opponent\'s new card move pops up below their chip, then hides', () => {
++    vi.useFakeTimers()
++    render(<MoveBubbles />)
++    add(took)
++    const box = screen.getByTestId('move-bubble')
++    expect(box.style.top).toBe('158px')
++    expect(box.style.left).toBe('160px')
++    expect(box.textContent).toContain('took')
++    act(() => vi.advanceTimersByTime(BUBBLE_MS + 500))
++    expect(screen.queryByTestId('move-bubble')).toBeNull()
++  })
++
++  test('no bubble for moves made before it was shown, my own moves, or rests', () => {
++    add(took)
++    render(<MoveBubbles />)
++    expect(screen.queryByTestId('move-bubble')).toBeNull()
++    add({ ...took, isOpponent: undefined, playerId: 1 })
++    add({ type: 'rest', playerId: 3, playerName: 'AI 2', card: null, isOpponent: true })
++    expect(screen.queryByTestId('move-bubble')).toBeNull()
++  })
++
++  test('a tap anywhere hides it; the newest move per player replaces the older one', () => {
++    render(<MoveBubbles />)
++    add(took)
++    add({ ...took, type: 'claim', card: { id: 40, name: 'golem_2200', points: 10 } })
++    expect(screen.getAllByTestId('move-bubble')).toHaveLength(1)
++    expect(screen.getByTestId('move-bubble').textContent).toContain('claimed')
++    fireEvent.pointerDown(document.body)
++    expect(screen.queryByTestId('move-bubble')).toBeNull()
++  })
++
++  test('freshMoves: newest card move per opponent after a seq', () => {
++    const h = [
++      { seq: 5, playerId: 3, isOpponent: true, card: { name: 'b' } },
++      { seq: 4, playerId: 4, isOpponent: true, card: { name: 'c' } },
++      { seq: 3, playerId: 3, isOpponent: true, card: { name: 'a' } },
++      { seq: 2, playerId: 4, isOpponent: true, card: { name: 'old' } },
++    ]
++    expect(freshMoves(h, 2).map((m) => m.card.name)).toEqual(['c', 'b'])
++    expect(freshMoves(h, 5)).toEqual([])
++  })
++
++  test('history keeps the last HISTORY_SIZE moves, each with a growing seq', () => {
++    for (let i = 0; i < HISTORY_SIZE + 5; i++) add({ type: 'play', playerId: 1, card: { name: `c${i}` } })
++    const h = useGameStore.getState().actionHistory
++    expect(h).toHaveLength(HISTORY_SIZE)
++    expect(h[0].card.name).toBe(`c${HISTORY_SIZE + 4}`)
++    expect(h[0].seq).toBeGreaterThan(h[1].seq)
++  })
++})
+--- a/web/react-frontend/src/components/__tests__/PlayerSheet.test.jsx
++++ b/web/react-frontend/src/components/__tests__/PlayerSheet.test.jsx
+@@ -0,0 +1,48 @@
++import React from 'react'
++import { render, screen, cleanup, act, fireEvent, within } from '@testing-library/react'
++import { describe, test, expect, afterEach } from 'vitest'
++import PlayersInfoBar from '../PlayersInfoBar'
++import useGameStore from '../../store/gameStore'
++
++const me = { id: 1, name: 'Me', hand: [], playedCards: [], pointCards: [], caravan: { yellow: 3 } }
++const ai = {
++  id: 3, name: 'AI 2', isAI: true, hand: [{}, {}], caravan: { yellow: 1, blue: 2 },
++  playedCards: [{ id: 11, name: 'mint_0002' }, { id: 12, name: 'upgrade_2', actionType: 1 }],
++  pointCards: [{ id: 40, name: 'golem_2200', points: 10 }],
++}
++
++describe('opponent chip → player sheet (phones)', () => {
++  afterEach(() => {
++    cleanup()
++    act(() => useGameStore.setState({ gameState: null, myPlayer: null, currentPlayer: null, actionHistory: [] }))
++  })
++
++  test('tapping a chip shows their last moves, played cards (newest first) and golems', () => {
++    act(() => {
++      useGameStore.setState({
++        gameState: { players: [me, ai], market: { actionCards: [] }, currentPlayer: 1 },
++        myPlayer: me, currentPlayer: me, isSpectator: false, actionHistory: [],
++      })
++      const st = useGameStore.getState()
++      st.addActionToHistory({ type: 'acquire', playerId: 3, playerName: 'AI 2', card: { id: 9, name: 'trade_0002_0100', actionType: 2, input: { yellow: 2 }, output: { blue: 1 } }, isOpponent: true })
++      st.addActionToHistory({ type: 'play', playerId: 1, playerName: 'Me', card: { id: 5, name: 'mint_0002' } })
++    })
++    render(<PlayersInfoBar />)
++    const chip = screen.getByRole('button', { name: /AI 2, 2nd to play, last in the round: 10 points, 1 golems, 2 in hand, 2 played/ })
++    expect(chip.getAttribute('data-rest-anchor')).toBe('3')
++    fireEvent.click(chip)
++
++    const sheet = screen.getByRole('dialog')
++    const moves = within(sheet).getByRole('list', { name: /last moves/ })
++    expect(within(moves).getAllByRole('listitem')).toHaveLength(1) // only AI 2's move, not mine
++    expect(moves.textContent).toContain('Took')
++    expect(moves.textContent).toContain('Trade 2 yellow for 1 blue')
++    expect(within(sheet).getByText('Played since last rest · 2')).toBeTruthy()
++    const played = within(sheet).getAllByRole('img').map((el) => el.getAttribute('alt') || el.getAttribute('aria-label')).filter(Boolean)
++    expect(played.indexOf('upgrade_2')).toBeLessThan(played.indexOf('mint_0002'))
++    expect(within(sheet).getByText('Golems · 1')).toBeTruthy()
++
++    fireEvent.click(within(sheet).getByRole('button', { name: 'Close' }))
++    expect(screen.queryByRole('dialog')).toBeNull()
++  })
++})
+--- a/web/react-frontend/src/components/__tests__/PlayersInfoBar.test.jsx
++++ b/web/react-frontend/src/components/__tests__/PlayersInfoBar.test.jsx
+@@ -0,0 +1,46 @@
++import React from 'react'
++import { render, screen, cleanup, act, within } from '@testing-library/react'
++import { describe, test, expect, afterEach } from 'vitest'
++import PlayersInfoBar, { chipLayout, doneForGame } from '../PlayersInfoBar'
++import useGameStore from '../../store/gameStore'
++
++const seat = (id, name, extra = {}) => ({ id, name, isAI: id !== 2, hand: [{}], playedCards: [], pointCards: [], caravan: { yellow: id }, ...extra })
++const players = [seat(4, 'Magma'), seat(2, 'Me'), seat(7, 'Kiln'), seat(9, 'Rime'), seat(5, 'Onyx')]
++
++const show = (gs) => act(() => useGameStore.setState({
++  gameState: { players, market: { actionCards: [{}] }, round: 3, ...gs },
++  myPlayer: players[1], currentPlayer: players.find((p) => p.id === (gs.currentPlayer ?? 4)), isSpectator: false,
++}))
++
++describe('PlayersInfoBar (phones): everyone in turn order', () => {
++  afterEach(() => {
++    cleanup()
++    act(() => useGameStore.setState({ gameState: null, myPlayer: null, currentPlayer: null }))
++  })
++
++  test('all five players, me included, numbered in the order they play; first and last are named', () => {
++    show({ currentPlayer: 4 })
++    render(<PlayersInfoBar />)
++    const chips = within(screen.getByLabelText('Players in turn order')).getAllByRole('button')
++    expect(chips).toHaveLength(5)
++    expect(chips[0].getAttribute('aria-label')).toMatch(/^Magma, 1st to play, starts the round/)
++    expect(chips[1].getAttribute('aria-label')).toMatch(/^You, 2nd to play:/)
++    expect(chips[4].getAttribute('aria-label')).toMatch(/^Onyx, 5th to play, last in the round/)
++    chips.forEach((c, i) => expect(c.textContent).toContain(String(i + 1)))
++  })
++
++  test('last round: players who already had their final turn are marked done', () => {
++    show({ currentPlayer: 9, lastRound: true })
++    render(<PlayersInfoBar />)
++    const chips = within(screen.getByLabelText('Players in turn order')).getAllByRole('button')
++    expect(chips.slice(0, 3).every((c) => /done for the game/.test(c.getAttribute('aria-label')))).toBe(true)
++    expect(chips.slice(3).some((c) => /done for the game/.test(c.getAttribute('aria-label')))).toBe(false)
++  })
++
++  test('helpers', () => {
++    expect([130, 112, 104, 80, 70].map(chipLayout)).toEqual(['wide', 'wide', 'medium', 'medium', 'narrow'])
++    const gs = { players, currentPlayer: 7, lastRound: true }
++    expect([0, 1, 2, 3].map((i) => doneForGame(gs, i))).toEqual([true, true, false, false])
++    expect(doneForGame({ ...gs, lastRound: false }, 0)).toBe(false)
 +  })
 +})
 --- a/web/react-frontend/src/components/__tests__/RestPopup.test.jsx
@@ -8390,7 +8923,7 @@
  
 --- a/web/react-frontend/src/components/ui/Avatar.jsx
 +++ b/web/react-frontend/src/components/ui/Avatar.jsx
-@@ -0,0 +1,49 @@
+@@ -0,0 +1,87 @@
 +import React from 'react'
 +import PlayerAvatar from '../PlayerAvatar'
 +
@@ -8400,9 +8933,47 @@
 +/**
 + * Player portrait in a bronze ring. `turn` lights the ring; `timer` = {remaining, total} (seconds)
 + * draws the time left around it. `restAnchor` marks it as the anchor of the opponent rest popup.
++ * `fit`: `size` is the whole box and the portrait fills it up to a thin 2px ring — that ring is what
++ * pulses on the player's turn / shows the timer (small phone chips: biggest portrait, no gap).
 + */
-+const Avatar = ({ player, size = 48, turn = false, timer, offline = false, restAnchor = false, className = '' }) => {
++const Avatar = ({ player, size = 48, turn = false, timer, offline = false, restAnchor = false, fit = false, className = '' }) => {
 +  const f = timer && timer.total > 0 ? Math.max(0, Math.min(1, timer.remaining / timer.total)) : null
++  if (fit) {
++    const band = 2
++    const r = (size - band) / 2
++    const circ = 2 * Math.PI * r
++    return (
++      <span
++        className={`relative inline-flex flex-shrink-0 items-center justify-center rounded-full border-2
++          ${f !== null ? 'border-transparent' : turn ? 'turn-ring border-bronze-300' : 'border-bronze-500/60'} ${className}`}
++        style={{ width: size, height: size }}
++      >
++        {f !== null ? (
++          <svg className="absolute -inset-[2px] -rotate-90" width={size} height={size} aria-hidden="true">
++            <circle cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={band} style={{ stroke: 'rgb(var(--rock-950) / 0.7)' }} />
++            <circle
++              cx={size / 2}
++              cy={size / 2}
++              r={r}
++              fill="none"
++              strokeWidth={band}
++              strokeLinecap="round"
++              strokeDasharray={circ}
++              strokeDashoffset={circ * (1 - f)}
++              style={{ stroke: ringColor(f), transition: 'stroke-dashoffset 1s linear, stroke 0.3s' }}
++              className={f <= 0.2 ? 'animate-pulse' : ''}
++            />
++          </svg>
++        ) : null}
++        <PlayerAvatar
++          player={player}
++          restAnchor={restAnchor}
++          className={`rounded-full bg-rock-700 text-fg text-sm ${offline ? 'opacity-50 grayscale' : ''}`}
++          style={{ width: size - band * 2, height: size - band * 2 }}
++        />
++      </span>
++    )
++  }
 +  const stroke = Math.max(3, Math.round(size / 14))
 +  const box = size + stroke * 2 + 4
 +  const r = (box - stroke) / 2
@@ -8548,6 +9119,32 @@
 +}
 +
 +export default AvatarPicker
+--- a/web/react-frontend/src/components/ui/Avatar.test.jsx
++++ b/web/react-frontend/src/components/ui/Avatar.test.jsx
+@@ -0,0 +1,23 @@
++import React from 'react'
++import { describe, test, expect, afterEach } from 'vitest'
++import { render, cleanup } from '@testing-library/react'
++import Avatar from './Avatar'
++
++describe('Avatar fit (phone chips)', () => {
++  afterEach(cleanup)
++
++  test('the portrait fills the box up to the 2px ring; the ring pulses on the turn', () => {
++    const { container } = render(<Avatar player={{ id: 2, name: 'Basalt', avatar: '3' }} size={34} fit turn />)
++    const box = container.firstChild
++    expect(box.style.width).toBe('34px')
++    expect(box.className).toContain('turn-ring')
++    const portrait = container.querySelector('[style*="30px"]')
++    expect(portrait).not.toBeNull()
++  })
++
++  test('a person on turn gets the timer drawn in the same ring, no pulse class', () => {
++    const { container } = render(<Avatar player={{ id: 2, name: 'Ann', avatar: '3' }} size={34} fit turn timer={{ remaining: 30, total: 60 }} />)
++    expect(container.querySelectorAll('circle')).toHaveLength(2)
++    expect(container.firstChild.className).not.toContain('turn-ring')
++  })
++})
 --- a/web/react-frontend/src/components/ui/Button.jsx
 +++ b/web/react-frontend/src/components/ui/Button.jsx
 @@ -0,0 +1,66 @@
@@ -10482,7 +11079,7 @@
      -webkit-font-smoothing: antialiased;
      -moz-osx-font-smoothing: grayscale;
    }
-@@ -29,6 +32,105 @@
+@@ -29,6 +32,116 @@
    body {
      overscroll-behavior-y: contain;
    }
@@ -10557,6 +11154,17 @@
 +    pointer-events: none;
 +    animation: turn-glow-pulse 1.6s ease-in-out infinite;
 +  }
++  /* Phone chips (Avatar fit): the 2px ring itself pulses, a soft glow just outside it — no gap, no thick halo */
++  .turn-ring::after {
++    content: '';
++    position: absolute;
++    inset: -2px;
++    border-radius: 9999px;
++    border: 2px solid rgb(var(--bronze-100));
++    box-shadow: 0 0 6px 1px rgb(var(--bronze-300) / 0.7);
++    pointer-events: none;
++    animation: turn-glow-pulse 1.6s ease-in-out infinite;
++  }
 +  /* Game over, winner: gold shimmering title and slowly turning rays behind the result */
 +  .victory-title {
 +    background: linear-gradient(100deg, rgb(var(--bronze-300)) 20%, #fff8e1 45%, rgb(var(--bronze-100)) 55%, rgb(var(--bronze-300)) 80%);
@@ -10588,7 +11196,7 @@
  }
  
  @layer components {
-@@ -45,10 +147,6 @@
+@@ -45,10 +158,6 @@
      animation: none !important;
    }
    
@@ -10599,7 +11207,7 @@
  
    .card-base:hover {
      @apply shadow-lg;
-@@ -236,15 +334,7 @@
+@@ -236,15 +345,7 @@
      -webkit-touch-callout: none;
    }
    
@@ -10616,7 +11224,7 @@
  
    /* Disable hover states on touch */
    .card-base:hover {
-@@ -327,6 +417,15 @@
+@@ -327,6 +428,15 @@
      padding-right: env(safe-area-inset-right);
    }
  
@@ -10632,7 +11240,7 @@
    /* Dynamic viewport height */
    .h-screen-dynamic {
      height: 100vh;
-@@ -454,15 +553,6 @@
+@@ -454,15 +564,6 @@
      min-height: 300px;
    }
  
@@ -10648,7 +11256,7 @@
    /* Animation utilities */
    .animate-slide-up {
      animation: slideUp 0.3s ease-out forwards;
-@@ -503,26 +593,3 @@
+@@ -503,26 +604,3 @@
      to { opacity: 1; }
    }
  }
@@ -11275,7 +11883,7 @@
    )
 --- a/web/react-frontend/src/store/gameStore.js
 +++ b/web/react-frontend/src/store/gameStore.js
-@@ -2,6 +2,9 @@
+@@ -2,9 +2,15 @@
  import { createLogger } from '../utils/logger';
  import { getClientIDFromCookie, apiFetch } from '../utils/api';
  import { showToast } from '../utils/toast';
@@ -11285,7 +11893,13 @@
  
  const logger = createLogger('GameStore');
  
-@@ -45,6 +48,10 @@
++export const HISTORY_SIZE = 30; // moves kept in actionHistory
++let historySeq = 0;
++
+ const useGameStore = create((set, get) => ({
+   // Connection state
+   ws: null,
+@@ -45,6 +51,10 @@
    tradeModalCardIndex: null, // Card index for trade modal
    acquiringCardIds: [], // Array of card IDs that are being acquired (for animation)
    acquiredCardOverlay: null, // { card, type: 'market'|'golem', playerName } for overlay animation
@@ -11296,7 +11910,7 @@
    
    // Sound settings
    soundsMuted: typeof window !== 'undefined' ? localStorage.getItem('gameSoundsMuted') === 'true' : false,
-@@ -65,10 +72,13 @@
+@@ -65,10 +75,13 @@
        set({ connectionTimeoutId: null });
      }
  
@@ -11311,7 +11925,23 @@
      });
  
      // In development with Vite, always connect to the dev server (localhost:3000)
-@@ -321,9 +331,7 @@
+@@ -255,6 +268,7 @@
+                 // Add to action history for opponents
+                 get().addActionToHistory({
+                   type: 'acquire',
++                  playerId: acquiringPlayer?.id,
+                   playerName: playerName,
+                   playerAvatar: acquiringPlayer?.avatar,
+                   card: card,
+@@ -303,6 +317,7 @@
+                 // Add to action history for opponents
+                 get().addActionToHistory({
+                   type: 'claim',
++                  playerId: claimingPlayer?.id,
+                   playerName: playerName,
+                   playerAvatar: claimingPlayer?.avatar,
+                   card: card,
+@@ -321,9 +336,7 @@
              if (prevOpponent) {
                const prevPlayedCount = prevOpponent.playedCards?.length || 0
                const currentPlayedCount = currentOpponent.playedCards?.length || 0
@@ -11322,7 +11952,15 @@
                // If opponent played a new card
                if (currentPlayedCount > prevPlayedCount && currentOpponent.id !== currentPlayerId) {
                  // Get the newly played card (last card in playedCards)
-@@ -343,9 +351,10 @@
+@@ -335,6 +348,7 @@
+                   // Add to action history
+                   get().addActionToHistory({
+                     type: 'play',
++                    playerId: currentOpponent.id,
+                     playerName: currentOpponent.name,
+                     playerAvatar: currentOpponent.avatar,
+                     card: playedCard,
+@@ -343,11 +357,13 @@
                  }
                }
                
@@ -11335,8 +11973,11 @@
 +                get().showRestPopup(currentOpponent, rested, message.players)
                  get().addActionToHistory({
                    type: 'rest',
++                  playerId: currentOpponent.id,
                    playerName: currentOpponent.name,
-@@ -358,6 +367,13 @@
+                   playerAvatar: currentOpponent.avatar,
+                   card: null,
+@@ -358,6 +374,13 @@
            }
          }
  
@@ -11350,7 +11991,7 @@
          // Update state immediately - we'll keep acquiring cards visible in render
          set({
            gameState: message,
-@@ -376,6 +392,17 @@
+@@ -376,6 +399,17 @@
              logger.info(`${currentPlayer.name}'s turn`);
            }
          }
@@ -11368,7 +12009,7 @@
        } else if (message.type === "chat") {
          // Handle chat message from server
          if (get().onChatMessage) {
-@@ -521,6 +548,30 @@
+@@ -521,6 +555,30 @@
      get().connectWebSocket(sessionId, playerName, playerAvatar, isSpectator);
    },
  
@@ -11399,7 +12040,7 @@
    // Cancel reconnection attempt
    cancelReconnect: () => {
      const timeoutId = get().reconnectTimeoutId;
-@@ -585,6 +636,7 @@
+@@ -585,9 +643,11 @@
      const { myPlayer } = get();
      const cardData = card || myPlayer?.hand?.[cardIndex];
      get().sendAction("playCard", cardIndex);
@@ -11407,7 +12048,11 @@
      logger.info(`Playing card from hand`);
      get().addActionToHistory({
        type: 'play',
-@@ -598,6 +650,7 @@
++      playerId: myPlayer?.id,
+       playerName: myPlayer?.name || 'You',
+       playerAvatar: myPlayer?.avatar,
+       card: cardData,
+@@ -598,9 +658,11 @@
      const { myPlayer } = get();
      const cardData = card || myPlayer?.hand?.[cardIndex];
      get().sendAction("playCard", cardIndex, inputResources, outputResources);
@@ -11415,7 +12060,11 @@
      logger.info(`Playing upgrade card`);
      get().addActionToHistory({
        type: 'upgrade',
-@@ -617,6 +670,7 @@
++      playerId: myPlayer?.id,
+       playerName: myPlayer?.name || 'You',
+       playerAvatar: myPlayer?.avatar,
+       card: cardData,
+@@ -617,9 +679,11 @@
      const { myPlayer } = get();
      const cardData = card || myPlayer?.hand?.[cardIndex];
      get().sendAction("playCard", cardIndex, null, null, multiplier);
@@ -11423,7 +12072,34 @@
      logger.info(`Playing trade card (x${multiplier})`);
      get().addActionToHistory({
        type: 'trade',
-@@ -675,6 +729,18 @@
++      playerId: myPlayer?.id,
+       playerName: myPlayer?.name || 'You',
+       playerAvatar: myPlayer?.avatar,
+       card: cardData,
+@@ -644,6 +708,7 @@
+     logger.info(`Acquiring card from market`);
+     get().addActionToHistory({
+       type: 'acquire',
++      playerId: myPlayer?.id,
+       playerName: myPlayer?.name || 'You',
+       playerAvatar: myPlayer?.avatar,
+       card: cardData,
+@@ -657,6 +722,7 @@
+     logger.info(`Claiming point card`);
+     get().addActionToHistory({
+       type: 'claim',
++      playerId: myPlayer?.id,
+       playerName: myPlayer?.name || 'You',
+       playerAvatar: myPlayer?.avatar,
+       card: cardData,
+@@ -669,12 +735,25 @@
+     logger.info(`Resting - returning cards to hand`);
+     get().addActionToHistory({
+       type: 'rest',
++      playerId: myPlayer?.id,
+       playerName: myPlayer?.name || 'You',
+       playerAvatar: myPlayer?.avatar,
+       card: null,
      });
    },
  
@@ -11442,7 +12118,25 @@
    discardCrystals: (discard) => {
      const { ws, myPlayer } = get()
      if (!ws || ws.readyState !== WebSocket.OPEN) return
-@@ -802,6 +868,16 @@
+@@ -759,13 +838,14 @@
+   setSelectedCard: (card) => set({ selectedCard: card }),
+   clearSelectedCard: () => set({ selectedCard: null }),
+ 
+-  // Add rich action to history
++  // Add rich action to history (newest first). `seq` only grows (also across Clear / new games), so
++  // views can tell which moves are new (mobile move bubbles). Phones read it per player, so keep a few rounds.
+   addActionToHistory: (action) => {
+     const history = get().actionHistory;
+     const newHistory = [
+-      { ...action, timestamp: Date.now() },
++      { ...action, seq: ++historySeq, timestamp: Date.now() },
+       ...history
+-    ].slice(0, 4); // Keep last 4
++    ].slice(0, HISTORY_SIZE);
+     set({ actionHistory: newHistory });
+   },
+ 
+@@ -802,6 +882,16 @@
      }, 2000)
    },
  
@@ -12150,7 +12844,7 @@
 +})
 --- a/web/react-frontend/src/utils/rest.js
 +++ b/web/react-frontend/src/utils/rest.js
-@@ -0,0 +1,28 @@
+@@ -0,0 +1,34 @@
 +// Number of cards a player took back by resting between two states, 0 if they did not rest.
 +// A rest moves every played card back to the hand: played goes to 0 and the hand grows.
 +// Taking back an overflowing card play (undo) can look the same when it was the only played card,
@@ -12166,15 +12860,21 @@
 +}
 +
 +// Where the "<name> rested" popup goes: just below that player's avatar on the desktop boards
-+// (PlayerCard / PlayerDock mark it with data-rest-anchor). null when the avatar is not on screen
-+// (mobile layouts, hidden panel): the popup then shows centered at the top.
++// (PlayerCard / PlayerDock mark it with data-rest-anchor; on phones the opponent's whole chip). null when
++// it is not on screen (hidden panel): the popup then shows centered at the top.
 +export function restAnchorPosition(playerId, doc = document, win = window) {
++  return anchorBelow(playerId, 300, doc, win)
++}
++
++// Spot for a popup `width` px wide just below a player's data-rest-anchor element, kept inside the
++// window: { top, left (its centre), caret (offset of the caret from the centre) }, or null.
++export function anchorBelow(playerId, width, doc = document, win = window) {
 +  if (playerId == null) return null
 +  const el = doc.querySelector(`[data-rest-anchor="${playerId}"]`)
 +  if (!el) return null
 +  const r = el.getBoundingClientRect()
 +  if (!r.width || !r.height) return null
-+  const half = 150 // about half the popup width: keep it inside the window
++  const half = width / 2
 +  const center = r.left + r.width / 2
 +  const left = Math.min(Math.max(center, half + 8), Math.max(half + 8, win.innerWidth - half - 8))
 +  return { top: Math.round(r.bottom + 8), left: Math.round(left), caret: Math.round(center - left) }

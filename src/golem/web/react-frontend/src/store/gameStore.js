@@ -8,6 +8,9 @@ import { resolveUndo } from '../utils/undo';
 
 const logger = createLogger('GameStore');
 
+export const HISTORY_SIZE = 30; // moves kept in actionHistory
+let historySeq = 0;
+
 const useGameStore = create((set, get) => ({
   // Connection state
   ws: null,
@@ -265,6 +268,7 @@ const useGameStore = create((set, get) => ({
                 // Add to action history for opponents
                 get().addActionToHistory({
                   type: 'acquire',
+                  playerId: acquiringPlayer?.id,
                   playerName: playerName,
                   playerAvatar: acquiringPlayer?.avatar,
                   card: card,
@@ -313,6 +317,7 @@ const useGameStore = create((set, get) => ({
                 // Add to action history for opponents
                 get().addActionToHistory({
                   type: 'claim',
+                  playerId: claimingPlayer?.id,
                   playerName: playerName,
                   playerAvatar: claimingPlayer?.avatar,
                   card: card,
@@ -343,6 +348,7 @@ const useGameStore = create((set, get) => ({
                   // Add to action history
                   get().addActionToHistory({
                     type: 'play',
+                    playerId: currentOpponent.id,
                     playerName: currentOpponent.name,
                     playerAvatar: currentOpponent.avatar,
                     card: playedCard,
@@ -357,6 +363,7 @@ const useGameStore = create((set, get) => ({
                 get().showRestPopup(currentOpponent, rested, message.players)
                 get().addActionToHistory({
                   type: 'rest',
+                  playerId: currentOpponent.id,
                   playerName: currentOpponent.name,
                   playerAvatar: currentOpponent.avatar,
                   card: null,
@@ -640,6 +647,7 @@ const useGameStore = create((set, get) => ({
     logger.info(`Playing card from hand`);
     get().addActionToHistory({
       type: 'play',
+      playerId: myPlayer?.id,
       playerName: myPlayer?.name || 'You',
       playerAvatar: myPlayer?.avatar,
       card: cardData,
@@ -654,6 +662,7 @@ const useGameStore = create((set, get) => ({
     logger.info(`Playing upgrade card`);
     get().addActionToHistory({
       type: 'upgrade',
+      playerId: myPlayer?.id,
       playerName: myPlayer?.name || 'You',
       playerAvatar: myPlayer?.avatar,
       card: cardData,
@@ -674,6 +683,7 @@ const useGameStore = create((set, get) => ({
     logger.info(`Playing trade card (x${multiplier})`);
     get().addActionToHistory({
       type: 'trade',
+      playerId: myPlayer?.id,
       playerName: myPlayer?.name || 'You',
       playerAvatar: myPlayer?.avatar,
       card: cardData,
@@ -698,6 +708,7 @@ const useGameStore = create((set, get) => ({
     logger.info(`Acquiring card from market`);
     get().addActionToHistory({
       type: 'acquire',
+      playerId: myPlayer?.id,
       playerName: myPlayer?.name || 'You',
       playerAvatar: myPlayer?.avatar,
       card: cardData,
@@ -711,6 +722,7 @@ const useGameStore = create((set, get) => ({
     logger.info(`Claiming point card`);
     get().addActionToHistory({
       type: 'claim',
+      playerId: myPlayer?.id,
       playerName: myPlayer?.name || 'You',
       playerAvatar: myPlayer?.avatar,
       card: cardData,
@@ -723,6 +735,7 @@ const useGameStore = create((set, get) => ({
     logger.info(`Resting - returning cards to hand`);
     get().addActionToHistory({
       type: 'rest',
+      playerId: myPlayer?.id,
       playerName: myPlayer?.name || 'You',
       playerAvatar: myPlayer?.avatar,
       card: null,
@@ -825,13 +838,14 @@ const useGameStore = create((set, get) => ({
   setSelectedCard: (card) => set({ selectedCard: card }),
   clearSelectedCard: () => set({ selectedCard: null }),
 
-  // Add rich action to history
+  // Add rich action to history (newest first). `seq` only grows (also across Clear / new games), so
+  // views can tell which moves are new (mobile move bubbles). Phones read it per player, so keep a few rounds.
   addActionToHistory: (action) => {
     const history = get().actionHistory;
     const newHistory = [
-      { ...action, timestamp: Date.now() },
+      { ...action, seq: ++historySeq, timestamp: Date.now() },
       ...history
-    ].slice(0, 4); // Keep last 4
+    ].slice(0, HISTORY_SIZE);
     set({ actionHistory: newHistory });
   },
 

@@ -103,6 +103,17 @@
     pointer-events: none;
     animation: turn-glow-pulse 1.6s ease-in-out infinite;
   }
+  /* Phone chips (Avatar fit): the 2px ring itself pulses, a soft glow just outside it — no gap, no thick halo */
+  .turn-ring::after {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 9999px;
+    border: 2px solid rgb(var(--bronze-100));
+    box-shadow: 0 0 6px 1px rgb(var(--bronze-300) / 0.7);
+    pointer-events: none;
+    animation: turn-glow-pulse 1.6s ease-in-out infinite;
+  }
   /* Game over, winner: gold shimmering title and slowly turning rays behind the result */
   .victory-title {
     background: linear-gradient(100deg, rgb(var(--bronze-300)) 20%, #fff8e1 45%, rgb(var(--bronze-100)) 55%, rgb(var(--bronze-300)) 80%);

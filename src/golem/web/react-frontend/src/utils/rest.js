@@ -13,15 +13,21 @@ export function restedCards(prev, cur) {
 }
 
 // Where the "<name> rested" popup goes: just below that player's avatar on the desktop boards
-// (PlayerCard / PlayerDock mark it with data-rest-anchor). null when the avatar is not on screen
-// (mobile layouts, hidden panel): the popup then shows centered at the top.
+// (PlayerCard / PlayerDock mark it with data-rest-anchor; on phones the opponent's whole chip). null when
+// it is not on screen (hidden panel): the popup then shows centered at the top.
 export function restAnchorPosition(playerId, doc = document, win = window) {
+  return anchorBelow(playerId, 300, doc, win)
+}
+
+// Spot for a popup `width` px wide just below a player's data-rest-anchor element, kept inside the
+// window: { top, left (its centre), caret (offset of the caret from the centre) }, or null.
+export function anchorBelow(playerId, width, doc = document, win = window) {
   if (playerId == null) return null
   const el = doc.querySelector(`[data-rest-anchor="${playerId}"]`)
   if (!el) return null
   const r = el.getBoundingClientRect()
   if (!r.width || !r.height) return null
-  const half = 150 // about half the popup width: keep it inside the window
+  const half = width / 2
   const center = r.left + r.width / 2
   const left = Math.min(Math.max(center, half + 8), Math.max(half + 8, win.innerWidth - half - 8))
   return { top: Math.round(r.bottom + 8), left: Math.round(left), caret: Math.round(center - left) }

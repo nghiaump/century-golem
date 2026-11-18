@@ -5,6 +5,7 @@ import PlayersInfoBar from '../PlayersInfoBar'
 import CompactGameBoard from './CompactGameBoard'
 import CompactPlayerHand from './CompactPlayerHand'
 import PhoneTopBar from './PhoneTopBar'
+import MoveBubbles from './MoveBubbles'
 import Hud from '../board/Hud'
 import useVisibleHeight, { viewportReport } from '../../hooks/useVisibleHeight'
 
@@ -39,7 +40,7 @@ const same = (a, b) => a && b && a.golem === b.golem && a.market === b.market &&
  *   portrait   top bar · opponents · golems + market · my hand
  *   landscape  [top bar · golems + market] [opponents · my hand]
  * The board area is measured and the card sizes planned to fit it (utils/phoneLayout); safe areas
- * (notch / Dynamic Island, home indicator) are padded.
+ * (notch / Dynamic Island, home indicator) are padded. Others' moves pop up under their chips (MoveBubbles).
  */
 const PhoneShell = ({ sessionId, landscape = false, children }) => {
   const boardRef = useRef(null)
@@ -108,6 +109,7 @@ const PhoneShell = ({ sessionId, landscape = false, children }) => {
           <div className="min-h-0 flex-1"><CompactPlayerHand landscape /></div>
         </div>
         {children}
+        <MoveBubbles />
         {diagBox}
       </div>
     )
@@ -125,6 +127,7 @@ const PhoneShell = ({ sessionId, landscape = false, children }) => {
       {board}
       <CompactPlayerHand cardHeight={plan?.hand ?? 104} />
       {children}
+      <MoveBubbles />
       {diagBox}
     </div>
   )
