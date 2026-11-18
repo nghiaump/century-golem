@@ -61,16 +61,27 @@ Bề mặt (`index.css`, lớp `surface-*`): `surface-stone` (gradient đá + h�
   phủ tối; Retry sau 2 lần thử/lỗi, Back to Menu sau 3). `SinglePlayerLobby` (mặc định 3 AI · Very Hard), `Lobby` (tab Create/Join,
   danh sách phòng, join theo ID), `WaitingRoom`.
 - **HUD** (`board/Hud`: `RoundInfo` + `HudButtons`): bàn chơi desktop đặt chúng **trên thanh tiêu đề Market** (nút 36px) để hàng
-  người chơi bắt đầu sát mép trên, không chừa dải trống (2026-11-16, ý người dùng); điện thoại, skin ✨ và phòng chờ dùng bản nổi ở
-  góc: trái "Round N · độ khó · Last round" (điện thoại: "R N"), phải ✨ (desktop) · âm thanh · Activity
+  người chơi bắt đầu sát mép trên, không chừa dải trống (2026-11-16, ý người dùng); skin ✨ và phòng chờ dùng bản nổi ở
+  góc: trái "Round N · độ khó · Last round", phải ✨ (desktop) · âm thanh · Activity; điện thoại trong ván dùng `PhoneTopBar` (dưới)
   (`CollapsibleInfo`: ngăn đá phải 420px / bottom sheet trên điện thoại; chat; xoá có bước xác nhận trong trang). `Toast` giữa-trên
   dưới HUD, tối đa 3, không còn `alert()`.
 - **Desktop** (`desktop/WebGameLayout`, ≥ 768px rộng và ≥ 500px cao khi ngang): hàng người chơi (`PlayerCard`, rộng tới 21rem, avatar
   68px — 56px dưới 1280px: tên · golem · ★ điểm = golem + coin, hàng crystal, "n in hand · n played", vòng giờ người, AI đang nghĩ, offline), panel Market 6 lá + Golems 5 lá (`CardTile`), hàng dưới History · Played · tay bài
   (ruy băng lượt + Rest luôn hiện, mờ kèm gợi ý khi chưa chơi lá nào) · My Golems (`CardPile` → popup danh sách).
-- **Điện thoại** (`mobile/*` + `PlayersInfoBar`): dọc = dải người chơi cuộn ngang + dòng lượt · golem 1 hàng vuốt + market 3×2
-  (cuộn dọc) · tay bài ở đáy (crystal x/10, Rest · golem · đã chơi, lá vuốt ngang). Ngang (cao < 500px) = bàn trái, cột phải gồm
-  dải người chơi thu gọn + tay bài. **Chạm lá ⇒ `CardSheet`** (ảnh lớn, mô tả, nút Take / Place n & take / Claim / Play hoặc lý do không được).
+- **Điện thoại** (`mobile/PhoneShell`, làm lại 2026-11-17 sau góp ý "iPhone 15 Pro rất xấu"): **cả ván trong một màn, không cuộn** —
+  Safari trên iPhone chỉ còn ~393×659px (thanh địa chỉ), bản cũ để tay bài đáy che gần hết Market. Dọc: `PhoneTopBar` (R n · ruy băng
+  "Your turn n s" / "<AI> is thinking" · âm thanh · Activity, nằm trong luồng trang) · `PlayersInfoBar` = **mọi đối thủ cùng lúc** theo thứ
+  tự lượt sau mình (lưới đều cột: chân dung + vòng giờ, tên khi đủ chỗ, ★, golem, số lá trên tay / đã chơi, 4 crystal; người xem thấy mọi người) · golem 5 lá
+  1 hàng + Market 6 lá **luôn 1 hàng gọn** (2026-11-18: người dùng muốn lá merchant nhỏ lại để có chỗ; chỗ dư dồn cho lá trên tay, tối đa 140px) · tay bài (1 hàng: crystal x/10 · golem+★ của mình · Rest · đã chơi; dưới là lá
+  vuốt ngang). **Cỡ lá tính theo chỗ thật** (`utils/phoneLayout.planPhoneBoard`, đo vùng bàn bằng ResizeObserver; vùng bàn + hàng lá
+  trên tay chia nhau phần cao còn lại; mỗi hàng bị giới hạn bởi chiều ngang). Chỉ **tay bài của mình** được cuộn (ngang) — mọi thứ khác
+  đứng yên trên một màn để nắm trạng thái ván ngay. **Chiều cao = phần thật sự nhìn thấy** (`hooks/useVisibleHeight`: nhỏ nhất của
+  `innerHeight`, `visualViewport.height`, `100svh`; khung `position: fixed`, `html.phone-lock` khoá cuộn trang) — Safari iOS 26 có thanh
+  công cụ nổi đè lên trang mà `100dvh`/`safe-area-inset-bottom` vẫn tính cả dải dưới nó (2026-11-18: trên iPhone 15 Pro tay bài bị che
+  nửa, trang phải cuộn). Mở site với `?vp` để hiện ô số đo (innerHeight, visualViewport, svh, safe-area) khi cần kiểm máy thật. Lá trên điện thoại không hiện số
+  ô (che phần hiệu ứng in trên lá). Ngang (cao < 500px): trái = top bar + bàn, phải (≥ 296px) = đối thủ + tay bài. Chừa tai thỏ/Dynamic
+  Island/thanh home bằng `--safe-*`. < 360px rộng: hàng nút tay bài xuống dòng, crystal nhỏ hơn dưới 385px. Phòng chờ: HUD nổi + phòng ở
+  giữa. **Chạm lá ⇒ `CardSheet`** (ảnh lớn 128×221, mô tả, nút Take / Place n & take / Claim / Play hoặc lý do không được).
 - **Skin ✨** (`desktop/FantasyGameLayout`, chỉ desktop, ẩn khi `isCompact`): đặt theo % trên ảnh bàn `game_dock.jpg`; dock đá,
   dải trạng thái trên bàn (Round, deck, ruy băng lượt + Rest), popup chung, lưng bài `golem_bg.JPG`/`merchant_bg.JPG`. Bàn lùi xuống
   56px để HUD không đè.
@@ -103,8 +114,14 @@ Play Again `resolveAvatar()` tải lên lại (`POST /api/avatars`, cùng ảnh 
 - `deploy/ui-shots.mjs [URL] [DIR] [--only desktop|mobile] [--rest]`: menu → lobby đơn → lobby nhiều người → phòng chờ → bàn chơi
   (AI Easy, 5 s/lượt) → popup Rest → ✨, ở 1440×900, 1280×720, 1024×768, 390×844, 320×640, 844×390. **Exit 1** khi có request ra
   ngoài BASE_URL, lỗi console, HTTP ≥ 400, tràn ngang; trên viewport cảm ứng: chữ < 12px (trừ chữ trong SVG) hoặc nút < 44px.
+- **`deploy/webkit-shots.cjs`** (engine của Safari, trong image `mcr.microsoft.com/playwright:v1.58.2-noble`): iPhone 15 Pro dọc 393×659 /
+  ngang 852×341 + Mac Safari 1440×900; exit 1 khi lá rộng < 20px, chạm lá không mở sheet, tràn ngang, lỗi trang. **Chrome không bắt được
+  lỗi WebKit**: 2026-11-17 mọi lá golem/tay bài trên iPhone rộng 0px (`max-width:100%` + `aspect-ratio` + chiều cao % trong khung
+  co theo nội dung) ⇒ hàng lá luôn đặt **kích thước pixel tường minh** (`cardBox(h)`, đo hàng bằng `hooks/useElementSize`).
+- Giả lập Safari iPhone trong Chrome: viewport 393×659 (có thanh địa chỉ) / 393×852 + safe-area 59/34 / ngang 852×341 + 59 trái-phải,
+  safe-area qua CDP `Emulation.setSafeAreaInsetsOverride`.
 - Gallery dev (`vite dev` trên bản sao + `?gallery`, `?gallery&modal=…`) để chụp primitive/popup không cần ván thật.
-- Vitest: `TradeModal`, `DiscardModal`, `RestPopup`, `SinglePlayerLobby`, `useGameSounds*`, `utils/{crystals,rest,undo,avatar,aiLevel}`.
+- Vitest: `TradeModal`, `DiscardModal`, `RestPopup`, `SinglePlayerLobby`, `useGameSounds*`, `utils/{crystals,rest,undo,avatar,aiLevel,phoneLayout,customAvatar}`.
 
 ## 9. Việc còn mở
 - Chưa thử trên iPhone thật (Safari: `dvh`, safe-area) — chỉ giả lập Chrome.

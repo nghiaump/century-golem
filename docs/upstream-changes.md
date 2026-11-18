@@ -190,6 +190,18 @@ Chi tiết: [`ui/thiet-ke-giao-dien.md`](ui/thiet-ke-giao-dien.md). Tóm tắt t
 - Frontend: `utils/customAvatar.js` (+ test), `components/AvatarCropper.jsx`, ô Upload trong `ui/AvatarPicker.jsx`, `utils/avatar.js`
   (`isCustomAvatar`, `avatarSrc` cho `u_…`, giá trị lạ ⇒ golem 1); `SinglePlayerLobby`/`Lobby`/Play Again tải ảnh lên trước khi tạo/vào ván.
 
+### Bố cục điện thoại vừa một màn (2026-11-17, góp ý: iPhone 15 Pro "rất xấu", Market bị che)
+- Mới: `components/mobile/PhoneShell.jsx` (khung dọc/ngang, đo vùng bàn, safe-area), `components/mobile/PhoneTopBar.jsx`, `utils/phoneLayout.js`
+  (+ test). Viết lại: `PlayersInfoBar.jsx` (mọi đối thủ cùng lúc, lưới đều cột), `mobile/CompactGameBoard.jsx` (cỡ lá theo plan, Market 6×1 / 3×2),
+  `mobile/CompactPlayerHand.jsx` (1 hàng điều khiển + golem/★ của mình). `board/CardTile.jsx` thêm `showSlot`, ⇧ và "Place n" không chồng nhau;
+  `board/CardInspect.jsx` `large` cho sheet; `ui/TurnBanner.jsx` không xuống dòng; `SinglePlayerApp.jsx` dùng `PhoneShell`.
+- **Lỗi Safari** (nguyên nhân chính trên iPhone): `CardTile` bỏ `max-w-full` mặc định (WebKit vẽ lá rộng 0px), `desktop/WebGameLayout.jsx`
+  truyền `max-w-full` cho lưới Market/Golems và đo hàng tay bài; mọi hàng lá dùng `cardBox(h)` (`utils/phoneLayout.js`) + `hooks/useElementSize.js` (mới).
+  Kiểm bằng `deploy/webkit-shots.cjs` (mới).
+- 2026-11-18 (iPhone 15 Pro: tay bài bị che nửa, phải cuộn, nhiều khoảng trống): `hooks/useVisibleHeight.js` (mới — chiều cao nhìn thấy,
+  khoá cuộn, ô `?vp`), `PhoneShell` dùng nó (khung fixed), `index.css` `html.phone-lock`; Market luôn 1 hàng, tay bài tới 160px, bàn gom giữa
+  (`utils/phoneLayout.js`, `CompactGameBoard`); chip đối thủ thêm số lá trên tay / đã chơi (`ui/CardIcons.jsx` mới).
+
 ### Màn kết thúc cho người thắng (2026-11-16)
 - `GameOverModal.jsx`: người thắng thấy "Victory!" + vương miện + tia sáng + pha lê nổ/mưa (thay mưa gem chung); người thua thấy
   thứ hạng của mình. `utils/sounds.js` `playVictory()` (fanfare Web Audio, tôn trọng mute), `hooks/useGameSounds.js` chọn fanfare khi
@@ -218,7 +230,7 @@ Avatar: 1 Basalt · 2 Mossback · 3 Rime · 4 Cinder · 5 Rivet · 6 Dune · 7 Q
 ## Test
 - Frontend (vitest, chạy trong `node:18-alpine` trên bản sao có `node_modules`): cấu hình vitest upstream không bật DOM
   (khoá `vitest.environment` trong package.json không có tác dụng) ⇒ chạy `vitest run --environment jsdom`. Khi đó upstream
-  12 pass / 2 fail (useGameSounds) + 2 file không chạy (cardNames, sounds); bản này **giống hệt phần lỗi**, 51 pass
+  12 pass / 2 fail (useGameSounds) + 2 file không chạy (cardNames, sounds); bản này **giống hệt phần lỗi**, 55 pass
   (2026-11-16 sau giao diện mới; thêm test avatar, aiLevel, lobby, rest, RestPopup, undo, DiscardModal, crystals,
   `hooks/__tests__/useGameSounds.rest.test.jsx`). Kiểm giao diện thật: `deploy/ui-shots.mjs` (6 viewport, sạch).
 - Backend (`go test -race ./internal/...` trong `golang:1.24`): `auth`, `eventstore`, `game`, `server`, `telegram` pass.

@@ -26,7 +26,7 @@ const CardSheet = ({ sheet, onClose }) => {
         </>
       )}
     >
-      <CardDetails card={card} type={type} slot={slot} placeCost={placeCost} coin={coin} />
+      <CardDetails card={card} type={type} slot={slot} placeCost={placeCost} coin={coin} large />
       {action?.disabled && action.reason ? <p className="mt-3 text-sm text-fg-muted">{action.reason}</p> : null}
     </Modal>
   )

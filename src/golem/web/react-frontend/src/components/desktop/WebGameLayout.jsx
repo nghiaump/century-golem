@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import useBoardActions from '../../hooks/useBoardActions'
 import useTurnTimer from '../../hooks/useTurnTimer'
 import PlayerCard from '../PlayerCard'
@@ -18,6 +18,8 @@ import TurnBanner from '../ui/TurnBanner'
 import Hud, { RoundInfo, HudButtons } from '../board/Hud'
 import useGameStore from '../../store/gameStore'
 import { MAX_CARAVAN } from '../../utils/crystals'
+import { cardBox } from '../../utils/phoneLayout'
+import useElementSize from '../../hooks/useElementSize'
 
 /**
  * Desktop board (≥ 768px wide, ≥ 500px tall): players across the top, market and golem rows, then
@@ -31,6 +33,8 @@ const WebGameLayout = () => {
   const storeSessionId = useGameStore((s) => s.sessionId)
   const { gameState, myPlayer, currentPlayer, isSpectator, isWaiting, isMyTurn } = a
   const sessionId = gameState?.sessionID || storeSessionId
+  const [handRowEl, setHandRow] = useState(null)
+  const handRow = useElementSize(handRowEl) // explicit card sizes (Safari) — see hooks/useElementSize
 
   if (!isWaiting && !isSpectator && !myPlayer) {
     return <div className="flex h-full w-full items-center justify-center text-fg-muted">Loading game…</div>
@@ -83,6 +87,7 @@ const WebGameLayout = () => {
                     ready={isMyTurn && affordable}
                     dim={isMyTurn && !affordable}
                     onClick={() => a.onMarketCard(i)}
+                    className="max-w-full"
                   />
                 )
               })}
@@ -112,6 +117,7 @@ const WebGameLayout = () => {
                     ready={isMyTurn && claimable}
                     dim={isMyTurn && !claimable}
                     onClick={() => a.onGolem(i)}
+                    className="max-w-full"
                   />
                 )
               })}
@@ -152,9 +158,9 @@ const WebGameLayout = () => {
                         )}
                       </div>
                     </div>
-                    <div className="flex min-h-0 flex-1 items-stretch gap-2.5 overflow-x-auto overflow-y-hidden pb-1 scrollbar-thin" role="list" aria-label="Your hand">
+                    <div ref={setHandRow} className="flex min-h-0 flex-1 items-stretch gap-2.5 overflow-x-auto overflow-y-hidden pb-1 scrollbar-thin" role="list" aria-label="Your hand">
                       {a.hand.length ? a.hand.map((card, i) => (
-                        <div key={`h${i}-${card.id}`} role="listitem" className="h-full flex-shrink-0">
+                        <div key={`h${i}-${card.id}`} role="listitem" className="flex-shrink-0" style={cardBox(handRow.height)}>
                           <CardTile card={card} ready={isMyTurn} onClick={() => a.onHandCard(card, i)} />
                         </div>
                       )) : (

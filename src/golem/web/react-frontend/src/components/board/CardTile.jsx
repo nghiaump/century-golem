@@ -11,9 +11,12 @@ const DEPOSIT_ORDER = ['yellow', 'green', 'blue', 'pink']
  * One card on the board (market, golem row, hand). The art stays as printed; around it:
  * slot number, crystals lying on it, the coin a golem slot carries, and the state —
  * `ready` (you can take/claim/play it now: bronze glow + check) or `dim` (your turn, can't afford).
- * Hover/focus shows the details (desktop); `onInspect` replaces that (mobile tap → sheet).
+ * Hover/focus shows the details (desktop); `onInspect` replaces that (mobile tap → sheet). `showSlot={false}`
+ * hides the slot number (small phone cards: it would cover the printed effect).
+ * ⚠ Safari/WebKit: no `max-width: 100%` here — inside a shrink-to-fit wrapper it collapses the card to 0 px
+ * wide (height comes from the parent, width from aspect-ratio). Grid layouts pass `className="max-w-full"`.
  */
-const CardTile = ({ card, type = 'action', slot, placeCost, coin, ready = false, dim = false, onClick, onInspect, inspect = true, className = '' }) => {
+const CardTile = ({ card, type = 'action', slot, placeCost, coin, ready = false, dim = false, onClick, onInspect, inspect = true, showSlot = true, className = '' }) => {
   const ref = useRef(null)
   const [hover, setHover] = useState(false)
   const timer = useRef(null)
@@ -50,7 +53,7 @@ const CardTile = ({ card, type = 'action', slot, placeCost, coin, ready = false,
         onMouseLeave={hide}
         onFocus={show}
         onBlur={hide}
-        className={`group relative block h-full max-h-full max-w-full rounded-stone-sm transition-[transform,filter] duration-150
+        className={`group relative block h-full max-h-full rounded-stone-sm transition-[transform,filter] duration-150
           ${ready ? 'hover:-translate-y-0.5' : ''} ${className}`}
         style={{ aspectRatio: '0.58' }}
       >
@@ -59,7 +62,7 @@ const CardTile = ({ card, type = 'action', slot, placeCost, coin, ready = false,
             ${ready ? 'border-bronze-300 shadow-turn' : 'border-black/50'} ${dim ? 'saturate-50 brightness-75' : ''}`}
           style={{ ...art, backgroundColor: 'rgb(var(--rock-950))' }}
         />
-        {slot ? (
+        {slot && showSlot ? (
           <span className="absolute -left-1.5 -top-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-full border border-bronze-700 bg-gradient-to-b from-bronze-300 to-bronze-500 font-display text-xs font-bold text-ink shadow-elev-1">
             {slot}
           </span>
@@ -74,7 +77,7 @@ const CardTile = ({ card, type = 'action', slot, placeCost, coin, ready = false,
             <Coin kind={coin.kind} size={18} label={false} />{coin.left}
           </span>
         ) : null}
-        {card.actionType === 1 && type !== 'point' ? (
+        {card.actionType === 1 && type !== 'point' && !(typeof placeCost === 'number' && dim) ? (
           <span className="absolute bottom-1 left-1/2 z-10 -translate-x-1/2 rounded-full bg-rock-950/85 px-2 py-0.5 text-xs font-bold text-bronze-100">
             ⇧{card.turnUpgrade || 1}
           </span>

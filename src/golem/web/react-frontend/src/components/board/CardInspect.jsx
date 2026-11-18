@@ -6,11 +6,11 @@ import { CrystalCost } from '../ui/CrystalRow'
 import { cardKind, hasDeposits } from './cardInfo'
 
 /** Card details: big art + what it does (gems, not emoji). Used by the hover popover and the mobile sheet. */
-export const CardDetails = ({ card, type, slot, placeCost, coin }) => {
+export const CardDetails = ({ card, type, slot, placeCost, coin, large = false }) => {
   const kind = cardKind(card, type)
   return (
     <div className="flex gap-3">
-      <CardImage name={card.name} alt="" className="h-44 w-28 flex-shrink-0 rounded-stone-sm border border-black/40 shadow-elev-1" />
+      <CardImage name={card.name} alt="" className={`${large ? 'h-[221px] w-32' : 'h-44 w-28'} flex-shrink-0 rounded-stone-sm border border-black/40 shadow-elev-1`} />
       <div className="flex min-w-0 flex-col gap-2 text-sm">
         <div className="font-display text-lg font-bold text-bronze-100">{kind}{slot ? <span className="text-sm text-fg-muted"> · slot {slot}</span> : null}</div>
         {kind === 'Golem' && (

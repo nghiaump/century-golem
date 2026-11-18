@@ -49,8 +49,10 @@ async function audit(page, vp, step, touch) {
     }
     for (const el of document.querySelectorAll('button, a[href], [role="button"], label:has(input[type="radio"])')) {
       if (!visible(el) || el.closest('[data-allow-small]')) continue
-      const b = el.getBoundingClientRect()
-      if (b.width < 43.5 || b.height < 43.5) out.tiny.push(`${el.tagName.toLowerCase()} "${(el.getAttribute('aria-label') || el.textContent || '').trim().slice(0, 24)}" ${Math.round(b.width)}×${Math.round(b.height)}`)
+      // layout size (offsetWidth ignores transforms: a toast still scaling in is not a small target)
+      const w = el.offsetWidth || el.getBoundingClientRect().width
+      const h = el.offsetHeight || el.getBoundingClientRect().height
+      if (w < 43.5 || h < 43.5) out.tiny.push(`${el.tagName.toLowerCase()} "${(el.getAttribute('aria-label') || el.textContent || '').trim().slice(0, 24)}" ${Math.round(w)}×${Math.round(h)}`)
     }
     return out
   }, touch)

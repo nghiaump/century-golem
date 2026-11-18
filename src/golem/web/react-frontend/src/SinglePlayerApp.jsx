@@ -2,9 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import SinglePlayerLobby from './components/SinglePlayerLobby'
 import Lobby from './components/Lobby'
-import PlayersInfoBar from './components/PlayersInfoBar'
-import CompactGameBoard from './components/mobile/CompactGameBoard'
-import CompactPlayerHand from './components/mobile/CompactPlayerHand'
+import PhoneShell from './components/mobile/PhoneShell'
 import DiscardModal from './components/DiscardModal'
 import RestPopup from './components/RestPopup'
 import GameOverModal from './components/GameOverModal'
@@ -55,9 +53,6 @@ function GameContentWithTheme({ useWebLayout, isMobile, isPortrait, sessionId, o
   // Standard layout
   return (
     <>
-      {/* Phones: floating round plaque + sound · activity. The desktop board shows them in its Market header. */}
-      {!useWebLayout ? <Hud sessionId={sessionId} compact /> : null}
-
       {/* "<opponent> rested" popup */}
       <RestPopup />
 
@@ -73,31 +68,10 @@ function GameContentWithTheme({ useWebLayout, isMobile, isPortrait, sessionId, o
           <DiscardModal />
         </div>
       ) : (
-        /* Phones (and phones held sideways): compact board */
-        isPortrait ? (
-          <div className="relative z-board flex h-screen h-[100dvh] flex-col overflow-hidden" style={{ paddingTop: 'calc(max(8px, var(--safe-top)) + 52px)' }}>
-            <PlayersInfoBar />
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-              <CompactGameBoard />
-            </div>
-            <CompactPlayerHand />
-            <DiscardModal />
-          </div>
-        ) : (
-          <div
-            className="relative z-board grid h-screen h-[100dvh] grid-cols-[minmax(0,1fr)_minmax(280px,34%)] gap-2 overflow-hidden"
-            style={{ paddingTop: 'calc(max(8px, var(--safe-top)) + 52px)', paddingLeft: 'var(--safe-left)', paddingRight: 'max(8px, var(--safe-right))' }}
-          >
-            <div className="min-h-0 overflow-y-auto overscroll-contain">
-              <CompactGameBoard landscape />
-            </div>
-            <div className="flex min-h-0 flex-col gap-1 pb-1">
-              <PlayersInfoBar compact />
-              <div className="min-h-0 flex-1"><CompactPlayerHand landscape /></div>
-            </div>
-            <DiscardModal />
-          </div>
-        )
+        /* Phones (and phones held sideways): everything on one screen */
+        <PhoneShell sessionId={sessionId} landscape={!isPortrait}>
+          <DiscardModal />
+        </PhoneShell>
       )}
 
       {/* Game Over Modal */}

@@ -74,6 +74,7 @@ curl -s http://127.0.0.1:8400/api/list                            # phòng nhi�
 # (`docker compose up -d --build --no-deps web|server` = compile tại chỗ: chỉ trên rtx; ⛔ trên Pixel — runbook §11)
 ./regen-patches.sh && ./smoke-test.sh && ./privacy-audit.sh       # BẮT BUỘC sau mỗi thay đổi; tất cả exit 0
 node ui-shots.mjs http://127.0.0.1:8400 /tmp/shots [--only desktop|mobile] [--rest]   # stack local: ảnh + kiểm UI (exit 1 nếu lỗi)
+# Safari (WebKit) — iPhone 15 Pro + Mac: xem lệnh docker ở đầu deploy/webkit-shots.cjs (exit 1 nếu lá rộng 0 / chạm không mở sheet)
 python3 -I make-golem-avatars.py --preview /tmp/av.html          # đổi avatar → rồi chép sang src (như sanitize) + bump AVATAR_VERSION
 # AI: benchmark / giải đấu (trong container golang:1.24, từ src/golem) — xem docs/ai/tinh-chinh.md
 go run ./internal/ai/arena/aibench bench -level veryhard -n 20      # thời gian nghĩ + iteration trên máy hiện tại
@@ -147,6 +148,16 @@ docker run --rm -v "$PWD/../src/golem":/src:ro -v golem-gomod:/go/pkg -v golem-g
 - **Thêm route HTTP mà không sửa `cmd/`**: mọi request đi qua `server.WrapWithCORS` ⇒ chặn path ở đó (vd `/api/avatars` →
   `avatars.Default`). Ảnh riêng gắn với phòng ở `HandleWebSocketV2` (`Attach`) và bị xoá ở dọn phòng `startCleanupTimerV2`
   (`ReleaseSession`) — thêm chỗ xoá phòng mới thì phải gọi `ReleaseSession` theo. ⛔ ghi ảnh người chơi ra đĩa/Mongo.
+- **Safari/WebKit ≠ Chrome**: lá có `aspect-ratio` + chiều cao % trong khung co theo nội dung (thêm `max-width:100%`) bị WebKit vẽ
+  **rộng 0px** — 2026-11-17 mọi lá golem/tay bài trên iPhone thành vạch mỏng mà Chrome headless không thấy. Hàng lá luôn đặt kích
+  thước pixel tường minh (`cardBox(h)` + `hooks/useElementSize`); `CardTile` ⛔ `max-w-full` mặc định (chỉ lưới desktop truyền vào).
+  Sửa UI ⇒ chạy cả `deploy/webkit-shots.cjs` (lệnh ở đầu file; image playwright).
+- **Safari iOS 26**: thanh công cụ nổi đè lên đáy trang; `100dvh` và `env(safe-area-inset-bottom)` KHÔNG trừ phần bị che ⇒ khung
+  điện thoại cao theo `hooks/useVisibleHeight` (min innerHeight / visualViewport / 100svh) + `html.phone-lock`; ⛔ quay lại `100dvh`.
+  Kiểm máy thật: mở `https://century.pentium.ink/?vp` (ô số đo). Giả lập: viewport 393×852 + safe-top 59 + `visualViewport.height` 772.
+- **Bố cục điện thoại** (`mobile/PhoneShell`): cả ván vừa một màn, cỡ lá do `utils/phoneLayout.planPhoneBoard` tính từ vùng đo được —
+  thêm hàng/nút cố định vào màn điện thoại thì cập nhật `BOARD_CHROME`/test. Kiểm bằng viewport thật của Safari iPhone (393×659 có
+  thanh địa chỉ, 393×852 + safe-area 59/34, ngang 852×341 + safe 59 trái/phải): `Emulation.setSafeAreaInsetsOverride` qua CDP.
 - Chạm lá trên điện thoại mở `CardSheet` (xem + nút hành động), desktop click là hành động ngay + hover xem chi tiết (`CardInspect`).
 - Avatar AI do server chọn ngẫu nhiên (`aiAvatar: true`); frontend `resolveAvatarId` chỉ dùng luật cũ theo ghế khi thiếu cờ.
   `PlayerAvatar` ⛔ tra người chơi theo `id 0` (phòng chờ: mọi dòng chưa có ghế đều id 0).

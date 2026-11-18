@@ -22,6 +22,7 @@ systemctl --user status century-tunnel                         # tunnel (log: ./
 | `sanitize-src.sh` | làm sạch source mới (idempotent): gỡ config máy khác, áp patch, chép avatar + font từ `../assets-src/`, xoá metadata |
 | `make-golem-avatars.py` | vẽ 24 avatar golem SVG → `../assets-src/avatars/` (12 golem + 1 biến thể; `--preview OUT.html`) |
 | `ui-shots.mjs` | chụp mọi màn ở 6 viewport + kiểm UI tự động (request ngoài, console, tràn, chữ < 12px, nút < 44px) |
+| `webkit-shots.cjs` | engine Safari (WebKit) ở iPhone 15 Pro dọc/ngang + Mac Safari: ảnh bàn chơi + kiểm lá không rộng 0, chạm mở sheet (chạy trong image `mcr.microsoft.com/playwright:v1.58.2-noble`, lệnh ở đầu file) |
 | `strip-image-metadata.py` | xoá metadata ảnh |
 | `smoke-test.sh`, `privacy-audit.sh` | kiểm chức năng (gồm `difficulty` của AI) / riêng tư |
 

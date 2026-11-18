@@ -2,69 +2,84 @@ import React from 'react'
 import useGameStore from '../store/gameStore'
 import useTurnTimer from '../hooks/useTurnTimer'
 import Avatar from './ui/Avatar'
-import CrystalRow from './ui/CrystalRow'
+import Gem, { CRYSTALS } from './ui/Gem'
 import GolemIcon from './ui/GolemIcon'
-import TurnBanner from './ui/TurnBanner'
-import AiThinkingIndicator from './AiThinkingIndicator'
+import { HandIcon, PlayedIcon } from './ui/CardIcons'
 
-const pointsOf = (p) =>
+export const pointsOf = (p) =>
   (p?.pointCards?.reduce((s, c) => s + (c.points || 0), 0) || 0) + (p?.coins?.reduce((s, c) => s + (c.points || 0), 0) || 0)
 
+const count = (res, c) => Number(res?.[c]) || 0
+
+/** Opponents in turn order after me (spectators: everyone in seat order). */
+export function opponentsOf(players, me) {
+  if (!me) return players
+  const i = players.findIndex((p) => p.id === me.id)
+  if (i < 0) return players
+  return [...players.slice(i + 1), ...players.slice(0, i)]
+}
+
 /**
- * Phones: every player as a chip (one scrolling row; a column when `vertical`), then whose turn it is.
- * The player to move glows; people get a timer ring. `compact` (phone held sideways): portrait, points
- * and golems only, no status line (the hand panel glows on your turn).
+ * Phones: every opponent at once (no sideways scrolling), each a small stone chip — portrait, name
+ * (when there is room), points, golems, cards in hand / played, and their crystals. The player to move glows; people get a
+ * timer ring. My own numbers are in the hand panel. `landscape`: the narrow column beside the board.
  */
-const PlayersInfoBar = ({ vertical = false, compact = false }) => {
-  const { gameState, myPlayer, currentPlayer } = useGameStore()
+const PlayersInfoBar = ({ landscape = false }) => {
+  const { gameState, myPlayer, currentPlayer, isSpectator } = useGameStore()
   const timer = useTurnTimer()
   if (!gameState?.players?.length) return null
   const started = !!gameState.market && Object.keys(gameState.market).length > 0
-  const isMyTurn = started && currentPlayer?.id === myPlayer?.id
-  const thinking = currentPlayer?.isAI && gameState?.aiThinking?.playerID === currentPlayer?.id
+  const shown = isSpectator ? gameState.players : opponentsOf(gameState.players, myPlayer)
+  const n = shown.length
+  const cols = landscape ? (n <= 3 ? n : 2) : Math.min(n, 4)
+  const roomy = landscape ? cols <= 2 : n <= 3 // chip wide enough for the name
+  const gem = roomy ? 12 : 10
 
   return (
-    <div data-players-info-bar className="flex flex-shrink-0 flex-col gap-2 px-3 pb-2">
-      <div className={vertical ? 'flex flex-col gap-1.5' : 'scrollbar-hide -mx-3 flex snap-x scroll-pl-3 gap-2 overflow-x-auto px-3 pb-1 pt-1'}>
-        {gameState.players.map((p) => {
-          const current = started && currentPlayer?.id === p.id
-          const offline = !p.isAI && p.online === false
-          return (
-            <div
-              key={p.id || p.name}
-              className={`surface-stone flex min-h-[52px] flex-shrink-0 snap-start items-center gap-2 px-2 py-1.5 ${vertical ? 'w-full' : compact ? '' : 'min-w-[156px]'} ${current ? 'turn-glow' : ''}`}
-            >
-              <Avatar player={p} size={30} turn={current} timer={current && !p.isAI ? timer : undefined} offline={offline} restAnchor />
-              {compact ? (
-                <div className="flex flex-col items-start leading-tight">
-                  <span className="font-display text-xs font-bold text-bronze-100">★{pointsOf(p)}</span>
-                  <span className="inline-flex items-center gap-0.5 text-xs font-bold text-bronze-300"><GolemIcon size={12} label="Golems" />{p.pointCards?.length || 0}</span>
-                </div>
-              ) : (
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1">
-                  <span className="truncate text-xs font-bold text-fg">{p.id === myPlayer?.id ? 'You' : p.name}</span>
-                  <span className="ml-auto flex-shrink-0 font-display text-xs font-bold text-bronze-100">★{pointsOf(p)}</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <CrystalRow resources={p.caravan} size="xs" className="!gap-1" />
-                  <span className="ml-auto inline-flex flex-shrink-0 items-center gap-0.5 text-xs font-bold text-bronze-300"><GolemIcon size={12} label="Golems" />{p.pointCards?.length || 0}</span>
+    <div
+      data-players-info-bar
+      className={`grid flex-shrink-0 gap-1.5 ${n > 4 && !landscape ? 'scrollbar-hide auto-cols-[88px] grid-flow-col overflow-x-auto' : ''}`}
+      style={n > 4 && !landscape ? undefined : { gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
+      aria-label="Players"
+    >
+      {shown.map((p) => {
+        const current = started && currentPlayer?.id === p.id
+        const offline = !p.isAI && p.online === false
+        const golems = p.pointCards?.length || 0
+        return (
+          <div
+            key={p.id || p.name}
+            title={p.name}
+            className={`surface-stone flex min-w-0 flex-col gap-1 px-1.5 py-1.5 ${current ? 'turn-glow' : ''}`}
+          >
+            <div className="flex min-w-0 items-center gap-1.5">
+              <Avatar player={p} size={24} turn={current} timer={current && !p.isAI ? timer : undefined} offline={offline} restAnchor />
+              <div className="min-w-0 flex-1 leading-tight">
+                {roomy ? <div className="truncate text-xs font-bold text-fg">{p.id === myPlayer?.id ? 'You' : p.name}</div> : null}
+                <div className={`flex text-xs font-bold ${roomy ? 'items-center gap-1.5' : 'flex-col items-start'}`}>
+                  <span className="font-display text-bronze-100" aria-label={`${pointsOf(p)} points`}>★{pointsOf(p)}</span>
+                  <span className="inline-flex items-center gap-0.5 text-bronze-300" aria-label={`${golems} golems`}><GolemIcon size={12} label={false} />{golems}</span>
                 </div>
               </div>
-              )}
             </div>
-          )
-        })}
-      </div>
-      {started && !compact ? (
-        isMyTurn ? (
-          <TurnBanner show seconds={timer.remaining} label="Your turn — tap a card" className="w-full justify-center" />
-        ) : (
-          <div className="flex min-h-[36px] items-center justify-center rounded-stone-sm bg-rock-950/60 px-3 text-sm text-fg-muted">
-            {thinking ? <AiThinkingIndicator label={`${currentPlayer.name} is thinking`} /> : `Waiting for ${currentPlayer?.name || 'the next player'}…`}
+            <div className="flex items-center gap-2.5 text-xs font-semibold tabular-nums text-fg-muted">
+              <span className="inline-flex items-center gap-0.5" title="Cards in hand" aria-label={`${p.hand?.length || 0} cards in hand`}><HandIcon size={13} />{p.hand?.length || 0}</span>
+              <span className="inline-flex items-center gap-0.5" title="Played since the last rest" aria-label={`${p.playedCards?.length || 0} cards played`}><PlayedIcon size={13} />{p.playedCards?.length || 0}</span>
+            </div>
+            <div
+              className="flex items-center justify-between text-xs font-semibold tabular-nums"
+              role="group"
+              aria-label={`Crystals: ${CRYSTALS.map((c) => `${count(p.caravan, c)} ${c}`).join(', ')}`}
+            >
+              {CRYSTALS.map((c) => (
+                <span key={c} className={`inline-flex items-center gap-px ${count(p.caravan, c) ? 'text-fg' : 'text-fg-muted opacity-50'}`} aria-hidden="true">
+                  <Gem color={c} size={gem} label={false} />{count(p.caravan, c)}
+                </span>
+              ))}
+            </div>
           </div>
         )
-      ) : null}
+      })}
     </div>
   )
 }

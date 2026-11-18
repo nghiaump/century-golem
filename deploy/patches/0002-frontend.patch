@@ -228,11 +228,11 @@
 +import { cardKind, hasDeposits } from './cardInfo'
 +
 +/** Card details: big art + what it does (gems, not emoji). Used by the hover popover and the mobile sheet. */
-+export const CardDetails = ({ card, type, slot, placeCost, coin }) => {
++export const CardDetails = ({ card, type, slot, placeCost, coin, large = false }) => {
 +  const kind = cardKind(card, type)
 +  return (
 +    <div className="flex gap-3">
-+      <CardImage name={card.name} alt="" className="h-44 w-28 flex-shrink-0 rounded-stone-sm border border-black/40 shadow-elev-1" />
++      <CardImage name={card.name} alt="" className={`${large ? 'h-[221px] w-32' : 'h-44 w-28'} flex-shrink-0 rounded-stone-sm border border-black/40 shadow-elev-1`} />
 +      <div className="flex min-w-0 flex-col gap-2 text-sm">
 +        <div className="font-display text-lg font-bold text-bronze-100">{kind}{slot ? <span className="text-sm text-fg-muted"> · slot {slot}</span> : null}</div>
 +        {kind === 'Golem' && (
@@ -354,7 +354,7 @@
 +        </>
 +      )}
 +    >
-+      <CardDetails card={card} type={type} slot={slot} placeCost={placeCost} coin={coin} />
++      <CardDetails card={card} type={type} slot={slot} placeCost={placeCost} coin={coin} large />
 +      {action?.disabled && action.reason ? <p className="mt-3 text-sm text-fg-muted">{action.reason}</p> : null}
 +    </Modal>
 +  )
@@ -363,7 +363,7 @@
 +export default CardSheet
 --- a/web/react-frontend/src/components/board/CardTile.jsx
 +++ b/web/react-frontend/src/components/board/CardTile.jsx
-@@ -0,0 +1,94 @@
+@@ -0,0 +1,97 @@
 +import React, { useRef, useState } from 'react'
 +import { getCardSpriteStyle, getCardImagePath } from '../../utils/cardNames'
 +import Coin from '../ui/Coin'
@@ -377,9 +377,12 @@
 + * One card on the board (market, golem row, hand). The art stays as printed; around it:
 + * slot number, crystals lying on it, the coin a golem slot carries, and the state —
 + * `ready` (you can take/claim/play it now: bronze glow + check) or `dim` (your turn, can't afford).
-+ * Hover/focus shows the details (desktop); `onInspect` replaces that (mobile tap → sheet).
++ * Hover/focus shows the details (desktop); `onInspect` replaces that (mobile tap → sheet). `showSlot={false}`
++ * hides the slot number (small phone cards: it would cover the printed effect).
++ * ⚠ Safari/WebKit: no `max-width: 100%` here — inside a shrink-to-fit wrapper it collapses the card to 0 px
++ * wide (height comes from the parent, width from aspect-ratio). Grid layouts pass `className="max-w-full"`.
 + */
-+const CardTile = ({ card, type = 'action', slot, placeCost, coin, ready = false, dim = false, onClick, onInspect, inspect = true, className = '' }) => {
++const CardTile = ({ card, type = 'action', slot, placeCost, coin, ready = false, dim = false, onClick, onInspect, inspect = true, showSlot = true, className = '' }) => {
 +  const ref = useRef(null)
 +  const [hover, setHover] = useState(false)
 +  const timer = useRef(null)
@@ -416,7 +419,7 @@
 +        onMouseLeave={hide}
 +        onFocus={show}
 +        onBlur={hide}
-+        className={`group relative block h-full max-h-full max-w-full rounded-stone-sm transition-[transform,filter] duration-150
++        className={`group relative block h-full max-h-full rounded-stone-sm transition-[transform,filter] duration-150
 +          ${ready ? 'hover:-translate-y-0.5' : ''} ${className}`}
 +        style={{ aspectRatio: '0.58' }}
 +      >
@@ -425,7 +428,7 @@
 +            ${ready ? 'border-bronze-300 shadow-turn' : 'border-black/50'} ${dim ? 'saturate-50 brightness-75' : ''}`}
 +          style={{ ...art, backgroundColor: 'rgb(var(--rock-950))' }}
 +        />
-+        {slot ? (
++        {slot && showSlot ? (
 +          <span className="absolute -left-1.5 -top-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-full border border-bronze-700 bg-gradient-to-b from-bronze-300 to-bronze-500 font-display text-xs font-bold text-ink shadow-elev-1">
 +            {slot}
 +          </span>
@@ -440,7 +443,7 @@
 +            <Coin kind={coin.kind} size={18} label={false} />{coin.left}
 +          </span>
 +        ) : null}
-+        {card.actionType === 1 && type !== 'point' ? (
++        {card.actionType === 1 && type !== 'point' && !(typeof placeCost === 'number' && dim) ? (
 +          <span className="absolute bottom-1 left-1/2 z-10 -translate-x-1/2 rounded-full bg-rock-950/85 px-2 py-0.5 text-xs font-bold text-bronze-100">
 +            ⇧{card.turnUpgrade || 1}
 +          </span>
@@ -2169,11 +2172,11 @@
  
 --- a/web/react-frontend/src/components/desktop/WebGameLayout.jsx
 +++ b/web/react-frontend/src/components/desktop/WebGameLayout.jsx
-@@ -1,655 +1,183 @@
+@@ -1,655 +1,189 @@
 -import React, { useState, useEffect } from 'react'
 -import useGameStore from '../../store/gameStore'
 -import CompactCard from '../CompactCard'
-+import React from 'react'
++import React, { useState } from 'react'
 +import useBoardActions from '../../hooks/useBoardActions'
 +import useTurnTimer from '../../hooks/useTurnTimer'
  import PlayerCard from '../PlayerCard'
@@ -2189,6 +2192,7 @@
 -import AcquiredCardOverlay from '../AcquiredCardOverlay'
 -import CollapsibleInfo from '../CollapsibleInfo'
 -import { showToast } from '../../utils/toast'
+-
 +import CardTile from '../board/CardTile'
 +import BoardModals from '../board/BoardModals'
 +import Panel from '../ui/Panel'
@@ -2200,7 +2204,9 @@
 +import Hud, { RoundInfo, HudButtons } from '../board/Hud'
 +import useGameStore from '../../store/gameStore'
 +import { MAX_CARAVAN } from '../../utils/crystals'
- 
++import { cardBox } from '../../utils/phoneLayout'
++import useElementSize from '../../hooks/useElementSize'
++
 +/**
 + * Desktop board (≥ 768px wide, ≥ 500px tall): players across the top, market and golem rows, then
 + * history · played · my hand · my golems. Cards you can act on now glow; hover shows card details.
@@ -2243,15 +2249,17 @@
 -        return prev - 1
 -      })
 -    }, 1000)
--
--    return () => clearInterval(timer)
--  }, [gameState?.currentPlayer])
 +  const a = useBoardActions({ reopenAfterUndo: true })
 +  const timer = useTurnTimer()
 +  const storeSessionId = useGameStore((s) => s.sessionId)
 +  const { gameState, myPlayer, currentPlayer, isSpectator, isWaiting, isMyTurn } = a
 +  const sessionId = gameState?.sessionID || storeSessionId
++  const [handRowEl, setHandRow] = useState(null)
++  const handRow = useElementSize(handRowEl) // explicit card sizes (Safari) — see hooks/useElementSize
  
+-    return () => clearInterval(timer)
+-  }, [gameState?.currentPlayer])
+-
 -  // Get player name for chat (before early return)
 -  const chatPlayerName = myPlayer?.name || playerName || 'Player'
 -  // Get maxChatMessages from gameState (from backend config)
@@ -2273,8 +2281,10 @@
 -        <div className="text-white">Loading game...</div>
 -      </div>
 -    )
--  }
--
++  if (!isWaiting && !isSpectator && !myPlayer) {
++    return <div className="flex h-full w-full items-center justify-center text-fg-muted">Loading game…</div>
+   }
+ 
 -  // For spectators, myPlayer will be null - handle this case (but not in waiting mode)
 -  if (!isSpectator && !myPlayer && !isWaiting) {
 -    return (
@@ -2282,10 +2292,8 @@
 -        <div className="text-white">Loading game...</div>
 -      </div>
 -    )
-+  if (!isWaiting && !isSpectator && !myPlayer) {
-+    return <div className="flex h-full w-full items-center justify-center text-fg-muted">Loading game…</div>
-   }
- 
+-  }
+-
 -  // Get ALL other players (not me) - show all in top row
 -  // For spectators, show all players. For players, show all players including yourself
 -  const otherPlayers = gameState.players || []
@@ -2620,6 +2628,7 @@
 +                    ready={isMyTurn && affordable}
 +                    dim={isMyTurn && !affordable}
 +                    onClick={() => a.onMarketCard(i)}
++                    className="max-w-full"
 +                  />
 +                )
 +              })}
@@ -2705,6 +2714,7 @@
 +                    ready={isMyTurn && claimable}
 +                    dim={isMyTurn && !claimable}
 +                    onClick={() => a.onGolem(i)}
++                    className="max-w-full"
                    />
 -                </div>
 -              )
@@ -2897,9 +2907,9 @@
 -                  <p className="text-xs mt-1">You cannot perform any actions</p>
 -                </div>
 -              </div>
-+                    <div className="flex min-h-0 flex-1 items-stretch gap-2.5 overflow-x-auto overflow-y-hidden pb-1 scrollbar-thin" role="list" aria-label="Your hand">
++                    <div ref={setHandRow} className="flex min-h-0 flex-1 items-stretch gap-2.5 overflow-x-auto overflow-y-hidden pb-1 scrollbar-thin" role="list" aria-label="Your hand">
 +                      {a.hand.length ? a.hand.map((card, i) => (
-+                        <div key={`h${i}-${card.id}`} role="listitem" className="h-full flex-shrink-0">
++                        <div key={`h${i}-${card.id}`} role="listitem" className="flex-shrink-0" style={cardBox(handRow.height)}>
 +                          <CardTile card={card} ready={isMyTurn} onClick={() => a.onHandCard(card, i)} />
 +                        </div>
 +                      )) : (
@@ -5189,7 +5199,7 @@
  
 --- a/web/react-frontend/src/components/mobile/CompactGameBoard.jsx
 +++ b/web/react-frontend/src/components/mobile/CompactGameBoard.jsx
-@@ -1,354 +1,99 @@
+@@ -1,354 +1,104 @@
 -import React, { useState, useRef } from 'react'
 -import useGameStore from '../../store/gameStore'
 -import useOrientation from '../../hooks/useOrientation'
@@ -5224,10 +5234,12 @@
 +import CardSheet from '../board/CardSheet'
 +import BoardModals from '../board/BoardModals'
 +import Coin from '../ui/Coin'
++import DifficultyBadge from '../DifficultyBadge'
++import { cardBox } from '../../utils/phoneLayout'
 +
 +const Section = ({ title, actions, children }) => (
-+  <section className="flex flex-col gap-2">
-+    <div className="flex items-center justify-between px-1">
++  <section className="flex flex-col">
++    <div className="flex h-6 items-center justify-between px-0.5">
 +      <h2 className="font-display text-xs font-bold uppercase tracking-wider text-bronze-300 text-engrave">{title}</h2>
 +      {actions}
 +    </div>
@@ -5235,11 +5247,14 @@
 +  </section>
 +)
 +
++const FALLBACK = { golem: 110, market: 100, marketCols: 6 }
++
 +/**
-+ * Phones: golems (one row, swipe) and the market (3 × 2; one row when held sideways). Tapping a card
-+ * opens its sheet with the action (take / claim) — no accidental buys from a mis-tap.
++ * Phones: the five golems in one row and the six market cards in one compact row,
++ * sized by `plan` (utils/phoneLayout) so the whole board fits the screen. Tapping a card opens its
++ * sheet with the action (take / claim) — no accidental buys from a mis-tap.
 + */
-+const CompactGameBoard = ({ landscape = false }) => {
++const CompactGameBoard = ({ plan = FALLBACK }) => {
 +  const a = useBoardActions()
 +  const [sheet, setSheet] = useState(null)
 +  const { gameState, isSpectator, isWaiting, isMyTurn } = a
@@ -5420,7 +5435,7 @@
 -          </h3>
 -          <span className={`text-white/40 ${isMobile && isPortrait ? 'text-[9px]' : 'text-[10px]'}`}>
 -            {gameState.market.actionDeck || 0} left
-+    <div className="flex flex-col gap-4 px-3 pb-4 pt-1">
++    <div className="flex min-h-full flex-col justify-center gap-2.5 px-3">
 +      <Section
 +        title="Golems"
 +        actions={(
@@ -5461,7 +5476,7 @@
 -
 +        )}
 +      >
-+        <div className="scrollbar-hide -mx-3 flex snap-x scroll-pl-3 gap-3 overflow-x-auto px-3 pb-1 pt-2" role="list">
++        <div className="flex items-end justify-between pt-2" role="list">
 +          {a.pointCards.slice(0, 5).map((card, i) => {
 +            const claimable = a.canClaim(card)
              return (
@@ -5490,8 +5505,8 @@
 -                  </div>
 -                ) : null}
 -              />
-+              <div key={card.id || `g${i}`} role="listitem" className="h-[150px] flex-shrink-0 snap-start">
-+                <CardTile card={card} type="point" slot={i + 1} coin={a.coinFor(i)} ready={isMyTurn && claimable} dim={isMyTurn && !claimable} onInspect={() => openGolem(card, i)} />
++              <div key={card.id || `g${i}`} role="listitem" className="flex-shrink-0" style={cardBox(plan.golem)}>
++                <CardTile card={card} type="point" slot={i + 1} showSlot={false} coin={a.coinFor(i)} ready={isMyTurn && claimable} dim={isMyTurn && !claimable} onInspect={() => openGolem(card, i)} />
 +              </div>
              )
            })}
@@ -5563,8 +5578,8 @@
 -            const coinLabel = isCopperCoin ? 'Copper (3pts)' : 'Silver (1pt)'
 +      </Section>
  
-+      <Section title="Market">
-+        <div className={`grid gap-3 pt-2 ${landscape ? 'grid-cols-6' : 'grid-cols-3'}`}>
++      <Section title="Market" actions={<DifficultyBadge />}>
++        <div className="flex items-end justify-between pt-2" role="list">
 +          {a.actionCards.slice(0, 6).map((card, i) => {
 +            const affordable = a.canAfford(i)
              return (
@@ -5588,8 +5603,8 @@
 -                  </div>
 -                ) : null}
 -              />
-+              <div key={card.id || `m${i}`} className="flex justify-center">
-+                <CardTile card={card} slot={i + 1} placeCost={a.placeCost(i)} ready={isMyTurn && affordable} dim={isMyTurn && !affordable} onInspect={() => openMarket(card, i)} className="!h-auto w-full" />
++              <div key={card.id || `m${i}`} role="listitem" className="flex-shrink-0" style={cardBox(plan.market)}>
++                <CardTile card={card} slot={i + 1} showSlot={false} placeCost={a.placeCost(i)} ready={isMyTurn && affordable} dim={isMyTurn && !affordable} onInspect={() => openMarket(card, i)} />
 +              </div>
              )
            })}
@@ -5620,27 +5635,30 @@
  }
 --- a/web/react-frontend/src/components/mobile/CompactPlayerHand.jsx
 +++ b/web/react-frontend/src/components/mobile/CompactPlayerHand.jsx
-@@ -1,414 +1,86 @@
+@@ -1,414 +1,109 @@
 -import React, { useState, useEffect, useRef } from 'react'
 -import useGameStore from '../../store/gameStore'
--import useOrientation from '../../hooks/useOrientation'
--import CompactCard from '../CompactCard'
--import UpgradeModal from '../UpgradeModal'
--import TradeModal from '../TradeModal'
--import PlayedCardsView from '../PlayedCardsView'
 +import React, { useState } from 'react'
 +import useBoardActions from '../../hooks/useBoardActions'
 +import CardTile from '../board/CardTile'
 +import CardSheet from '../board/CardSheet'
 +import BoardModals from '../board/BoardModals'
 +import { cardKind } from '../board/cardInfo'
-+import Avatar from '../ui/Avatar'
 +import Button from '../ui/Button'
 +import CrystalRow from '../ui/CrystalRow'
 +import Modal from '../ui/Modal'
 +import CardImage from '../ui/CardImage'
 +import GolemIcon from '../ui/GolemIcon'
++import { PlayedIcon } from '../ui/CardIcons'
 +import { MAX_CARAVAN } from '../../utils/crystals'
++import { pointsOf } from '../PlayersInfoBar'
+ import useOrientation from '../../hooks/useOrientation'
+-import CompactCard from '../CompactCard'
+-import UpgradeModal from '../UpgradeModal'
+-import TradeModal from '../TradeModal'
+-import PlayedCardsView from '../PlayedCardsView'
++import useElementSize from '../../hooks/useElementSize'
++import { cardBox } from '../../utils/phoneLayout'
  
 -const CompactPlayerHand = () => {
 -  const { myPlayer, currentPlayer, playCard, playCardWithUpgrade, playCardWithTrade, rest } = useGameStore()
@@ -5723,14 +5741,7 @@
 -
 -  const handleCardClick = (card, index) => {
 -    if (!isMyTurn) return
-+function CardsIcon() {
-+  return (
-+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
-+      <rect x="7" y="3" width="11" height="16" rx="2" /><path d="M5 6.5v12a2 2 0 002 2h8" />
-+    </svg>
-+  )
-+}
- 
+-
 -    if (card.actionType === 0) {
 -      playCard(index, card)
 -    } else if (card.actionType === 1) {
@@ -5746,17 +5757,22 @@
 +)
 +
 +/**
-+ * Phones: my crystals, Rest, my golems / played cards, and my hand (swipe). Tapping a hand card opens
-+ * its sheet with Play. Sits at the bottom of the screen, clear of the home indicator.
++ * Phones: my crystals, my golems + points, Rest, played cards, and my hand (swipe). Tapping a hand card
++ * opens its sheet with Play. Sits at the bottom of the screen, clear of the home indicator.
++ * `cardHeight`: hand-card height from utils/phoneLayout (portrait); `landscape` fills the side column.
 + */
-+const CompactPlayerHand = ({ landscape = false }) => {
++const CompactPlayerHand = ({ landscape = false, cardHeight = 104 }) => {
 +  const a = useBoardActions({ reopenAfterUndo: true })
 +  const [sheet, setSheet] = useState(null)
 +  const [list, setList] = useState(null) // 'golems' | 'played'
 +  const { myPlayer, isSpectator, isWaiting, isMyTurn } = a
++  const { width } = useOrientation()
++  const [row, setRow] = useState(null)
++  const rowSize = useElementSize(row)
 +  if (isWaiting || isSpectator || !myPlayer) return null
 +
 +  const golems = myPlayer.pointCards || []
++  const points = pointsOf(myPlayer)
 +  const openHand = (card, i) => setSheet({
 +    card, type: 'action',
 +    action: {
@@ -5766,6 +5782,20 @@
 +      reason: !isMyTurn ? 'Wait for your turn.' : null,
 +    },
 +  })
++
++  const crystals = <CrystalRow resources={a.caravan} capacity={MAX_CARAVAN} size={!landscape && width < 385 ? 'xs' : 'sm'} className="min-w-0 !gap-1" />
++  const golemButton = (
++    <Button size="md" variant="secondary" onClick={() => setList('golems')} disabled={!golems.length} className="!gap-1.5 !px-2" aria-label={`My golems (${golems.length}), ${points} points`} title="My golems and points">
++      <span className="inline-flex items-center gap-1"><GolemIcon size={16} />{golems.length}</span>
++      <span className="font-display text-bronze-100">★{points}</span>
++    </Button>
++  )
++  const restButton = <Button size="md" onClick={a.onRest} disabled={!a.canRest} variant={a.canRest ? 'primary' : 'secondary'} className="!px-2.5" title="Take your played cards back">Rest</Button>
++  const playedButton = (
++    <Button size="md" variant="secondary" onClick={() => setList('played')} disabled={!a.playedCards.length} className="!gap-1 !px-2" icon={<PlayedIcon />} aria-label={`Played cards (${a.playedCards.length})`} title="Played cards">
++      {a.playedCards.length}
++    </Button>
++  )
  
    return (
 -    <div 
@@ -5782,11 +5812,28 @@
 -      `}
 -      style={isMobile && isPortrait ? { height: '130px' } : {}}
 +    <div
-+      className={`surface-stone flex flex-shrink-0 flex-col gap-2 !rounded-b-none border-b-0 px-3 pt-2 ${isMyTurn ? 'turn-glow' : ''} ${landscape ? 'h-full !rounded-stone' : ''}`}
++      className={`surface-stone flex flex-shrink-0 flex-col gap-1.5 px-3 pt-2 ${isMyTurn ? 'turn-glow' : ''} ${landscape ? 'h-full' : '!rounded-b-none border-b-0'}`}
 +      style={{ paddingBottom: 'max(8px, var(--safe-bottom))' }}
      >
 -      <div className={`mx-auto flex h-full ${isMobile && isPortrait ? 'gap-2' : 'gap-3'} ${isMobile ? '' : 'max-w-6xl'}`}
--      >
++      {landscape ? (
++        <>
++          <div className="flex h-7 items-center">{crystals}</div>
++          <div className="grid grid-cols-[auto_1fr_auto] gap-1.5">{restButton}{golemButton}{playedButton}</div>
++        </>
++      ) : (
++        <div className="flex flex-wrap items-center justify-end gap-1">
++          <div className="min-w-0 flex-1 basis-[136px] overflow-hidden">{crystals}</div>
++          {golemButton}{restButton}{playedButton}
++        </div>
++      )}
++      <div
++        className={`scrollbar-hide -mx-3 flex snap-x scroll-pl-3 gap-2.5 overflow-x-auto px-3 py-1.5 ${landscape ? 'min-h-0 flex-1' : ''}`}
++        style={landscape ? undefined : { height: cardHeight + 12 }}
++        ref={setRow}
++        role="list"
++        aria-label="Your hand"
+       >
 -        {/* Player Info Panel - Left Side (Mobile Portrait) */}
 -        {isMobile && isPortrait && (
 -          <div className="flex-shrink-0 bg-black/50 rounded-lg p-2 flex flex-col justify-center gap-1.5 min-w-[80px]">
@@ -5847,18 +5894,8 @@
 -                </button>
 -              )}
 -            </div>
-+      <div className="flex items-center gap-2">
-+        <Avatar player={myPlayer} size={28} turn={isMyTurn} />
-+        <CrystalRow resources={a.caravan} capacity={MAX_CARAVAN} size="sm" className="min-w-0 !gap-1.5" />
-+      </div>
-+      <div className="grid grid-cols-3 gap-2">
-+        <Button size="md" onClick={a.onRest} disabled={!a.canRest} variant={a.canRest ? 'primary' : 'secondary'} title="Take your played cards back">Rest</Button>
-+        <Button size="md" variant="secondary" onClick={() => setList('golems')} disabled={!golems.length} icon={<GolemIcon size={16} />} aria-label={`My golems (${golems.length})`}>{golems.length}</Button>
-+        <Button size="md" variant="secondary" onClick={() => setList('played')} disabled={!a.playedCards.length} icon={<CardsIcon />} aria-label={`Played cards (${a.playedCards.length})`}>{a.playedCards.length}</Button>
-+      </div>
-+      <div className={`scrollbar-hide -mx-3 flex snap-x scroll-pl-3 gap-2.5 overflow-x-auto px-3 pb-1 ${landscape ? 'min-h-0 flex-1' : 'h-[132px]'}`} role="list" aria-label="Your hand">
 +        {a.hand.length ? a.hand.map((card, i) => (
-+          <div key={`h${i}-${card.id}`} role="listitem" className="h-full flex-shrink-0 snap-start py-1.5">
++          <div key={`h${i}-${card.id}`} role="listitem" className="flex-shrink-0 snap-start" style={cardBox(landscape ? rowSize.height : cardHeight)}>
 +            <CardTile card={card} ready={isMyTurn} onInspect={() => openHand(card, i)} />
            </div>
 +        )) : (
@@ -6109,6 +6146,192 @@
      </div>
    )
  }
+--- a/web/react-frontend/src/components/mobile/PhoneShell.jsx
++++ b/web/react-frontend/src/components/mobile/PhoneShell.jsx
+@@ -0,0 +1,133 @@
++import React, { useLayoutEffect, useRef, useState } from 'react'
++import useGameStore from '../../store/gameStore'
++import { planPhoneBoard } from '../../utils/phoneLayout'
++import PlayersInfoBar from '../PlayersInfoBar'
++import CompactGameBoard from './CompactGameBoard'
++import CompactPlayerHand from './CompactPlayerHand'
++import PhoneTopBar from './PhoneTopBar'
++import Hud from '../board/Hud'
++import useVisibleHeight, { viewportReport } from '../../hooks/useVisibleHeight'
++
++function ViewportDiag({ visible }) {
++  const [r, setR] = useState(viewportReport)
++  useLayoutEffect(() => {
++    const t = setInterval(() => setR(viewportReport()), 1000)
++    return () => clearInterval(t)
++  }, [])
++  return (
++    <div className="pointer-events-none fixed left-1 top-1/2 z-system rounded bg-black/80 px-2 py-1 font-mono text-xs leading-snug text-white">
++      inner {r.inner} · vv {r.vv} (top {r.vvTop}) · svh {r.svh}<br />
++      used {visible} · safe top {r.safeTop} bottom {r.safeBottom}<br />
++      page {document.documentElement.scrollHeight} · scrollY {Math.round(window.scrollY)}
++    </div>
++  )
++}
++
++// Open the site with ?vp (remembered for the tab) to see what the phone's browser reports — for checking
++// phones we cannot test here. Read when the app loads, before any navigation drops the query.
++const SHOW_VIEWPORT = (() => {
++  try {
++    if (window.location.search.includes('vp')) sessionStorage.setItem('golem.vp', '1')
++    return sessionStorage.getItem('golem.vp') === '1'
++  } catch { return false }
++})()
++
++const same = (a, b) => a && b && a.golem === b.golem && a.market === b.market && a.hand === b.hand
++
++/**
++ * Phones (and phones held sideways): the whole game on one screen, no page scrolling.
++ *   portrait   top bar · opponents · golems + market · my hand
++ *   landscape  [top bar · golems + market] [opponents · my hand]
++ * The board area is measured and the card sizes planned to fit it (utils/phoneLayout); safe areas
++ * (notch / Dynamic Island, home indicator) are padded.
++ */
++const PhoneShell = ({ sessionId, landscape = false, children }) => {
++  const boardRef = useRef(null)
++  const [plan, setPlan] = useState(null)
++  const plays = useGameStore((s) => !s.isSpectator && !!s.myPlayer)
++  const waiting = useGameStore((s) => s.gameState?.status === 'waiting' || !s.gameState?.market || Object.keys(s.gameState.market).length === 0)
++  const withHand = plays && !landscape
++  const visible = useVisibleHeight()
++  const frame = { height: visible ? `${visible}px` : '100svh' } // visible area, not 100dvh (iOS 26 toolbar)
++
++  useLayoutEffect(() => {
++    const el = boardRef.current
++    if (!el || typeof ResizeObserver === 'undefined') return undefined
++    const measure = () => {
++      const r = el.getBoundingClientRect()
++      setPlan((prev) => {
++        // the board area and the hand row flex together: their sum is what we split
++        const avail = r.height + (withHand ? prev?.hand ?? 104 : 0)
++        const next = planPhoneBoard({ width: r.width - 24, avail, withHand })
++        return same(prev, next) ? prev : next
++      })
++    }
++    const ro = new ResizeObserver(measure)
++    ro.observe(el)
++    measure()
++    return () => ro.disconnect()
++  }, [withHand, landscape, waiting])
++
++  const diagBox = SHOW_VIEWPORT ? <ViewportDiag visible={visible} /> : null
++
++  // Waiting room: floating sound · activity buttons, the room in the middle
++  if (waiting) {
++    return (
++      <>
++        <Hud sessionId={sessionId} compact />
++        <div
++          className="fixed inset-x-0 top-0 z-board flex flex-col overflow-y-auto overscroll-contain"
++          style={{ ...frame, paddingTop: 'calc(max(8px, var(--safe-top)) + 52px)', paddingBottom: 'var(--safe-bottom)', paddingLeft: 'var(--safe-left)', paddingRight: 'var(--safe-right)' }}
++        >
++          <div className="m-auto w-full"><CompactGameBoard /></div>
++          {children}
++          {diagBox}
++        </div>
++      </>
++    )
++  }
++
++  const board = (
++    <div ref={boardRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
++      {plan ? <CompactGameBoard plan={plan} /> : null}
++    </div>
++  )
++
++  if (landscape) {
++    return (
++      <div
++        className="fixed inset-x-0 top-0 z-board grid grid-cols-[minmax(0,1fr)_minmax(296px,36%)] gap-2 overflow-hidden"
++        style={{ ...frame, paddingTop: 'max(8px, var(--safe-top))', paddingBottom: 'max(6px, var(--safe-bottom))', paddingLeft: 'max(8px, var(--safe-left))', paddingRight: 'max(8px, var(--safe-right))' }}
++      >
++        <div className="flex min-h-0 flex-col gap-1.5">
++          <div className="px-3"><PhoneTopBar sessionId={sessionId} /></div>
++          {board}
++        </div>
++        <div className="flex min-h-0 flex-col gap-1.5">
++          <PlayersInfoBar landscape />
++          <div className="min-h-0 flex-1"><CompactPlayerHand landscape /></div>
++        </div>
++        {children}
++        {diagBox}
++      </div>
++    )
++  }
++
++  return (
++    <div
++      className="fixed inset-x-0 top-0 z-board flex flex-col gap-1.5 overflow-hidden"
++      style={{ ...frame, paddingTop: 'max(8px, var(--safe-top))', paddingLeft: 'var(--safe-left)', paddingRight: 'var(--safe-right)' }}
++    >
++      <div className="flex flex-col gap-1.5 px-3">
++        <PhoneTopBar sessionId={sessionId} />
++        <PlayersInfoBar />
++      </div>
++      {board}
++      <CompactPlayerHand cardHeight={plan?.hand ?? 104} />
++      {children}
++      {diagBox}
++    </div>
++  )
++}
++
++export default PhoneShell
+--- a/web/react-frontend/src/components/mobile/PhoneTopBar.jsx
++++ b/web/react-frontend/src/components/mobile/PhoneTopBar.jsx
+@@ -0,0 +1,47 @@
++import React from 'react'
++import useGameStore from '../../store/gameStore'
++import useTurnTimer from '../../hooks/useTurnTimer'
++import { HudButtons } from '../board/Hud'
++import TurnBanner from '../ui/TurnBanner'
++import AiThinkingIndicator from '../AiThinkingIndicator'
++
++/**
++ * Phones, during a game: one row — round, whose turn it is (with my seconds left), sound · activity.
++ * In the page flow (not floating), so nothing on the board hides under it.
++ */
++const PhoneTopBar = ({ sessionId }) => {
++  const { gameState, myPlayer, currentPlayer, isSpectator } = useGameStore()
++  const timer = useTurnTimer()
++  const round = gameState?.round || 1
++  const lastRound = !!gameState?.lastRound
++  const isMyTurn = !isSpectator && !!myPlayer && currentPlayer?.id === myPlayer?.id
++  const thinking = currentPlayer?.isAI && gameState?.aiThinking?.playerID === currentPlayer?.id
++  const name = currentPlayer?.name || 'the next player'
++
++  return (
++    <div className="flex h-11 flex-shrink-0 items-center gap-1.5">
++      <div
++        className={`surface-stone flex h-11 flex-shrink-0 flex-col items-center justify-center px-2.5 font-display font-bold leading-none ${lastRound ? 'text-ember' : 'text-bronze-100'}`}
++        title={lastRound ? `Round ${round} — last round` : `Round ${round}`}
++        aria-label={lastRound ? `Round ${round}, last round` : `Round ${round}`}
++      >
++        <span className="text-sm">R{round}</span>
++        {lastRound ? <span className="mt-0.5 text-xs">Last</span> : null}
++      </div>
++      <div className="min-w-0 flex-1">
++        {gameState?.gameOver ? (
++          <div className="flex h-11 items-center justify-center rounded-stone-sm bg-rock-950/60 px-2 text-sm text-fg-muted">Game over</div>
++        ) : isMyTurn ? (
++          <TurnBanner show seconds={timer.remaining} label="Your turn" className="h-11 w-full justify-center !gap-1.5 !px-2 max-[359px]:[&>svg]:hidden" />
++        ) : (
++          <div className="flex h-11 min-w-0 items-center justify-center rounded-stone-sm bg-rock-950/60 px-2 text-sm text-fg-muted" role="status">
++            {thinking ? <AiThinkingIndicator label={`${name} is thinking`} className="min-w-0" /> : <span className="truncate">{isSpectator ? `${name}’s turn` : `Waiting for ${name}…`}</span>}
++          </div>
++        )}
++      </div>
++      <HudButtons sessionId={sessionId} />
++    </div>
++  )
++}
++
++export default PhoneTopBar
 --- a/web/react-frontend/src/components/MyGolemsPanel.jsx
 +++ b/web/react-frontend/src/components/MyGolemsPanel.jsx
 @@ -1,153 +1,38 @@
@@ -6509,7 +6732,7 @@
 -
 --- a/web/react-frontend/src/components/PlayersInfoBar.jsx
 +++ b/web/react-frontend/src/components/PlayersInfoBar.jsx
-@@ -1,112 +1,70 @@
+@@ -1,112 +1,85 @@
 -import React, { useState, useEffect } from 'react'
 +import React from 'react'
  import useGameStore from '../store/gameStore'
@@ -6541,36 +6764,47 @@
 -      }}
 -    />
 -  )
--}
--
--const PlayersInfoBar = () => {
 +import useTurnTimer from '../hooks/useTurnTimer'
 +import Avatar from './ui/Avatar'
-+import CrystalRow from './ui/CrystalRow'
++import Gem, { CRYSTALS } from './ui/Gem'
 +import GolemIcon from './ui/GolemIcon'
-+import TurnBanner from './ui/TurnBanner'
-+import AiThinkingIndicator from './AiThinkingIndicator'
++import { HandIcon, PlayedIcon } from './ui/CardIcons'
 +
-+const pointsOf = (p) =>
++export const pointsOf = (p) =>
 +  (p?.pointCards?.reduce((s, c) => s + (c.points || 0), 0) || 0) + (p?.coins?.reduce((s, c) => s + (c.points || 0), 0) || 0)
 +
-+/**
-+ * Phones: every player as a chip (one scrolling row; a column when `vertical`), then whose turn it is.
-+ * The player to move glows; people get a timer ring. `compact` (phone held sideways): portrait, points
-+ * and golems only, no status line (the hand panel glows on your turn).
-+ */
-+const PlayersInfoBar = ({ vertical = false, compact = false }) => {
-   const { gameState, myPlayer, currentPlayer } = useGameStore()
++const count = (res, c) => Number(res?.[c]) || 0
++
++/** Opponents in turn order after me (spectators: everyone in seat order). */
++export function opponentsOf(players, me) {
++  if (!me) return players
++  const i = players.findIndex((p) => p.id === me.id)
++  if (i < 0) return players
++  return [...players.slice(i + 1), ...players.slice(0, i)]
+ }
+ 
+-const PlayersInfoBar = () => {
+-  const { gameState, myPlayer, currentPlayer } = useGameStore()
 -
 -  if (!gameState?.players) return null
 -
 -  const otherPlayers = gameState.players; //.filter(p => p.id !== myPlayer?.id)
 -  if (otherPlayers.length === 0) return null
++/**
++ * Phones: every opponent at once (no sideways scrolling), each a small stone chip — portrait, name
++ * (when there is room), points, golems, cards in hand / played, and their crystals. The player to move glows; people get a
++ * timer ring. My own numbers are in the hand panel. `landscape`: the narrow column beside the board.
++ */
++const PlayersInfoBar = ({ landscape = false }) => {
++  const { gameState, myPlayer, currentPlayer, isSpectator } = useGameStore()
 +  const timer = useTurnTimer()
 +  if (!gameState?.players?.length) return null
 +  const started = !!gameState.market && Object.keys(gameState.market).length > 0
-+  const isMyTurn = started && currentPlayer?.id === myPlayer?.id
-+  const thinking = currentPlayer?.isAI && gameState?.aiThinking?.playerID === currentPlayer?.id
++  const shown = isSpectator ? gameState.players : opponentsOf(gameState.players, myPlayer)
++  const n = shown.length
++  const cols = landscape ? (n <= 3 ? n : 2) : Math.min(n, 4)
++  const roomy = landscape ? cols <= 2 : n <= 3 // chip wide enough for the name
++  const gem = roomy ? 12 : 10
  
    return (
 -    <div data-players-info-bar className="w-full flex-shrink-0 py-1.5 px-2 bg-black/60">
@@ -6578,18 +6812,11 @@
 -        {otherPlayers.map((player) => {
 -          const isCurrentTurn = currentPlayer?.id === player.id
 -          
-+    <div data-players-info-bar className="flex flex-shrink-0 flex-col gap-2 px-3 pb-2">
-+      <div className={vertical ? 'flex flex-col gap-1.5' : 'scrollbar-hide -mx-3 flex snap-x scroll-pl-3 gap-2 overflow-x-auto px-3 pb-1 pt-1'}>
-+        {gameState.players.map((p) => {
-+          const current = started && currentPlayer?.id === p.id
-+          const offline = !p.isAI && p.online === false
-           return (
-             <div
+-          return (
+-            <div
 -              key={player.id}
 -              className={`flex items-center gap-2 px-2 py-1 rounded-xl ${isCurrentTurn ? 'bg-yellow-500/20' : 'bg-white/5'}`}
-+              key={p.id || p.name}
-+              className={`surface-stone flex min-h-[52px] flex-shrink-0 snap-start items-center gap-2 px-2 py-1.5 ${vertical ? 'w-full' : compact ? '' : 'min-w-[156px]'} ${current ? 'turn-glow' : ''}`}
-             >
+-            >
 -              {/* Avatar with timer ring for current turn */}
 -              <div className="relative">
 -                {isCurrentTurn && <TimerRing duration={60} />}
@@ -6599,12 +6826,7 @@
 -                  ${player.online === false ? 'opacity-50' : ''}
 -                `}>
 -                  {player.isAI ? '🤖' : player.name?.charAt(0)?.toUpperCase() || '?'}
-+              <Avatar player={p} size={30} turn={current} timer={current && !p.isAI ? timer : undefined} offline={offline} restAnchor />
-+              {compact ? (
-+                <div className="flex flex-col items-start leading-tight">
-+                  <span className="font-display text-xs font-bold text-bronze-100">★{pointsOf(p)}</span>
-+                  <span className="inline-flex items-center gap-0.5 text-xs font-bold text-bronze-300"><GolemIcon size={12} label="Golems" />{p.pointCards?.length || 0}</span>
-                 </div>
+-                </div>
 -                {/* Online/Offline status indicator */}
 -                {player.online !== undefined && (
 -                  <div 
@@ -6620,20 +6842,16 @@
 -              {/* Info */}
 -              <div className="flex flex-col text-[10px]">
 -                {/* Row 1: Name + Points */}
-+              ) : (
-+              <div className="min-w-0 flex-1">
-                 <div className="flex items-center gap-1">
+-                <div className="flex items-center gap-1">
 -                  <span className={`text-white font-medium ${player.online === false ? 'opacity-60' : ''}`}>
 -                    {player.name}
 -                    {player.online === false && <span className="text-gray-400 ml-1">(offline)</span>}
 -                  </span>
 -                  <span className="text-yellow-400 font-bold">★{player.points || 0}</span>
-+                  <span className="truncate text-xs font-bold text-fg">{p.id === myPlayer?.id ? 'You' : p.name}</span>
-+                  <span className="ml-auto flex-shrink-0 font-display text-xs font-bold text-bronze-100">★{pointsOf(p)}</span>
-                 </div>
+-                </div>
 -                
 -                {/* Row 2: Crystals + Counts */}
-                 <div className="flex items-center gap-1.5">
+-                <div className="flex items-center gap-1.5">
 -                  {/* Crystals */}
 -                  {['yellow', 'green', 'blue', 'pink'].map((color) => {
 -                    const count = player.caravan?.[color] || 0
@@ -6651,24 +6869,53 @@
 -                  {/* Counts */}
 -                  <span className="text-blue-300">🎭{player.pointCards?.length || 0}</span>
 -                  <span className="text-green-300">🃏{player.playedCards?.length || 0}</span>
-+                  <CrystalRow resources={p.caravan} size="xs" className="!gap-1" />
-+                  <span className="ml-auto inline-flex flex-shrink-0 items-center gap-0.5 text-xs font-bold text-bronze-300"><GolemIcon size={12} label="Golems" />{p.pointCards?.length || 0}</span>
++    <div
++      data-players-info-bar
++      className={`grid flex-shrink-0 gap-1.5 ${n > 4 && !landscape ? 'scrollbar-hide auto-cols-[88px] grid-flow-col overflow-x-auto' : ''}`}
++      style={n > 4 && !landscape ? undefined : { gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
++      aria-label="Players"
++    >
++      {shown.map((p) => {
++        const current = started && currentPlayer?.id === p.id
++        const offline = !p.isAI && p.online === false
++        const golems = p.pointCards?.length || 0
++        return (
++          <div
++            key={p.id || p.name}
++            title={p.name}
++            className={`surface-stone flex min-w-0 flex-col gap-1 px-1.5 py-1.5 ${current ? 'turn-glow' : ''}`}
++          >
++            <div className="flex min-w-0 items-center gap-1.5">
++              <Avatar player={p} size={24} turn={current} timer={current && !p.isAI ? timer : undefined} offline={offline} restAnchor />
++              <div className="min-w-0 flex-1 leading-tight">
++                {roomy ? <div className="truncate text-xs font-bold text-fg">{p.id === myPlayer?.id ? 'You' : p.name}</div> : null}
++                <div className={`flex text-xs font-bold ${roomy ? 'items-center gap-1.5' : 'flex-col items-start'}`}>
++                  <span className="font-display text-bronze-100" aria-label={`${pointsOf(p)} points`}>★{pointsOf(p)}</span>
++                  <span className="inline-flex items-center gap-0.5 text-bronze-300" aria-label={`${golems} golems`}><GolemIcon size={12} label={false} />{golems}</span>
                  </div>
                </div>
-+              )}
              </div>
-           )
-         })}
-       </div>
-+      {started && !compact ? (
-+        isMyTurn ? (
-+          <TurnBanner show seconds={timer.remaining} label="Your turn — tap a card" className="w-full justify-center" />
-+        ) : (
-+          <div className="flex min-h-[36px] items-center justify-center rounded-stone-sm bg-rock-950/60 px-3 text-sm text-fg-muted">
-+            {thinking ? <AiThinkingIndicator label={`${currentPlayer.name} is thinking`} /> : `Waiting for ${currentPlayer?.name || 'the next player'}…`}
+-          )
+-        })}
+-      </div>
++            <div className="flex items-center gap-2.5 text-xs font-semibold tabular-nums text-fg-muted">
++              <span className="inline-flex items-center gap-0.5" title="Cards in hand" aria-label={`${p.hand?.length || 0} cards in hand`}><HandIcon size={13} />{p.hand?.length || 0}</span>
++              <span className="inline-flex items-center gap-0.5" title="Played since the last rest" aria-label={`${p.playedCards?.length || 0} cards played`}><PlayedIcon size={13} />{p.playedCards?.length || 0}</span>
++            </div>
++            <div
++              className="flex items-center justify-between text-xs font-semibold tabular-nums"
++              role="group"
++              aria-label={`Crystals: ${CRYSTALS.map((c) => `${count(p.caravan, c)} ${c}`).join(', ')}`}
++            >
++              {CRYSTALS.map((c) => (
++                <span key={c} className={`inline-flex items-center gap-px ${count(p.caravan, c) ? 'text-fg' : 'text-fg-muted opacity-50'}`} aria-hidden="true">
++                  <Gem color={c} size={gem} label={false} />{count(p.caravan, c)}
++                </span>
++              ))}
++            </div>
 +          </div>
 +        )
-+      ) : null}
++      })}
      </div>
    )
  }
@@ -8329,6 +8576,25 @@
 +})
 +
 +export default Button
+--- a/web/react-frontend/src/components/ui/CardIcons.jsx
++++ b/web/react-frontend/src/components/ui/CardIcons.jsx
+@@ -0,0 +1,16 @@
++import React from 'react'
++
++/** Cards played since the last rest (a small stack). */
++export const PlayedIcon = ({ size = 16, className = '' }) => (
++  <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true" className={className}>
++    <rect x="7" y="3" width="11" height="16" rx="2" /><path d="M5 6.5v12a2 2 0 002 2h8" />
++  </svg>
++)
++
++/** Cards in hand (a fan). */
++export const HandIcon = ({ size = 16, className = '' }) => (
++  <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true" className={className}>
++    <rect x="3.5" y="6" width="9" height="13" rx="1.5" transform="rotate(-12 8 12.5)" />
++    <rect x="11" y="5" width="9" height="13" rx="1.5" transform="rotate(10 15.5 11.5)" />
++  </svg>
++)
 --- a/web/react-frontend/src/components/ui/CardImage.jsx
 +++ b/web/react-frontend/src/components/ui/CardImage.jsx
 @@ -0,0 +1,19 @@
@@ -8996,7 +9262,7 @@
 +        px-3 py-1.5 text-ink shadow-bevel ${className}`}
 +    >
 +      <Gem color="yellow" size={16} label={false} />
-+      <span className="font-display text-sm font-bold uppercase tracking-wider">{label}</span>
++      <span className="whitespace-nowrap font-display text-sm font-bold uppercase tracking-wider">{label}</span>
 +      {typeof seconds === 'number' ? (
 +        <span className={`tabular-nums text-sm font-bold ${seconds <= 10 ? 'text-[rgb(140_28_14)] animate-pulse' : ''}`}>{seconds}s</span>
 +      ) : null}
@@ -9893,6 +10159,35 @@
 +    modals,
 +  }
 +}
+--- a/web/react-frontend/src/hooks/useElementSize.js
++++ b/web/react-frontend/src/hooks/useElementSize.js
+@@ -0,0 +1,26 @@
++import { useLayoutEffect, useState } from 'react'
++
++/**
++ * Size of an element's content box (padding excluded), kept up to date with a ResizeObserver.
++ * Usage: `const [el, setEl] = useState(null); const { height } = useElementSize(el); <div ref={setEl}>`
++ * (a callback ref, so it also works for elements that appear later).
++ * Card rows use it to give each card an explicit width: Safari/WebKit gets 0 for a card whose width
++ * comes from `aspect-ratio` and a percentage height inside a shrink-to-fit wrapper.
++ */
++export default function useElementSize(el) {
++  const [size, setSize] = useState({ width: 0, height: 0 })
++  useLayoutEffect(() => {
++    if (!el || typeof ResizeObserver === 'undefined') return undefined
++    const update = () => {
++      const s = getComputedStyle(el)
++      const width = Math.max(0, el.clientWidth - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight))
++      const height = Math.max(0, el.clientHeight - parseFloat(s.paddingTop) - parseFloat(s.paddingBottom))
++      setSize((p) => (p.width === width && p.height === height ? p : { width, height }))
++    }
++    const ro = new ResizeObserver(update)
++    ro.observe(el)
++    update()
++    return () => ro.disconnect()
++  }, [el])
++  return size
++}
 --- a/web/react-frontend/src/hooks/useGameSounds.js
 +++ b/web/react-frontend/src/hooks/useGameSounds.js
 @@ -2,6 +2,7 @@
@@ -10038,6 +10333,72 @@
 +    return () => clearInterval(t)
 +  }, [turnKey, total])
 +  return { remaining, total }
++}
+--- a/web/react-frontend/src/hooks/useVisibleHeight.js
++++ b/web/react-frontend/src/hooks/useVisibleHeight.js
+@@ -0,0 +1,63 @@
++import { useLayoutEffect, useState } from 'react'
++
++// `100svh` (the viewport with the browser bars shown) and the safe-area insets, measured with a probe.
++function probe() {
++  const el = document.createElement('div')
++  el.style.cssText = 'position:fixed;top:0;left:0;width:0;visibility:hidden;pointer-events:none;height:100vh;height:100svh;' +
++    'padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);box-sizing:content-box'
++  document.body.appendChild(el)
++  const s = getComputedStyle(el)
++  const out = { svh: parseFloat(s.height), safeTop: parseFloat(s.paddingTop), safeBottom: parseFloat(s.paddingBottom) }
++  el.remove()
++  return out
++}
++
++/** The heights the browser reports — for the `?vp` diagnostic box and for picking the visible height. */
++export function viewportReport() {
++  const vv = window.visualViewport
++  const p = probe()
++  return {
++    inner: window.innerHeight, vv: vv ? Math.round(vv.height) : null, vvTop: vv ? Math.round(vv.offsetTop) : null,
++    svh: Math.round(p.svh), safeTop: Math.round(p.safeTop), safeBottom: Math.round(p.safeBottom),
++  }
++}
++
++/**
++ * Phones: the height that is really visible, and the page locked so it cannot scroll.
++ * Safari on iOS 26 floats its toolbar over the page: `100dvh` and `env(safe-area-inset-bottom)` still
++ * count the strip under it, so a `100dvh` board ended behind the toolbar (half of the hand hidden, the
++ * page scrolled). We take the smallest of innerHeight, visualViewport.height and 100svh, and refresh it on
++ * resize / rotation / toolbar changes. Sets `--app-h` on <html> and returns the number.
++ */
++export default function useVisibleHeight(enabled = true) {
++  const [height, setHeight] = useState(() => (typeof window === 'undefined' ? 0 : window.innerHeight))
++  useLayoutEffect(() => {
++    if (!enabled || typeof window === 'undefined') return undefined
++    const root = document.documentElement
++    root.classList.add('phone-lock')
++    let frame = 0
++    const update = () => {
++      cancelAnimationFrame(frame)
++      frame = requestAnimationFrame(() => {
++        const r = viewportReport()
++        const h = Math.floor(Math.min(r.inner, r.vv || Infinity, r.svh || Infinity))
++        root.style.setProperty('--app-h', `${h}px`)
++        setHeight((p) => (p === h ? p : h))
++        if (window.scrollY) window.scrollTo(0, 0) // a page scrolled before the lock: back to the top
++      })
++    }
++    update()
++    window.addEventListener('resize', update)
++    window.addEventListener('orientationchange', update)
++    window.visualViewport?.addEventListener('resize', update)
++    return () => {
++      cancelAnimationFrame(frame)
++      window.removeEventListener('resize', update)
++      window.removeEventListener('orientationchange', update)
++      window.visualViewport?.removeEventListener('resize', update)
++      root.classList.remove('phone-lock')
++      root.style.removeProperty('--app-h')
++    }
++  }, [enabled])
++  return height
 +}
 --- a/web/react-frontend/src/index.css
 +++ b/web/react-frontend/src/index.css
@@ -10210,7 +10571,23 @@
  
    /* Disable hover states on touch */
    .card-base:hover {
-@@ -454,15 +544,6 @@
+@@ -327,6 +417,15 @@
+     padding-right: env(safe-area-inset-right);
+   }
+ 
++  /* Phones in a game: the page itself never scrolls (iOS 26 Safari would slide its toolbar and the
++     board around); the board is sized to the visible height (--app-h, hooks/useVisibleHeight). */
++  html.phone-lock,
++  html.phone-lock body {
++    height: 100%;
++    overflow: hidden;
++    overscroll-behavior: none;
++  }
++
+   /* Dynamic viewport height */
+   .h-screen-dynamic {
+     height: 100vh;
+@@ -454,15 +553,6 @@
      min-height: 300px;
    }
  
@@ -10226,7 +10603,7 @@
    /* Animation utilities */
    .animate-slide-up {
      animation: slideUp 0.3s ease-out forwards;
-@@ -503,26 +584,3 @@
+@@ -503,26 +593,3 @@
      to { opacity: 1; }
    }
  }
@@ -10290,16 +10667,17 @@
  
 --- a/web/react-frontend/src/SinglePlayerApp.jsx
 +++ b/web/react-frontend/src/SinglePlayerApp.jsx
-@@ -1,18 +1,23 @@
+@@ -1,18 +1,21 @@
 -import React, { useState, useEffect } from 'react'
 +import React, { useState, useEffect, useRef } from 'react'
  import { useParams, useNavigate } from 'react-router-dom'
  import SinglePlayerLobby from './components/SinglePlayerLobby'
  import Lobby from './components/Lobby'
- import PlayersInfoBar from './components/PlayersInfoBar'
- import CompactGameBoard from './components/mobile/CompactGameBoard'
- import CompactPlayerHand from './components/mobile/CompactPlayerHand'
+-import PlayersInfoBar from './components/PlayersInfoBar'
+-import CompactGameBoard from './components/mobile/CompactGameBoard'
+-import CompactPlayerHand from './components/mobile/CompactPlayerHand'
 -import CollapsibleInfo from './components/CollapsibleInfo'
++import PhoneShell from './components/mobile/PhoneShell'
  import DiscardModal from './components/DiscardModal'
 -import AcquiredCardOverlay from './components/AcquiredCardOverlay'
 +import RestPopup from './components/RestPopup'
@@ -10319,7 +10697,7 @@
  import FantasyGameLayout from './components/desktop/FantasyGameLayout'
  import useGameStore from './store/gameStore'
  import useOrientation from './hooks/useOrientation'
-@@ -21,59 +26,44 @@
+@@ -21,59 +24,41 @@
  import { ThemeProvider, useTheme } from './contexts/ThemeContext'
  
  // Game Content with Theme Support
@@ -10335,17 +10713,17 @@
 -    setGameMode(null)
 -    window.location.reload()
 -  }
--
--  const handleBackToMenu = () => {
--    setInGame(false)
--    setGameMode(null)
--    window.location.reload()
--  }
 +  // Upstream reloaded the page here; with the URL still at /room/<id> the reload opened the
 +  // multiplayer Join screen. The parent now restarts / exits in place.
 +  const handleNewGame = onNewGame
 +  const handleBackToMenu = onBackToMenu
  
+-  const handleBackToMenu = () => {
+-    setInGame(false)
+-    setGameMode(null)
+-    window.location.reload()
+-  }
+-
 -  // Fantasy Theme Layout
 -  if (isFantasy) {
 +  // ✨ table layout: desktop only (phones and short landscape screens always get the compact board)
@@ -10375,9 +10753,6 @@
 -      
 -      {/* Sound Toggle Button - Always visible */}
 -      <SoundToggleButton />
-+      {/* Phones: floating round plaque + sound · activity. The desktop board shows them in its Market header. */}
-+      {!useWebLayout ? <Hud sessionId={sessionId} compact /> : null}
-+
 +      {/* "<opponent> rested" popup */}
 +      <RestPopup />
 +
@@ -10398,7 +10773,7 @@
        {useWebLayout ? (
          /* Desktop/Tablet - WebGameLayout */
          <div className="h-screen h-[100dvh] relative z-10">
-@@ -83,48 +73,31 @@
+@@ -83,48 +68,10 @@
            <DiscardModal />
          </div>
        ) : (
@@ -10423,36 +10798,22 @@
 -          `}
 -          >
 -            <CompactGameBoard />
-+        /* Phones (and phones held sideways): compact board */
-+        isPortrait ? (
-+          <div className="relative z-board flex h-screen h-[100dvh] flex-col overflow-hidden" style={{ paddingTop: 'calc(max(8px, var(--safe-top)) + 52px)' }}>
-+            <PlayersInfoBar />
-+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-+              <CompactGameBoard />
-+            </div>
-+            <CompactPlayerHand />
-+            <DiscardModal />
-           </div>
+-          </div>
 -
 -          {/* Player Hand - Bottom (Fixed on mobile, relative on desktop) */}
 -          {!isPortrait && (
 -            <div className="flex-shrink-0 relative z-30">
 -              <CompactPlayerHand />
-+        ) : (
-+          <div
-+            className="relative z-board grid h-screen h-[100dvh] grid-cols-[minmax(0,1fr)_minmax(280px,34%)] gap-2 overflow-hidden"
-+            style={{ paddingTop: 'calc(max(8px, var(--safe-top)) + 52px)', paddingLeft: 'var(--safe-left)', paddingRight: 'max(8px, var(--safe-right))' }}
-+          >
-+            <div className="min-h-0 overflow-y-auto overscroll-contain">
-+              <CompactGameBoard landscape />
-             </div>
+-            </div>
 -          )}
 -          
 -          {/* Player Hand - Fixed on mobile portrait */}
 -          {isPortrait && <CompactPlayerHand />}
 -
 -          {/* Discard Modal (when crystals exceed max) */}
--          <DiscardModal />
++        /* Phones (and phones held sideways): everything on one screen */
++        <PhoneShell sessionId={sessionId} landscape={!isPortrait}>
+           <DiscardModal />
 -          
 -          {/* Overlay when other players acquire or play cards */}
 -          <AcquiredCardOverlay />
@@ -10460,17 +10821,11 @@
 -          {/* Activity Feed (Chat & History) - Works on all screen sizes */}
 -          <CollapsibleInfo sessionId={sessionId} />
 -        </div>
-+            <div className="flex min-h-0 flex-col gap-1 pb-1">
-+              <PlayersInfoBar compact />
-+              <div className="min-h-0 flex-1"><CompactPlayerHand landscape /></div>
-+            </div>
-+            <DiscardModal />
-+          </div>
-+        )
++        </PhoneShell>
        )}
  
        {/* Game Over Modal */}
-@@ -144,6 +117,7 @@
+@@ -144,6 +91,7 @@
    const navigate = useNavigate()
    const [gameMode, setGameMode] = useState(null) // null, 'single', 'multi'
    const [inGame, setInGame] = useState(false)
@@ -10478,16 +10833,17 @@
    const { 
      connectWebSocket, 
      gameState, 
-@@ -158,13 +132,30 @@
+@@ -158,13 +106,30 @@
      playerAvatar: storedPlayerAvatar,
      isSpectator,
    } = useGameStore()
 -  const { isPortrait, isLandscape, isMobile, isTablet, isDesktop, width } = useOrientation()
 +  const { isPortrait, isCompact } = useOrientation()
-+
+ 
+-  // Auto-join if roomId is in URL
 +  // While disconnected the board is inert (no clicks, no focus). React 18 has no `inert` prop.
 +  const boardRef = useRef(null)
-+  useEffect(() => {
+   useEffect(() => {
 +    const el = boardRef.current
 +    if (!el) return
 +    if (!connected) el.setAttribute('inert', '')
@@ -10500,9 +10856,8 @@
 +  // The room we just left on purpose (Back to Menu / Play Again): while the URL still says
 +  // /room/<id> for one more render, it must not be mistaken for an invite link.
 +  const leftRoomRef = useRef(null)
- 
--  // Auto-join if roomId is in URL
-   useEffect(() => {
++
++  useEffect(() => {
 +    if (roomId && roomId === leftRoomRef.current) return
      if (roomId && !inGame && !isConnecting) {
 +      setPendingRoomId(roomId)
@@ -10512,7 +10867,7 @@
      }
    }, [roomId, inGame, isConnecting])
  
-@@ -183,250 +174,143 @@
+@@ -183,250 +148,143 @@
    }
  
    const handleBackToMenu = () => {
@@ -10695,8 +11050,12 @@
 +          : <Lobby onJoinGame={handleJoinMultiplayer} onBack={handleBackToMenu} initialRoomId={pendingRoomId} />}
 +      </>
 +    )
-+  }
-+
+   }
+ 
+-  // Show loading screen while connecting or waiting for game state
+-  if (!connected || !gameState) {
+-    const showRetryButton = connectionError || (isReconnecting && reconnectAttempts >= 2);
+-    
 +  // Connection state shared by the first-connect dialog and the in-game reconnect banner
 +  const showRetryButton = !!connectionError || (isReconnecting && reconnectAttempts >= 2)
 +  // Not connecting, not reconnecting, no error: nothing will happen by itself — offer a way back.
@@ -10707,12 +11066,8 @@
 +  }
 +  const retry = () => {
 +    if (sessionId && storedPlayerName) forceReconnect()
-   }
- 
--  // Show loading screen while connecting or waiting for game state
--  if (!connected || !gameState) {
--    const showRetryButton = connectionError || (isReconnecting && reconnectAttempts >= 2);
--    
++  }
++
 +  // Before the first game state: a connecting dialog
 +  if (!gameState) {
 +    const title = connectionError
@@ -11656,6 +12011,96 @@
 +
 +  test('without a stored picture the choice falls back to a golem', async () => {
 +    expect(await resolveAvatar(CUSTOM)).toBe('4')
++  })
++})
+--- a/web/react-frontend/src/utils/phoneLayout.js
++++ b/web/react-frontend/src/utils/phoneLayout.js
+@@ -0,0 +1,48 @@
++// Card sizes for the phone board, so that everything fits on one screen without scrolling
++// (only my own hand scrolls sideways when it is long). Cards are printed at width : height = 0.58.
++
++export const CARD_RATIO = 0.58
++
++/** Explicit box for a card of height h (Safari needs the width spelled out — see hooks/useElementSize). */
++export const cardBox = (h) => ({ height: Math.round(h), width: Math.round(h * CARD_RATIO) })
++
++export const HAND_MIN = 84
++export const HAND_MAX = 160
++const CARD_MIN = 56
++// Section headers ("Golems", "Market") + room for the badges that stick out of the cards + gap between sections.
++export const BOARD_CHROME = 2 * 24 + 2 * 8 + 10
++
++const fitWidth = (width, n, gap) => (width - gap * (n - 1)) / n / CARD_RATIO
++const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v))
++
++/**
++ * Split the height left for cards between the golem row (5 cards), the market (always one compact row
++ * of 6 — the user prefers room over big merchant cards, 2026-11-18) and, in portrait, my hand row.
++ * `avail` = board area height + current hand-card row height (the two flex with each other, so their sum
++ * is fixed). Each row is capped by what the width allows; what is left goes to the hand, then to spacing.
++ * Returns integer heights { golem, market, marketCols: 6, hand, spare }.
++ */
++export function planPhoneBoard({ width, avail, withHand = true }) {
++  const T = avail - BOARD_CHROME
++  const golemCap = fitWidth(width, 5, 6)
++  const marketCap = fitWidth(width, 6, 5)
++  let hand = withHand ? clamp(T * 0.24, HAND_MIN, HAND_MAX) : 0
++  const R = T - hand
++  // golems and market share equally; a width cap frees height for the other row
++  let market = Math.min(marketCap, R / 2)
++  const golem = Math.min(golemCap, R - market)
++  market = Math.min(marketCap, R - golem)
++  let spare = R - golem - market
++  if (withHand) {
++    const add = Math.min(spare, HAND_MAX - hand)
++    hand += add
++    spare -= add
++  }
++  return {
++    golem: Math.floor(Math.max(CARD_MIN, golem)),
++    market: Math.floor(Math.max(CARD_MIN, market)),
++    marketCols: 6,
++    hand: Math.floor(hand),
++    spare: Math.max(0, Math.floor(spare)),
++  }
++}
+--- a/web/react-frontend/src/utils/phoneLayout.test.js
++++ b/web/react-frontend/src/utils/phoneLayout.test.js
+@@ -0,0 +1,36 @@
++import { describe, test, expect } from 'vitest'
++import { planPhoneBoard, cardBox, BOARD_CHROME, CARD_RATIO, HAND_MIN, HAND_MAX } from './phoneLayout'
++
++const used = (p) => p.golem + p.market + p.hand + p.spare + BOARD_CHROME
++const fitsWidth = (p, width) => p.golem * CARD_RATIO * 5 + 24 <= width + 1 && p.market * CARD_RATIO * 6 + 25 <= width + 1
++
++describe('planPhoneBoard', () => {
++  test('iPhone in Safari (toolbar shown): one market row, everything fits', () => {
++    const p = planPhoneBoard({ width: 369, avail: 400 })
++    expect(p.marketCols).toBe(6)
++    expect(used(p)).toBeLessThanOrEqual(400)
++    expect(fitsWidth(p, 369)).toBe(true)
++    expect(p.hand).toBeGreaterThanOrEqual(HAND_MIN)
++    expect(p.hand).toBeLessThanOrEqual(HAND_MAX)
++  })
++
++  test('tall screen: market stays one compact row, the spare height goes to the hand', () => {
++    const p = planPhoneBoard({ width: 369, avail: 520 })
++    expect(p.marketCols).toBe(6)
++    expect(fitsWidth(p, 369)).toBe(true)
++    expect(p.hand).toBe(HAND_MAX)
++    expect(used(p)).toBeLessThanOrEqual(520)
++  })
++
++  test('small phone still fits; landscape (no hand row) too', () => {
++    const small = planPhoneBoard({ width: 351, avail: 290 })
++    expect(used(small)).toBeLessThanOrEqual(290 + 1)
++    const side = planPhoneBoard({ width: 470, avail: 280, withHand: false })
++    expect(side.hand).toBe(0)
++    expect(side.golem + side.market + BOARD_CHROME).toBeLessThanOrEqual(280)
++  })
++
++  test('cardBox spells out both sides', () => {
++    expect(cardBox(100)).toEqual({ height: 100, width: 58 })
 +  })
 +})
 --- a/web/react-frontend/src/utils/rest.js

@@ -417,6 +417,15 @@
     padding-right: env(safe-area-inset-right);
   }
 
+  /* Phones in a game: the page itself never scrolls (iOS 26 Safari would slide its toolbar and the
+     board around); the board is sized to the visible height (--app-h, hooks/useVisibleHeight). */
+  html.phone-lock,
+  html.phone-lock body {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
   /* Dynamic viewport height */
   .h-screen-dynamic {
     height: 100vh;

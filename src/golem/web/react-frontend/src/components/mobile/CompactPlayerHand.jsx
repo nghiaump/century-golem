@@ -4,21 +4,17 @@ import CardTile from '../board/CardTile'
 import CardSheet from '../board/CardSheet'
 import BoardModals from '../board/BoardModals'
 import { cardKind } from '../board/cardInfo'
-import Avatar from '../ui/Avatar'
 import Button from '../ui/Button'
 import CrystalRow from '../ui/CrystalRow'
 import Modal from '../ui/Modal'
 import CardImage from '../ui/CardImage'
 import GolemIcon from '../ui/GolemIcon'
+import { PlayedIcon } from '../ui/CardIcons'
 import { MAX_CARAVAN } from '../../utils/crystals'
-
-function CardsIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
-      <rect x="7" y="3" width="11" height="16" rx="2" /><path d="M5 6.5v12a2 2 0 002 2h8" />
-    </svg>
-  )
-}
+import { pointsOf } from '../PlayersInfoBar'
+import useOrientation from '../../hooks/useOrientation'
+import useElementSize from '../../hooks/useElementSize'
+import { cardBox } from '../../utils/phoneLayout'
 
 const CardGrid = ({ cards, dim }) => (
   <div className="grid grid-cols-3 gap-3">
@@ -27,17 +23,22 @@ const CardGrid = ({ cards, dim }) => (
 )
 
 /**
- * Phones: my crystals, Rest, my golems / played cards, and my hand (swipe). Tapping a hand card opens
- * its sheet with Play. Sits at the bottom of the screen, clear of the home indicator.
+ * Phones: my crystals, my golems + points, Rest, played cards, and my hand (swipe). Tapping a hand card
+ * opens its sheet with Play. Sits at the bottom of the screen, clear of the home indicator.
+ * `cardHeight`: hand-card height from utils/phoneLayout (portrait); `landscape` fills the side column.
  */
-const CompactPlayerHand = ({ landscape = false }) => {
+const CompactPlayerHand = ({ landscape = false, cardHeight = 104 }) => {
   const a = useBoardActions({ reopenAfterUndo: true })
   const [sheet, setSheet] = useState(null)
   const [list, setList] = useState(null) // 'golems' | 'played'
   const { myPlayer, isSpectator, isWaiting, isMyTurn } = a
+  const { width } = useOrientation()
+  const [row, setRow] = useState(null)
+  const rowSize = useElementSize(row)
   if (isWaiting || isSpectator || !myPlayer) return null
 
   const golems = myPlayer.pointCards || []
+  const points = pointsOf(myPlayer)
   const openHand = (card, i) => setSheet({
     card, type: 'action',
     action: {
@@ -48,23 +49,45 @@ const CompactPlayerHand = ({ landscape = false }) => {
     },
   })
 
+  const crystals = <CrystalRow resources={a.caravan} capacity={MAX_CARAVAN} size={!landscape && width < 385 ? 'xs' : 'sm'} className="min-w-0 !gap-1" />
+  const golemButton = (
+    <Button size="md" variant="secondary" onClick={() => setList('golems')} disabled={!golems.length} className="!gap-1.5 !px-2" aria-label={`My golems (${golems.length}), ${points} points`} title="My golems and points">
+      <span className="inline-flex items-center gap-1"><GolemIcon size={16} />{golems.length}</span>
+      <span className="font-display text-bronze-100">★{points}</span>
+    </Button>
+  )
+  const restButton = <Button size="md" onClick={a.onRest} disabled={!a.canRest} variant={a.canRest ? 'primary' : 'secondary'} className="!px-2.5" title="Take your played cards back">Rest</Button>
+  const playedButton = (
+    <Button size="md" variant="secondary" onClick={() => setList('played')} disabled={!a.playedCards.length} className="!gap-1 !px-2" icon={<PlayedIcon />} aria-label={`Played cards (${a.playedCards.length})`} title="Played cards">
+      {a.playedCards.length}
+    </Button>
+  )
+
   return (
     <div
-      className={`surface-stone flex flex-shrink-0 flex-col gap-2 !rounded-b-none border-b-0 px-3 pt-2 ${isMyTurn ? 'turn-glow' : ''} ${landscape ? 'h-full !rounded-stone' : ''}`}
+      className={`surface-stone flex flex-shrink-0 flex-col gap-1.5 px-3 pt-2 ${isMyTurn ? 'turn-glow' : ''} ${landscape ? 'h-full' : '!rounded-b-none border-b-0'}`}
       style={{ paddingBottom: 'max(8px, var(--safe-bottom))' }}
     >
-      <div className="flex items-center gap-2">
-        <Avatar player={myPlayer} size={28} turn={isMyTurn} />
-        <CrystalRow resources={a.caravan} capacity={MAX_CARAVAN} size="sm" className="min-w-0 !gap-1.5" />
-      </div>
-      <div className="grid grid-cols-3 gap-2">
-        <Button size="md" onClick={a.onRest} disabled={!a.canRest} variant={a.canRest ? 'primary' : 'secondary'} title="Take your played cards back">Rest</Button>
-        <Button size="md" variant="secondary" onClick={() => setList('golems')} disabled={!golems.length} icon={<GolemIcon size={16} />} aria-label={`My golems (${golems.length})`}>{golems.length}</Button>
-        <Button size="md" variant="secondary" onClick={() => setList('played')} disabled={!a.playedCards.length} icon={<CardsIcon />} aria-label={`Played cards (${a.playedCards.length})`}>{a.playedCards.length}</Button>
-      </div>
-      <div className={`scrollbar-hide -mx-3 flex snap-x scroll-pl-3 gap-2.5 overflow-x-auto px-3 pb-1 ${landscape ? 'min-h-0 flex-1' : 'h-[132px]'}`} role="list" aria-label="Your hand">
+      {landscape ? (
+        <>
+          <div className="flex h-7 items-center">{crystals}</div>
+          <div className="grid grid-cols-[auto_1fr_auto] gap-1.5">{restButton}{golemButton}{playedButton}</div>
+        </>
+      ) : (
+        <div className="flex flex-wrap items-center justify-end gap-1">
+          <div className="min-w-0 flex-1 basis-[136px] overflow-hidden">{crystals}</div>
+          {golemButton}{restButton}{playedButton}
+        </div>
+      )}
+      <div
+        className={`scrollbar-hide -mx-3 flex snap-x scroll-pl-3 gap-2.5 overflow-x-auto px-3 py-1.5 ${landscape ? 'min-h-0 flex-1' : ''}`}
+        style={landscape ? undefined : { height: cardHeight + 12 }}
+        ref={setRow}
+        role="list"
+        aria-label="Your hand"
+      >
         {a.hand.length ? a.hand.map((card, i) => (
-          <div key={`h${i}-${card.id}`} role="listitem" className="h-full flex-shrink-0 snap-start py-1.5">
+          <div key={`h${i}-${card.id}`} role="listitem" className="flex-shrink-0 snap-start" style={cardBox(landscape ? rowSize.height : cardHeight)}>
             <CardTile card={card} ready={isMyTurn} onInspect={() => openHand(card, i)} />
           </div>
         )) : (
