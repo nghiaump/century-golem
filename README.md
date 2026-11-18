@@ -71,7 +71,7 @@ Play solo against 1–4 AI opponents or with up to 5 friends, right in the brows
 - **24 original golem avatars** drawn for this project; AI opponents wear random ones and are named after them (Basalt, Mossback, Rime…)
 - **Your own picture as avatar** in both modes: pick an image (≤ 5 MB), drag/zoom it into the circle; it is shrunk to 256 px in the browser, re-encoded on the server (metadata removed) and **deleted with the room** — never stored
 - **Undo** an overflowing card play from the discard popup; **reconnect banner** keeps the board on screen if the connection drops
-- **Sound effects** for your turn, plays, purchases, golem claims, rests, the last round and game over, and a **victory celebration** with a fanfare when you win
+- **Sound effects** for your turn, purchases, golem claims, rests, the last round and game over, a soft **card slap** whenever anyone plays a card, and a **victory celebration** with a fanfare when you win; they also work on iPhones (unlocked on your first tap)
 
 </td>
 </tr>
@@ -118,14 +118,14 @@ or the notch.
 
 <table>
 <tr>
-<td align="center" width="25%"><img src="docs/assets/screenshots/mobile.webp" alt="Phone board: top bar with round, Your turn 56s, sound and activity buttons; four player chips in turn order numbered 1 to 4, yours second with a bronze number and outline, each with points, golems, cards in hand and played, crystals; five golems and six market cards in one row each, the ones you can take marked with a check; your crystals 4/10, golems, Rest and played buttons above your hand"/><br/><sub><b>Your turn</b>: everyone in turn order, golems, market and hand on one screen</sub></td>
+<td align="center" width="25%"><img src="docs/assets/screenshots/mobile.webp" alt="Phone board: top bar with round, Your turn, sound and activity buttons; four player chips in turn order, each a big portrait with name, points, golems, cards in hand and played and crystals below, yours outlined in bronze; five golems and six market cards in one row each, the ones you can take marked with a check; your crystals 4/10, golems, Rest and played buttons above your hand"/><br/><sub><b>Your turn</b>: everyone in turn order, golems, market and hand on one screen</sub></td>
 <td align="center" width="25%"><img src="docs/assets/screenshots/mobile-moves.webp" alt="While an AI thinks, the merchant card another opponent just took pops up under their chip with the word took"/><br/><sub><b>Live moves</b>: the card an opponent just played or took pops up under them</sub></td>
-<td align="center" width="25%"><img src="docs/assets/screenshots/mobile-player.webp" alt="Sheet for opponent Amethyst: points, golems, cards in hand and played, crystals, then Last moves (Took, Claimed a golem, Played, with card pictures and what each card does) and Played since last rest"/><br/><sub><b>Tap an opponent</b>: their last moves and the cards they played since resting</sub></td>
+<td align="center" width="25%"><img src="docs/assets/screenshots/mobile-player.webp" alt="Sheet for an opponent: points, golems, cards in hand and played, crystals, then their last moves with card pictures and what each card does, and the cards they played since their last rest"/><br/><sub><b>Tap an opponent</b>: their last moves and the cards they played since resting</sub></td>
 <td align="center" width="25%"><img src="docs/assets/screenshots/mobile-sheet.webp" alt="Tapping market card 2 opens a sheet with the card large, what it does, the rule to place one crystal on each card to its left, and a Place 1 and take button"/><br/><sub><b>Tap a card</b>: what it does and the one action you can take</sub></td>
 </tr>
 <tr>
 <td align="center"><img src="docs/assets/screenshots/difficulty.webp" alt="Single-player lobby on a phone: name, 1 to 4 AI opponents, difficulty Easy to Very Hard with level dots, and the golem avatar grid with an upload tile for your own picture"/><br/><sub><b>Lobby</b>: 1–4 AIs, Easy → Very Hard, a golem or your own picture</sub></td>
-<td align="center" colspan="2"><img src="docs/assets/screenshots/mobile-landscape.webp" alt="Phone held sideways: top bar, golems and market on the left; the four numbered player chips and your hand on the right"/><br/><sub><b>Sideways</b>: board on the left, opponents and your hand on the right</sub></td>
+<td align="center" colspan="2"><img src="docs/assets/screenshots/mobile-landscape.webp" alt="Phone held sideways: top bar, golems and market on the left; the four player chips in turn order and your hand on the right"/><br/><sub><b>Sideways</b>: board on the left, opponents and your hand on the right</sub></td>
 <td align="center"><img src="docs/assets/screenshots/mobile-activity.webp" alt="Activity sheet: room ID with a Copy button, a timeline of moves with card thumbnails and what each card does, and a chat box"/><br/><sub><b>Activity</b>: the last 30 moves with cards, chat, room ID</sub></td>
 </tr>
 </table>
@@ -133,8 +133,8 @@ or the notch.
 | I want to… | On the phone |
 |:--|:--|
 | Know whose turn it is | The top bar says **Your turn** with your seconds left, or *Waiting for …* / *… is thinking*. The player to move glows and their portrait ring pulses; people (not AIs) get a timer ring |
-| See the turn order | Every player, **you included**, sits in one row in the order of play: left to right, each portrait numbered **1** (opens the round) to the last (closes it). Your number is bronze and your chip has a bronze outline. In the last round, players who already had their final turn are dimmed |
-| Check my opponents | Each chip shows **★ points**, golems, cards in hand, cards played and the 4 crystals; chips get denser as the table fills, so all 5 players fit a phone |
+| See the turn order | Every player, **you included**, sits in one row in the order of play: the leftmost opens the round, the rightmost closes it. Your chip has a bronze outline. In the last round, players who already had their final turn are dimmed |
+| Check my opponents | Each chip shows a big portrait on top, then **★ points**, golems, cards in hand, cards played and the 4 crystals; chips get denser as the table fills, so all 5 players fit a phone |
 | See what someone just did | Their card pops up under their chip for about 3 seconds (*played*, *took*, *claimed*). Rests show as *"… rested · took back n cards"*. Touch anywhere to dismiss |
 | Look back at a player's moves | **Tap their chip**: their last moves with card pictures and what each card does, every card they played since their last rest (newest first) and their golems |
 | Take a merchant card | Tap it in the Market. On your turn the cards you can take now have a ✓; the ones you can't afford are dimmed with *Place n* (the crystals it needs). The sheet offers **Take** or **Place n & take** |

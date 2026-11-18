@@ -72,12 +72,12 @@ Bề mặt (`index.css`, lớp `surface-*`): `surface-stone` (gradient đá + h�
   Safari trên iPhone chỉ còn ~393×659px (thanh địa chỉ), bản cũ để tay bài đáy che gần hết Market. Dọc: `PhoneTopBar` (R n · ruy băng
   "Your turn n s" / "<AI> is thinking" · âm thanh · Activity, nằm trong luồng trang) · `PlayersInfoBar` = **mọi người chơi, kể cả mình, theo thứ tự lượt
   trong round** (2026-11-18, góp ý: không biết ai đi đầu / cuối round, mình ở lượt mấy): trái → phải = thứ tự ghế (`players[0]` mở
-  round, người cuối đóng round); mỗi chân dung có **số lượt** 1…N (của mình: huy hiệu đồng + viền đồng quanh chip); round cuối: ai đã
-  đi lượt cuối thì chip mờ ("done for the game"). Lưới đều cột, chip **dày dần theo bề ngang** (`chipLayout`, đo bằng
-  `useElementSize`): ≥ 112px *wide* (chân dung 51px, bên cạnh: tên · ★ golem · lá tay/đã chơi; crystal 1 hàng), ≥ 80px *medium* (tên trên,
-  ★/golem cạnh chân dung 42px, rồi lá tay/đã chơi, crystal 1 hàng), còn lại *narrow* (không tên, chân dung 42px ở giữa, crystal 2×2); < 58px
-  thì cuộn ngang (5 người trên máy 320px). Chân dung **to 1,5 lần** (2026-11-18, theo yêu cầu: 34→51, 28→42px) ⇒ chip cao 77 / 97 / 108px;
-  cầm ngang giữ 34/28px (cột phải thấp, to hơn thì bóp mất tay bài khi 5 người), 5 người xếp 3+2. Chân dung `Avatar fit` — ảnh sát
+  round, người cuối đóng round) — không ghi số lên chân dung (người dùng: thứ tự ô đã đủ, số thừa); chip của mình viền đồng; round
+  cuối: ai đã đi lượt cuối thì chip mờ ("done for the game"). Màn dọc: **chân dung ở giữa, trên cùng, to nhất có thể** (66px khi chip
+  ≥ 112px, còn lại 55px, không quá bề ngang chip − 10px), bên dưới: tên (khi chip ≥ 80px) · ★ golem · lá tay / đã chơi (một dòng khi
+  ≥ 108px) · crystal (2×2 khi < 80px); chip cao 118–127px (người dùng chấp nhận chip dài xuống vì còn chỗ trên hàng golem). Đo bề ngang
+  bằng `useElementSize`, kiểu chip theo `chipLayout`; < 58px thì cuộn ngang (5 người trên máy 320px). Cầm ngang giữ bản gọn cũ (chân dung
+  34/28px cạnh số liệu; cột phải thấp, to hơn thì bóp mất tay bài khi 5 người), 5 người xếp 3+2. Chân dung `Avatar fit` — ảnh sát
   viền 2px, chính viền đó nhấp nháy / chạy giờ · golem 5 lá
   1 hàng + Market 6 lá **luôn 1 hàng gọn** (2026-11-18: người dùng muốn lá merchant nhỏ lại để có chỗ; chỗ dư dồn cho lá trên tay, tối đa 140px) · tay bài (1 hàng: crystal x/10 · golem+★ của mình · Rest · đã chơi; dưới là lá
   vuốt ngang). **Cỡ lá tính theo chỗ thật** (`utils/phoneLayout.planPhoneBoard`, đo vùng bàn bằng ResizeObserver; vùng bàn + hàng lá

@@ -18,7 +18,7 @@ describe('PlayersInfoBar (phones): everyone in turn order', () => {
     act(() => useGameStore.setState({ gameState: null, myPlayer: null, currentPlayer: null }))
   })
 
-  test('all five players, me included, numbered in the order they play; first and last are named', () => {
+  test('all five players, me included, in the order they play; first and last are named for screen readers', () => {
     show({ currentPlayer: 4 })
     render(<PlayersInfoBar />)
     const chips = within(screen.getByLabelText('Players in turn order')).getAllByRole('button')
@@ -26,7 +26,7 @@ describe('PlayersInfoBar (phones): everyone in turn order', () => {
     expect(chips[0].getAttribute('aria-label')).toMatch(/^Magma, 1st to play, starts the round/)
     expect(chips[1].getAttribute('aria-label')).toMatch(/^You, 2nd to play:/)
     expect(chips[4].getAttribute('aria-label')).toMatch(/^Onyx, 5th to play, last in the round/)
-    chips.forEach((c, i) => expect(c.textContent).toContain(String(i + 1)))
+    expect(chips.map((c) => c.getAttribute('aria-label').split(',')[0])).toEqual(['Magma', 'You', 'Kiln', 'Rime', 'Onyx']) // seat order
   })
 
   test('last round: players who already had their final turn are marked done', () => {

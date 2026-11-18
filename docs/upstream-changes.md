@@ -215,7 +215,7 @@ Chi tiết: [`ui/thiet-ke-giao-dien.md`](ui/thiet-ke-giao-dien.md). Tóm tắt t
 - Thứ tự lượt trên điện thoại (2026-11-18, góp ý: không biết ai đầu / cuối round, mình ở lượt mấy; muốn đủ 5 khối kể cả mình):
   `PlayersInfoBar.jsx` hiện mọi người theo thứ tự ghế (bỏ `opponentsOf`), số lượt trên chân dung, chip của mình viền đồng, round cuối mờ
   người đã xong (`doneForGame`), 3 kiểu chip theo bề ngang (`chipLayout`) để 5 người vừa một hàng. Test `PlayersInfoBar.test.jsx`.
-  Sau đó chân dung to 1,5 lần ở màn dọc (51 / 42px; ngang giữ 34 / 28px).
+  Sau đó (cùng ngày, theo góp ý): chân dung ở giữa chip và to dần tới 66 / 55px ở màn dọc (ngang giữ 34 / 28px), bỏ số lượt trên chân dung.
 - `mobile/MoveBubbles.jsx`: bỏ khung đá quanh lá vừa chơi — viền đồng ôm sát lá, nhãn động từ trên mép dưới (che bàn ít hơn ~34%).
 - Âm thanh trên điện thoại (2026-11-18, góp ý: không còn âm "tới lượt" và Rest trên mobile): `utils/sounds.js` mở khoá mọi âm ở lần chạm
   đầu (phát câm rồi dừng; resume Web Audio cho fanfare), biết âm đang phát bằng trạng thái phần tử thay vì sự kiện `ended` (âm bị ngắt

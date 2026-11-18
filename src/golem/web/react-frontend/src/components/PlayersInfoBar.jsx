@@ -17,9 +17,9 @@ const ORDINAL = ['1st', '2nd', '3rd', '4th', '5th']
 const GAP = 6 // gap-1.5
 
 /**
- * Chip layout for a chip `w` px wide: wide (51px portrait, name · ★ golems · hand played beside it,
- * crystals in one row) · medium (name on top, ★ / golems beside a 42px portrait, crystals in one row) ·
- * narrow (no name, 42px portrait on top, crystals 2×2). Held sideways: 34 / 28px portraits. Below MIN_CHIP the row scrolls sideways instead (5 players on a 320px phone).
+ * Chip layout for a chip `w` px wide: wide (biggest portrait, name, ★ golems and hand / played on one line) ·
+ * medium (name, two lines of numbers, crystals in one row) · narrow (no name, crystals 2×2). Phones held
+ * sideways use compact side-by-side versions (34 / 28px portraits). Below MIN_CHIP the row scrolls sideways instead (5 players on a 320px phone).
  * Sizes allow for two-digit points and Safari's wider text.
  */
 export function chipLayout(w) {
@@ -35,17 +35,6 @@ export function doneForGame(gameState, index) {
   const cur = gameState.players?.findIndex((p) => p.id === gameState.currentPlayer)
   return cur >= 0 && index < cur
 }
-
-// Turn number on the portrait; mine is bronze ("you play 2nd").
-const Order = ({ k, me }) => (
-  <span
-    className={`absolute -left-1 -top-1 z-10 flex h-[18px] min-w-[18px] items-center justify-center rounded-full border px-1 font-display text-xs font-bold leading-none shadow-elev-1
-      ${me ? 'border-bronze-700 bg-bronze-300 text-ink' : 'border-black/70 bg-rock-950 text-bronze-100'}`}
-    aria-hidden="true"
-  >
-    {k}
-  </span>
-)
 
 const Counts = ({ hand, played, className = '' }) => (
   <span className={`inline-flex items-center gap-2 text-xs font-semibold leading-none tabular-nums text-fg-muted ${className}`}>
@@ -75,9 +64,9 @@ const Crystals = ({ caravan, gem, grid = false }) => (
 )
 
 /**
- * Phones: **everyone at the table in turn order** — left to right is the order of play in a round, each
- * portrait numbered (1 starts the round, the highest number ends it), my own chip outlined in bronze —
- * so you see who opens and closes the round and where you sit. Each stone chip: portrait, name (when
+ * Phones: **everyone at the table in turn order** — left to right is the order of play in a round (the
+ * first chip opens it, the last one closes it; no numbers on the portraits, the order says it), my own chip
+ * outlined in bronze — so you see who opens and closes the round and where you sit. Each stone chip: portrait, name (when
  * there is room), ★ points, golems, cards in hand / played, crystals. The player to move glows; people get
  * a timer ring. In the last round, players who already had their final turn are dimmed.
  * Chips get denser as the row fills (`chipLayout`), so all five players fit a phone without scrolling.
@@ -99,8 +88,9 @@ const PlayersInfoBar = ({ landscape = false }) => {
   const chipW = (width - GAP * (cols - 1)) / cols
   const scroll = chipW < MIN_CHIP
   const layout = scroll ? 'narrow' : chipLayout(chipW)
-  // Portraits 1.5× in portrait (51 / 42px; user request 2026-11-18). Held sideways the column is short, so
-  // they stay 34 / 28px there and the hand keeps its room.
+  // Portrait: the portrait centred on top of the chip, as big as it fits (66px when wide, 55px otherwise;
+  // user requests 2026-11-18), the numbers below. Held sideways the column is short, so the compact side-by-side
+  // layouts with 34 / 28px portraits stay there and the hand keeps its room.
   const big = !landscape
 
   return (
@@ -125,7 +115,6 @@ const PlayersInfoBar = ({ landscape = false }) => {
         const portrait = (size) => (
           <span className="relative flex flex-shrink-0">
             <Avatar player={p} size={size} fit turn={current} timer={current && !p.isAI ? timer : undefined} offline={offline} />
-            <Order k={i + 1} me={me} />
           </span>
         )
         return (
@@ -141,10 +130,32 @@ const PlayersInfoBar = ({ landscape = false }) => {
               px-1 ${current ? 'turn-glow' : ''} ${done ? 'opacity-55 saturate-50' : ''}`}
           >
             {me ? <span className="pointer-events-none absolute inset-0 rounded-[inherit] bg-bronze-300/10 ring-1 ring-inset ring-bronze-300/80" aria-hidden="true" /> : null}
-            {layout === 'wide' ? (
+            {big ? (
+              // portrait: the portrait centred on top, as wide as the chip allows, the numbers below it
+              <>
+                <span className="flex justify-center">{portrait(Math.min(layout === 'wide' ? 66 : 55, Math.floor(scroll ? 64 : chipW) - 10))}</span>
+                {layout === 'narrow' ? null : (
+                  <span className={`block truncate text-center text-xs font-bold leading-tight ${me ? 'text-bronze-100' : 'text-fg'}`}>{name}</span>
+                )}
+                {chipW >= 108 ? (
+                  <span className="flex items-center justify-center gap-2.5 text-xs font-bold leading-none">
+                    <span className="flex items-center gap-1.5"><Points p={p} golems={golems} /></span>
+                    <Counts hand={hand} played={played} className="!gap-1.5" />
+                  </span>
+                ) : (
+                  <>
+                    <span className="flex items-center justify-center gap-1.5 text-xs font-bold leading-none"><Points p={p} golems={golems} /></span>
+                    <Counts hand={hand} played={played} className="justify-center !gap-1.5" />
+                  </>
+                )}
+                <span className={chipW >= 80 ? '' : 'flex justify-center'}>
+                  <Crystals caravan={p.caravan} gem={chipW >= 108 ? 12 : 10} grid={chipW < 80} />
+                </span>
+              </>
+            ) : layout === 'wide' ? (
               <>
                 <span className="flex min-w-0 items-center gap-1">
-                  {portrait(big ? 51 : 34)}
+                  {portrait(34)}
                   <span className="flex min-w-0 flex-1 flex-col gap-1 leading-none">
                     <span className={`block truncate text-xs font-bold leading-tight ${me ? 'text-bronze-100' : 'text-fg'}`}>{name}</span>
                     <span className="flex items-center gap-1.5 text-xs font-bold"><Points p={p} golems={golems} /></span>
@@ -157,24 +168,17 @@ const PlayersInfoBar = ({ landscape = false }) => {
               <>
                 <span className={`block truncate pl-0.5 text-xs font-bold leading-tight ${me ? 'text-bronze-100' : 'text-fg'}`}>{name}</span>
                 <span className="flex min-w-0 items-center gap-1">
-                  {portrait(big ? 42 : 28)}
+                  {portrait(28)}
                   <Stack><Points p={p} golems={golems} /></Stack>
-                  {!big && chipW >= 86 ? (
+                  {chipW >= 86 ? (
                     <Stack className="ml-auto font-semibold text-fg-muted">
                       <span className="inline-flex items-center gap-0.5"><HandIcon size={12} />{hand}</span>
                       <span className="inline-flex items-center gap-0.5"><PlayedIcon size={12} />{played}</span>
                     </Stack>
                   ) : null}
                 </span>
-                {!big && chipW >= 86 ? null : <Counts hand={hand} played={played} className="!gap-1.5" />}
+                {chipW >= 86 ? null : <Counts hand={hand} played={played} className="!gap-1.5" />}
                 <Crystals caravan={p.caravan} gem={10} />
-              </>
-            ) : big ? (
-              <>
-                <span className="flex justify-center">{portrait(42)}</span>
-                <span className="flex items-center justify-center gap-1.5 text-xs font-bold leading-none"><Points p={p} golems={golems} /></span>
-                <Counts hand={hand} played={played} className="justify-center !gap-1.5" />
-                <span className="flex justify-center"><Crystals caravan={p.caravan} gem={10} grid /></span>
               </>
             ) : (
               <>
