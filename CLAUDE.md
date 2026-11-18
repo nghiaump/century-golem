@@ -155,6 +155,11 @@ docker run --rm -v "$PWD/../src/golem":/src:ro -v golem-gomod:/go/pkg -v golem-g
 - **Safari iOS 26**: thanh công cụ nổi đè lên đáy trang; `100dvh` và `env(safe-area-inset-bottom)` KHÔNG trừ phần bị che ⇒ khung
   điện thoại cao theo `hooks/useVisibleHeight` (min innerHeight / visualViewport / 100svh) + `html.phone-lock`; ⛔ quay lại `100dvh`.
   Kiểm máy thật: mở `https://century.pentium.ink/?vp` (ô số đo). Giả lập: viewport 393×852 + safe-top 59 + `visualViewport.height` 772.
+- **Âm thanh trên điện thoại** (`utils/sounds.js`): iOS chỉ cho một `<audio>` phát ngoài cú chạm nếu chính phần tử đó đã phát một lần
+  *trong* cú chạm ⇒ `installUnlock` mồi mọi âm (phát câm rồi dừng) + resume AudioContext ở lần chạm đầu; "đang phát" hỏi thẳng phần tử
+  (`paused`/`ended`), ⛔ không dựa vào sự kiện `ended` (âm bị ngắt khi khoá màn hình không bao giờ gửi ⇒ trước đây mất hẳn âm "tới lượt");
+  ⛔ `cloneNode()` cho âm chồng khi phần tử gốc rảnh (bản sao chưa mở khoá trên iOS). Playwright WebKit không mô phỏng luật này.
+  Âm đánh lá = WAV tổng hợp (`cardSlapSamples`, blob URL) — muốn đổi tiếng thì sửa hàm đó, không thêm file mp3.
 - **Bố cục điện thoại** (`mobile/PhoneShell`): cả ván vừa một màn, cỡ lá do `utils/phoneLayout.planPhoneBoard` tính từ vùng đo được —
   thêm hàng/nút cố định vào màn điện thoại thì cập nhật `BOARD_CHROME`/test. Kiểm bằng viewport thật của Safari iPhone (393×659 có
   thanh địa chỉ, 393×852 + safe-area 59/34, ngang 852×341 + safe 59 trái/phải): `Emulation.setSafeAreaInsetsOverride` qua CDP.

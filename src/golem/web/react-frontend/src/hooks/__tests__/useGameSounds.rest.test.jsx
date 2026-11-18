@@ -37,6 +37,18 @@ describe('useGameSounds', () => {
     expect(soundsFor(me(3, 1, { pendingDiscard: 2 }), me(4, 0))).toEqual([])
   })
 
+  test('every card played makes the same card slap: mine and the other players\'', () => {
+    expect(soundsFor(me(3, 0), me(2, 1))).toEqual(['playCard'])
+    cleanup(); play.mockReset()
+    const ai = (played) => ({ id: 2, name: 'AI', hand: [{}], playedCards: Array(played).fill({}), pointCards: [] })
+    act(() => useGameStore.setState({
+      playerId: 1, isSpectator: false, myPlayer: me(3, 0), currentPlayer: { id: 2 },
+      previousGameState: { players: [me(3, 0), ai(0)] }, gameState: { players: [me(3, 0), ai(1)], gameOver: false },
+    }))
+    renderHook(() => useGameSounds())
+    expect(play.mock.calls.map((c) => c[0])).toEqual(['playCard'])
+  })
+
   test('game end: the winner hears the victory fanfare, the others the game-over sound', () => {
     const end = (winnerId) => {
       act(() => useGameStore.setState({

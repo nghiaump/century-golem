@@ -217,6 +217,11 @@ Chi tiết: [`ui/thiet-ke-giao-dien.md`](ui/thiet-ke-giao-dien.md). Tóm tắt t
   người đã xong (`doneForGame`), 3 kiểu chip theo bề ngang (`chipLayout`) để 5 người vừa một hàng. Test `PlayersInfoBar.test.jsx`.
   Sau đó chân dung to 1,5 lần ở màn dọc (51 / 42px; ngang giữ 34 / 28px).
 - `mobile/MoveBubbles.jsx`: bỏ khung đá quanh lá vừa chơi — viền đồng ôm sát lá, nhãn động từ trên mép dưới (che bàn ít hơn ~34%).
+- Âm thanh trên điện thoại (2026-11-18, góp ý: không còn âm "tới lượt" và Rest trên mobile): `utils/sounds.js` mở khoá mọi âm ở lần chạm
+  đầu (phát câm rồi dừng; resume Web Audio cho fanfare), biết âm đang phát bằng trạng thái phần tử thay vì sự kiện `ended` (âm bị ngắt
+  khiến âm đó bị bỏ qua tới hết ván), âm chồng dùng phần tử gốc khi rảnh. Âm đánh lá (`playCard`) thay bằng tiếng "xoạch–bạch" nhẹ
+  tổng hợp trong trình duyệt (`cardSlapSamples` → WAV → blob URL, 0,2 s, không file nhị phân) và kêu cả khi **người khác** đánh lá
+  (`hooks/useGameSounds.js`). Test `utils/soundManager.test.js`, `useGameSounds.rest.test.jsx`.
 
 ### Màn kết thúc cho người thắng (2026-11-16)
 - `GameOverModal.jsx`: người thắng thấy "Victory!" + vương miện + tia sáng + pha lê nổ/mưa (thay mưa gem chung); người thua thấy
@@ -246,7 +251,7 @@ Avatar: 1 Basalt · 2 Mossback · 3 Rime · 4 Cinder · 5 Rivet · 6 Dune · 7 Q
 ## Test
 - Frontend (vitest, chạy trong `node:18-alpine` trên bản sao có `node_modules`): cấu hình vitest upstream không bật DOM
   (khoá `vitest.environment` trong package.json không có tác dụng) ⇒ chạy `vitest run --environment jsdom`. Khi đó upstream
-  12 pass / 2 fail (useGameSounds) + 2 file không chạy (cardNames, sounds); bản này **giống hệt phần lỗi**, 68 pass
+  12 pass / 2 fail (useGameSounds) + 2 file không chạy (cardNames, sounds); bản này **giống hệt phần lỗi**, 74 pass
   (2026-11-16 sau giao diện mới; thêm test avatar, aiLevel, lobby, rest, RestPopup, undo, DiscardModal, crystals,
   `hooks/__tests__/useGameSounds.rest.test.jsx`). Kiểm giao diện thật: `deploy/ui-shots.mjs` (6 viewport, sạch).
 - Backend (`go test -race ./internal/...` trong `golang:1.24`): `auth`, `eventstore`, `game`, `server`, `telegram` pass.

@@ -87,6 +87,20 @@ export default function useGameSounds() {
     }
   }, [myPlayer?.playedCards?.length, isSpectator, playerId, previousGameState]);
   
+  // Someone else plays a card: the same soft card slap ("bạch"), so you hear every card hit the table
+  useEffect(() => {
+    if (!gameState?.players || !previousGameState?.players) return;
+    const slapped = gameState.players.some((p) => {
+      if (!isSpectator && p.id === playerId) return false; // mine: the effect above
+      const prev = previousGameState.players.find((q) => q.id === p.id);
+      return !!prev && (p.playedCards?.length || 0) > (prev.playedCards?.length || 0);
+    });
+    if (slapped) {
+      logger.info('🃏 Someone else played a card');
+      soundManager.play('playCard');
+    }
+  }, [gameState, previousGameState, isSpectator, playerId]);
+  
   // Detect when current player acquires a merchant card
   useEffect(() => {
     if (isSpectator || !myPlayer || !previousGameState?.players) return;
