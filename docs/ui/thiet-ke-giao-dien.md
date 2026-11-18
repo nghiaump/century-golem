@@ -85,7 +85,7 @@ Bề mặt (`index.css`, lớp `surface-*`): `surface-stone` (gradient đá + h�
 - **Skin ✨** (`desktop/FantasyGameLayout`, chỉ desktop, ẩn khi `isCompact`): đặt theo % trên ảnh bàn `game_dock.jpg`; dock đá,
   dải trạng thái trên bàn (Round, deck, ruy băng lượt + Rest), popup chung, lưng bài `golem_bg.JPG`/`merchant_bg.JPG`. Bàn lùi xuống
   56px để HUD không đè.
-- **Popup**: Trade (bộ đếm ×n, "After" + cảnh báo sẽ phải bỏ bớt), Upgrade (chạm crystal để nâng 1 cấp; gửi in/out = hiệu trước/sau
+- **Popup**: Trade (bộ đếm ×n, "After" + cảnh báo sẽ phải bỏ bớt), Upgrade (chạm crystal để nâng 1 cấp — 3 nút vàng→lục, lục→lam, lam→hồng **đứng yên khi bấm liên tiếp**: Reset luôn hiện cạnh "n of N upgrades left" (mờ khi chưa nâng), chân chỉ Cancel + Confirm, popup không đổi cao — 2026-11-18, trước đó nút Reset xuất hiện làm chân xuống dòng và đẩy cả sheet lên trên điện thoại; gửi in/out = hiệu trước/sau
   như `game.UpgradeIO`), Place Crystals (chọn sẵn crystal rẻ nhất cho từng lá bên trái, hiện crystal sẽ nhặt + cảnh báo tràn; lá 1
   không có crystal đặt sẵn thì lấy ngay một chạm), Discard (chọn sẵn rẻ nhất, Undo), Claim Golem (chi phí + điểm + coin), Game Over
   (bảng điểm: golem · coin · crystal · tổng; hoà ⇒ ghế sau). **Người thắng** (chỉ chính mình, không phải người xem): tiêu đề "Victory!"

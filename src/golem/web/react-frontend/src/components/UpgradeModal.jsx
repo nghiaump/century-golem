@@ -13,6 +13,9 @@ const NAME = { yellow: "yellow", green: "green", blue: "blue", pink: "pink" };
  * Upgrade card: each tap raises one crystal by one level (yellow → green → blue → pink), up to the
  * card's number of steps; the same crystal may be raised again. The server gets the crystals given up
  * (input) and the ones received (output), which is the difference between the caravan before and after.
+ * Nothing appears or disappears while you tap (Reset is always there, greyed out until needed), so the
+ * popup keeps its size and the upgrade buttons stay put for a quick second and third tap — on phones a
+ * new button used to wrap the footer onto a second line and push the whole sheet up.
  */
 const UpgradeModal = ({ card, playerResources, onConfirm, onCancel, maxTurnUpgrade }) => {
   const start = of(playerResources);
@@ -39,16 +42,18 @@ const UpgradeModal = ({ card, playerResources, onConfirm, onCancel, maxTurnUpgra
       footer={(
         <>
           <Button variant="outline" onClick={onCancel}>Cancel</Button>
-          {used > 0 ? <Button variant="outline" onClick={() => setAfter(start)}>Reset</Button> : null}
           <Button onClick={() => canConfirm && onConfirm(inputResources, outputResources)} disabled={!canConfirm}>Confirm Upgrade</Button>
         </>
       )}
     >
       <div className="flex flex-col gap-4">
-        <p className="text-center text-sm text-ink-muted">
-          Tap a crystal to raise it one level.{" "}
-          <span className="font-semibold text-ink">{left} of {maxTurnUpgrade} upgrade{maxTurnUpgrade === 1 ? "" : "s"} left</span>
-        </p>
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm leading-snug text-ink-muted">
+            Tap a crystal to raise it one level.
+            <span className="block font-semibold tabular-nums text-ink">{left} of {maxTurnUpgrade} upgrade{maxTurnUpgrade === 1 ? "" : "s"} left</span>
+          </p>
+          <Button variant="outline" className="flex-shrink-0" onClick={() => setAfter(start)} disabled={!used} title="Undo all upgrades">Reset</Button>
+        </div>
 
         <div className="grid grid-cols-3 gap-2">
           {COLORS.filter((c) => NEXT[c]).map((c) => {

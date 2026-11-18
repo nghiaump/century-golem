@@ -7745,6 +7745,47 @@
 +    expect(screen.queryByText(/one team/i)).toBeNull()
 +  })
 +})
+--- a/web/react-frontend/src/components/__tests__/UpgradeModal.test.jsx
++++ b/web/react-frontend/src/components/__tests__/UpgradeModal.test.jsx
+@@ -0,0 +1,38 @@
++import React from 'react'
++import { render, screen, cleanup, fireEvent } from '@testing-library/react'
++import { describe, test, expect, vi, afterEach } from 'vitest'
++import UpgradeModal from '../UpgradeModal'
++
++const buttons = () => screen.getAllByRole('button').map((b) => b.getAttribute('aria-label') || b.textContent)
++
++describe('UpgradeModal', () => {
++  afterEach(cleanup)
++
++  test('tapping never adds or removes buttons (the upgrade buttons stay put); Reset undoes', () => {
++    render(<UpgradeModal card={{ name: 'upgrade_3' }} playerResources={{ yellow: 3, green: 1 }} maxTurnUpgrade={3} onConfirm={vi.fn()} onCancel={vi.fn()} />)
++    const reset = screen.getByRole('button', { name: 'Reset' })
++    expect(reset.disabled).toBe(true)
++    const before = buttons().length
++
++    fireEvent.click(screen.getByRole('button', { name: /Upgrade one yellow to green \(you have 3\)/ }))
++    expect(buttons()).toHaveLength(before)
++    expect(screen.getByRole('button', { name: 'Reset' }).disabled).toBe(false)
++    fireEvent.click(screen.getByRole('button', { name: /Upgrade one yellow to green \(you have 2\)/ }))
++    expect(buttons()).toHaveLength(before)
++    expect(screen.getByText('1 of 3 upgrades left')).toBeTruthy()
++
++    fireEvent.click(screen.getByRole('button', { name: 'Reset' }))
++    expect(screen.getByText('3 of 3 upgrades left')).toBeTruthy()
++    expect(screen.getByRole('button', { name: 'Reset' }).disabled).toBe(true)
++    expect(buttons()).toHaveLength(before)
++  })
++
++  test('confirm sends what was given up and what was received', () => {
++    const onConfirm = vi.fn()
++    render(<UpgradeModal card={{ name: 'upgrade_2' }} playerResources={{ yellow: 2 }} maxTurnUpgrade={2} onConfirm={onConfirm} onCancel={vi.fn()} />)
++    fireEvent.click(screen.getByRole('button', { name: /yellow to green/ }))
++    fireEvent.click(screen.getByRole('button', { name: /green to blue/ }))
++    fireEvent.click(screen.getByRole('button', { name: 'Confirm Upgrade' }))
++    expect(onConfirm).toHaveBeenCalledWith({ yellow: 1, green: 0, blue: 0, pink: 0 }, { yellow: 0, green: 0, blue: 1, pink: 0 })
++  })
++})
 --- a/web/react-frontend/src/components/ThemeToggleButton.jsx
 +++ b/web/react-frontend/src/components/ThemeToggleButton.jsx
 @@ -1,51 +1,24 @@
@@ -9273,7 +9314,7 @@
 +export default TurnBanner
 --- a/web/react-frontend/src/components/UpgradeModal.jsx
 +++ b/web/react-frontend/src/components/UpgradeModal.jsx
-@@ -1,322 +1,89 @@
+@@ -1,322 +1,94 @@
 -import React, { useState, useEffect } from "react";
 -import { createPortal } from "react-dom";
 -import { motion, AnimatePresence } from "framer-motion";
@@ -9294,6 +9335,9 @@
 + * Upgrade card: each tap raises one crystal by one level (yellow → green → blue → pink), up to the
 + * card's number of steps; the same crystal may be raised again. The server gets the crystals given up
 + * (input) and the ones received (output), which is the difference between the caravan before and after.
++ * Nothing appears or disappears while you tap (Reset is always there, greyed out until needed), so the
++ * popup keeps its size and the upgrade buttons stay put for a quick second and third tap — on phones a
++ * new button used to wrap the footer onto a second line and push the whole sheet up.
 + */
  const UpgradeModal = ({ card, playerResources, onConfirm, onCancel, maxTurnUpgrade }) => {
 -  const [inputResources, setInputResources] = useState({ yellow: 0, green: 0, blue: 0, pink: 0 });
@@ -9507,7 +9551,33 @@
 -              ↓
 -            </motion.div>
 -          </div>
--
++  const diff = sub(start, after); // > 0: given up (input), < 0: received (output)
++  const inputResources = Object.fromEntries(COLORS.map((c) => [c, Math.max(0, diff[c])]));
++  const outputResources = Object.fromEntries(COLORS.map((c) => [c, Math.max(0, -diff[c])]));
++  const canConfirm = used > 0;
++
++  return (
++    <Modal
++      open
++      onClose={onCancel}
++      title="Upgrade Crystals"
++      icon={card?.name ? <CardImage name={card.name} className="h-14 w-10 rounded-stone-sm border border-ink/30" /> : null}
++      footer={(
++        <>
++          <Button variant="outline" onClick={onCancel}>Cancel</Button>
++          <Button onClick={() => canConfirm && onConfirm(inputResources, outputResources)} disabled={!canConfirm}>Confirm Upgrade</Button>
++        </>
++      )}
++    >
++      <div className="flex flex-col gap-4">
++        <div className="flex items-center justify-between gap-3">
++          <p className="text-sm leading-snug text-ink-muted">
++            Tap a crystal to raise it one level.
++            <span className="block font-semibold tabular-nums text-ink">{left} of {maxTurnUpgrade} upgrade{maxTurnUpgrade === 1 ? "" : "s"} left</span>
++          </p>
++          <Button variant="outline" className="flex-shrink-0" onClick={() => setAfter(start)} disabled={!used} title="Undo all upgrades">Reset</Button>
++        </div>
+ 
 -          {/* Output Section */}
 -          <div className={`bg-green-50 rounded-lg ${isMobile ? 'p-2 mb-3' : 'p-4 mb-4'}`}>
 -            <h3 className={`font-semibold text-gray-800 ${isMobile ? 'text-sm mb-2' : 'text-lg mb-3'}`}>
@@ -9563,31 +9633,6 @@
 -                <span className="text-green-600 ml-2">
 -                  (⬆️ +{outputResources.yellow * 1 + outputResources.green * 2 + outputResources.blue * 3 + outputResources.pink * 4 -
 -                    (inputResources.yellow * 1 + inputResources.green * 2 + inputResources.blue * 3 + inputResources.pink * 4)} levels)
-+  const diff = sub(start, after); // > 0: given up (input), < 0: received (output)
-+  const inputResources = Object.fromEntries(COLORS.map((c) => [c, Math.max(0, diff[c])]));
-+  const outputResources = Object.fromEntries(COLORS.map((c) => [c, Math.max(0, -diff[c])]));
-+  const canConfirm = used > 0;
-+
-+  return (
-+    <Modal
-+      open
-+      onClose={onCancel}
-+      title="Upgrade Crystals"
-+      icon={card?.name ? <CardImage name={card.name} className="h-14 w-10 rounded-stone-sm border border-ink/30" /> : null}
-+      footer={(
-+        <>
-+          <Button variant="outline" onClick={onCancel}>Cancel</Button>
-+          {used > 0 ? <Button variant="outline" onClick={() => setAfter(start)}>Reset</Button> : null}
-+          <Button onClick={() => canConfirm && onConfirm(inputResources, outputResources)} disabled={!canConfirm}>Confirm Upgrade</Button>
-+        </>
-+      )}
-+    >
-+      <div className="flex flex-col gap-4">
-+        <p className="text-center text-sm text-ink-muted">
-+          Tap a crystal to raise it one level.{" "}
-+          <span className="font-semibold text-ink">{left} of {maxTurnUpgrade} upgrade{maxTurnUpgrade === 1 ? "" : "s"} left</span>
-+        </p>
-+
 +        <div className="grid grid-cols-3 gap-2">
 +          {COLORS.filter((c) => NEXT[c]).map((c) => {
 +            const can = left > 0 && after[c] > 0;
